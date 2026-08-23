@@ -27271,23 +27271,102 @@ window.addFee = async function () {
 
 
         /* ====================================================
-           👨‍🎓 FIND LEARNER LOCALLY
-           
-           NO DATABASE READ FOR LEARNER
+           👨‍🎓 RESOLVE SELECTED LEARNER
+
+           The fee form may already contain a valid learner ID
+           while window.allStudents is temporarily stale, filtered,
+           or not yet populated. Therefore we first use the local
+           cache and then fall back to ONE exact, school-scoped
+           learner read.
            ==================================================== */
 
-        const student =
-            Array.isArray(
-                window.allStudents
-            )
-
+        let student =
+            Array.isArray(window.allStudents)
                 ? window.allStudents.find(
                     s =>
-                        String(s.id) ===
+                        String(s?.id ?? s?.studentId ?? "") ===
                         String(studentId)
                 )
-
                 : null;
+
+
+        if (!student) {
+
+            const selectedOption =
+                document.querySelector(
+                    `#feeStudent option[value="${
+                        (window.CSS && typeof CSS.escape === "function")
+                            ? CSS.escape(String(studentId))
+                            : String(studentId).replace(/"/g, '\\"')
+                    }"]`
+                );
+
+            // If the dropdown option still exists, preserve its
+            // visible learner name while loading the full record.
+            const selectedName =
+                selectedOption?.textContent
+                    ?.split(" / ")[0]
+                    ?.trim() || "";
+
+            try {
+
+                const learnerSnap =
+                    await get(
+                        schoolRef(
+                            `students/${studentId}`
+                        )
+                    );
+
+                if (learnerSnap.exists()) {
+
+                    student = {
+                        id: String(studentId),
+                        ...(learnerSnap.val() || {})
+                    };
+
+                    if (
+                        !student.name &&
+                        !student.fullName &&
+                        selectedName
+                    ) {
+                        student.name = selectedName;
+                    }
+
+                    // Keep the local cache synchronized so the next
+                    // payment does not need the fallback read again.
+                    if (!Array.isArray(window.allStudents)) {
+                        window.allStudents = [];
+                    }
+
+                    const existingIndex =
+                        window.allStudents.findIndex(
+                            s =>
+                                String(s?.id ?? s?.studentId ?? "") ===
+                                String(studentId)
+                        );
+
+                    if (existingIndex >= 0) {
+                        window.allStudents[existingIndex] = {
+                            ...window.allStudents[existingIndex],
+                            ...student,
+                            id: String(studentId)
+                        };
+                    } else {
+                        window.allStudents.push(student);
+                    }
+
+                }
+
+            } catch (learnerLookupError) {
+
+                console.warn(
+                    "Fee learner fallback lookup failed:",
+                    learnerLookupError
+                );
+
+            }
+
+        }
 
 
         if (!student) {
@@ -27301,7 +27380,7 @@ window.addFee = async function () {
                     "Learner Not Found",
 
                 text:
-                    "Please select a valid learner."
+                    "The selected learner could not be found in this school's learner records. Please reload the learner list and try again."
 
             });
 
