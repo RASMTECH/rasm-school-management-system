@@ -6484,6 +6484,22 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
           👨‍👩‍👧 Parent
         </option>
 
+        <option value="accountant">
+          🧮 Accountant
+        </option>
+
+        <option value="librarian">
+          📚 Librarian
+        </option>
+
+        <option value="store_keeper">
+          📦 Store Keeper
+        </option>
+
+        <option value="ict_teacher">
+          💻 ICT Teacher
+        </option>
+
       </select>
 
     </div>
@@ -13317,58 +13333,67 @@ margin-bottom:15px;
 <div id="hostelContent" style="display:none;"></div>
 <div id="ictContent" style="display:none;"></div>
 
-
-<div id="filteredLearnersContent" style="display:none;"></div>
-<div id="genderGroupedContent" style="display:none;"></div>
 <!-- FLOATING ACTIVE SCHOOLS COUNTER -->
 <div id="floatingSchoolsCounter"
      style="
        position: fixed;
-       bottom: 25px;
-       right: 25px;
+       top: 50%;
+       left: 50%;
+       bottom: auto;
+       right: auto;
+       transform: translate(-50%, -50%);
        z-index: 99999;
        display: flex;
        align-items: center;
-       gap: 12px;
+       gap: 8px;
+       width: 145px;
+       padding: 9px 11px;
        background: rgba(255,255,255,0.95);
-       padding: 12px 16px;
-       border-radius: 14px;
+       border-radius: 12px;
        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
        backdrop-filter: blur(8px);
+       box-sizing: border-box;
      ">
 
   <div class="schools-counter-icon"
        style="
-         font-size: 22px;
+         font-size: 19px;
+         flex-shrink: 0;
        ">
     🏫
   </div>
 
-  <div class="schools-counter-content">
+  <div class="schools-counter-content"
+       style="
+         min-width: 0;
+       ">
 
     <div class="schools-counter-title"
          style="
-           font-size: 12px;
+           font-size: 10px;
            font-weight: 600;
            color: #64748b;
+           white-space: nowrap;
          ">
       Schools Connected
     </div>
 
     <div class="schools-counter-number"
          style="
-           font-size: 18px;
+           font-size: 16px;
            font-weight: 800;
            color: #0f172a;
+           line-height: 1.2;
          ">
       <span id="schoolsCounter">127</span>+
     </div>
 
     <div class="schools-counter-status"
          style="
-           font-size: 11px;
+           font-size: 9px;
            color: #22c55e;
            font-weight: 600;
+           white-space: nowrap;
          ">
       ● Active Network
     </div>
@@ -13422,7 +13447,7 @@ margin-bottom:15px;
          opacity:.9;
          margin-bottom:25px;
        ">
-      Create teacher and parent accounts for your school.
+      Create teacher, parent and operational staff accounts for your school.
     </p>
 
     <!-- FORM CARD -->
@@ -13492,6 +13517,10 @@ margin-bottom:15px;
       >
         <option value="teacher">👨‍🏫 Teacher</option>
         <option value="parent">👨‍👩‍👧 Parent</option>
+        <option value="accountant">🧮 Accountant — Fees Only</option>
+        <option value="librarian">📚 Librarian — Library Only</option>
+        <option value="store_keeper">📦 Store Keeper — Inventory Only</option>
+        <option value="ict_teacher">💻 ICT Teacher — ICT Only</option>
       </select>
 
       <!-- BUTTON -->
@@ -26944,7 +26973,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   loadTeachers();
 
-  await loadFeeYears();
+  // Load fee years only after a valid school context exists.
+  if (window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId")) {
+    await loadFeeYears();
+  }
 
   loadFeeFormYears();
 
@@ -38639,6 +38671,14 @@ window.generateBulkReceiptsByGrade = async function () {
     document.getElementById("filterFeeYear");
 
   if (!select) return;
+
+  // Prevent schoolRef from throwing during startup before login restores schoolId.
+  const activeSchoolId =
+    window.schoolId ||
+    sessionStorage.getItem("schoolId") ||
+    localStorage.getItem("schoolId");
+
+  if (!activeSchoolId) return;
 
   try {
 
@@ -101019,7 +101059,26 @@ teacher: [
     "resultsSection",
     "checkResultsSection",
     "feeBalanceSection"
-]
+],
+
+  // Dedicated operational accounts — each role is intentionally limited
+  // to its own working area.
+  accountant: [
+    "fees",
+    "feeBalanceSection"
+  ],
+
+  librarian: [
+    "library"
+  ],
+
+  store_keeper: [
+    "inventory"
+  ],
+
+  ict_teacher: [
+    "ict"
+  ]
 };
 
 // =====================================================
@@ -101074,6 +101133,46 @@ const REPORT_SECTIONS = [
 ];
 
 // =====================================================
+// LOGIN SESSION BADGE
+// =====================================================
+function updateLoggedInRoleBadge(user) {
+  let badge = document.getElementById("rasmLoggedInRoleBadge");
+  if (!badge) {
+    badge = document.createElement("div");
+    badge.id = "rasmLoggedInRoleBadge";
+    badge.style.cssText = `
+      position:fixed; top:14px; right:18px; z-index:99999;
+      display:flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px;
+      background:rgba(15,23,42,.94); color:#fff;
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow:0 8px 24px rgba(0,0,0,.25);
+      font:700 13px/1.2 Arial,sans-serif;
+      backdrop-filter:blur(8px);
+    `;
+    document.body.appendChild(badge);
+  }
+
+  const raw = String(user?.role || window.currentUserRole || "").toLowerCase().trim();
+  const roleInfo = {
+    admin:["👑","Administrator"],
+    administrator:["👑","Administrator"],
+    teacher:["👨‍🏫","Teacher"],
+    parent:["👨‍👩‍👧","Parent"],
+    accountant:["🧮","Accountant"],
+    librarian:["📚","Librarian"],
+    store_keeper:["📦","Store Keeper"],
+    "store keeper":["📦","Store Keeper"],
+    ict_teacher:["💻","ICT Teacher"],
+    "ict teacher":["💻","ICT Teacher"]
+  };
+  const [icon,label] = roleInfo[raw] || ["👤", raw ? raw.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()) : "User"];
+  const name = user?.name || user?.fullName || user?.displayName || "";
+  badge.innerHTML = `${icon} <span>Logged in as <strong>${label}</strong>${name ? ` · ${name}` : ""}</span>`;
+  badge.style.display = "flex";
+}
+
+// =====================================================
 // LOGIN SESSION (MASTER HOOK)
 // =====================================================
 
@@ -101081,8 +101180,20 @@ window.setCurrentUser = function(user) {
 
   window.currentUser = user;
 
-  window.currentUserRole =
-    (user.role || "").toLowerCase().trim();
+  const rawRole = (user.role || "").toLowerCase().trim();
+  const roleAliases = {
+    "store keeper": "store_keeper",
+    "storekeeper": "store_keeper",
+    "store_keeper": "store_keeper",
+    "ict teacher": "ict_teacher",
+    "ictteacher": "ict_teacher",
+    "ict_teacher": "ict_teacher",
+    "library": "librarian"
+  };
+
+  window.currentUserRole = roleAliases[rawRole] || rawRole;
+
+  updateLoggedInRoleBadge({ ...user, role: window.currentUserRole });
 
   window.currentUserPhone = user.phone || "";
 
@@ -101185,6 +101296,9 @@ window.checkAccess = function(section) {
 
   return isAllowed;
 };
+
+// Dedicated operational roles have no fallback access. Only their explicit
+// ROLE_PERMISSIONS entries may open a section.
 // =====================================================
 // REPORT VISIBILITY
 // =====================================================
@@ -101581,6 +101695,11 @@ window.createUserAccount = async function () {
         title: "Missing Information",
         text: "Fill all fields."
       });
+    }
+
+    const creatableRoles = ["teacher", "parent", "accountant", "librarian", "store_keeper", "ict_teacher"];
+    if (!creatableRoles.includes(role)) {
+      return Swal.fire({ icon:"error", title:"Invalid Role", text:"Select a valid user role." });
     }
 
     // ==========================================
@@ -114846,13 +114965,32 @@ window.getGrade1To6ReportLabel = function(level) {
     return learner;
   }
 
+  function compact(v){ return norm(v).replace(/[^a-z0-9]/g,''); }
+  function learnerNameCandidates(learner){
+    const out=new Set(namesOf(learner));
+    const option=document.getElementById('lostBookLearner')?.selectedOptions?.[0]?.textContent||'';
+    const raw=String(option).trim();
+    if(raw){
+      out.add(norm(raw));
+      // dropdown labels may contain admission numbers before/after the learner name
+      raw.split(/[|\-–—()]/).map(norm).filter(x=>x.length>=3 && /[a-z]/.test(x)).forEach(x=>out.add(x));
+    }
+    return out;
+  }
+
   function belongsToLearner(copy,learner){
     const wantedIds=new Set(idsOf(learner));
-    const wantedNames=new Set(namesOf(learner));
+    const wantedNames=learnerNameCandidates(learner);
     const copyIds=[copy.borrowerAdm,copy.borrowerId,copy.studentId,copy.lostLearnerId,copy.admissionNo,copy.admission,copy.adm,copy.lostAccountability?.learnerId].map(v=>String(v??'').trim()).filter(Boolean);
     if(copyIds.some(id=>wantedIds.has(id))) return true;
     const copyNames=[copy.borrower,copy.borrowerName,copy.studentName,copy.learnerName,copy.lostAccountability?.learnerName].map(norm).filter(Boolean);
-    return copyNames.some(n=>wantedNames.has(n));
+    if(copyNames.some(n=>wantedNames.has(n))) return true;
+    // Last safe fallback: compare normalized learner names from Book Copies with selected learner name.
+    const wantedCompact=[...wantedNames].map(compact).filter(x=>x.length>=5);
+    return copyNames.some(n=>{
+      const c=compact(n);
+      return wantedCompact.some(w=>c===w || (w.length>=8 && (c.includes(w)||w.includes(c))));
+    });
   }
 
   async function readExactBookCopies(learner){
