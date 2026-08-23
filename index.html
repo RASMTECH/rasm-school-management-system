@@ -10,7 +10,6 @@
 
   <!-- ================= PWA ================= -->
 
-  <link rel="manifest" href="manifest.json">
 
   <meta name="theme-color" content="#2563eb">
 
@@ -13258,6 +13257,21 @@ margin-bottom:15px;
 
     </div>
 
+    <!-- LOST BOOKS ACCOUNTABILITY & CLEARANCE -->
+    <div id="lostBooksAccountability" style="margin-top:28px;background:#fff;border-radius:18px;padding:20px;box-shadow:0 8px 25px rgba(0,0,0,.08);border:1px solid #fecaca;">
+      <h3 style="margin:0 0 8px;color:#991b1b;">📕 Lost Books Accountability & Clearance</h3>
+      <p style="margin:0 0 18px;color:#64748b;">Select a year, grade and learner to generate the learner's lost-books accountability list. A learner cannot be cleared while any lost book remains unreplaced.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end;">
+        <select id="lostBookYear" style="padding:12px;border:1px solid #ddd;border-radius:8px;"><option value="">📅 Select Year</option></select>
+        <select id="lostBookGrade" style="padding:12px;border:1px solid #ddd;border-radius:8px;"><option value="">🎓 Select Grade</option></select>
+        <select id="lostBookLearner" style="padding:12px;border:1px solid #ddd;border-radius:8px;"><option value="">👨‍🎓 Select Learner</option></select>
+        <button type="button" onclick="generateLostBooksAccountability()" style="background:#dc2626;color:#fff;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:700;">📋 Generate Lost Books List</button>
+        <button type="button" onclick="runLearnerLibraryClearance()" style="background:#7c3aed;color:#fff;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:800;font-size:15px;box-shadow:0 4px 12px rgba(124,58,237,.25);">⏻ CLEARANCE</button>
+      </div>
+      <div id="lostBooksAccountabilityResult" style="margin-top:18px;overflow-x:auto;"></div>
+    </div>
+
+
     <!-- SELECT ALL -->
 
     <div style="margin-bottom:15px;">
@@ -13284,6 +13298,7 @@ margin-bottom:15px;
             gap:15px;">
 
     </div>
+
 
 </div>
 
@@ -80553,6 +80568,18 @@ available:Number(book.available || 0)+1
 
 });
 
+try {
+    await resolveLostBookAccountability(
+        bookId,
+        bookNumber,
+        replacementBy
+    );
+} catch (accountabilityError) {
+    // Do not block the established replacement workflow when the optional
+    // accountability collection is unavailable under current Firebase rules.
+    console.warn("Lost-book accountability resolution skipped:", accountabilityError);
+}
+
 Swal.fire(
 
 "Success",
@@ -80800,6 +80827,138 @@ Swal.fire("Error",err.message,"error");
 }
 
 };/* =========================================================
+   LOST BOOKS ACCOUNTABILITY & LEARNER CLEARANCE
+========================================================= */
+
+window.loadLostBooksAccountabilityFilters = async function(){
+    const schoolId = window.schoolId;
+    const yearEl = document.getElementById("lostBookYear");
+    const gradeEl = document.getElementById("lostBookGrade");
+    const learnerEl = document.getElementById("lostBookLearner");
+    if(!schoolId || !yearEl || !gradeEl || !learnerEl) return;
+
+    const currentYear = String(new Date().getFullYear());
+    const years = new Set([currentYear]);
+    const grades = new Set();
+    (window.allStudents || []).forEach(s=>{ if(s && s.grade) grades.add(String(s.grade).trim()); });
+
+    // Permission-safe: do not read the restricted libraryLostBooks path.
+    // Years and grades are populated from existing learner/library data.
+    // This keeps the filter usable under the current Firebase rules.
+
+    yearEl.innerHTML = `<option value="">📅 Select Year</option>` + [...years].sort((a,b)=>b.localeCompare(a)).map(y=>`<option value="${String(y).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}">${y}</option>`).join("");
+    gradeEl.innerHTML = `<option value="">🎓 Select Grade</option>` + [...grades].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(g=>`<option value="${String(g).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}">${g}</option>`).join("");
+    learnerEl.innerHTML = `<option value="">👨‍🎓 Select Learner</option>`;
+};
+
+window.loadLostBooksLearners = function(){
+    const grade = document.getElementById("lostBookGrade")?.value || "";
+    const learnerEl = document.getElementById("lostBookLearner");
+    if(!learnerEl) return;
+    const learners = (window.allStudents || []).filter(s=>{
+        const sg = String(s.grade || s.class || s.gradeName || "").trim();
+        return grade && sg === grade;
+    });
+    learnerEl.innerHTML = `<option value="">👨‍🎓 Select Learner</option>` + learners
+        .sort((a,b)=>String(a.name || a.fullName || a.studentName || "").localeCompare(String(b.name || b.fullName || b.studentName || "")))
+        .map(s=>{
+            const id = String(s.id || s.studentId || s.admission || s.adm || "");
+            const name = s.name || s.fullName || s.studentName || "Unknown Learner";
+            return `<option value="${id}">${name}</option>`;
+        }).join("");
+};
+
+window.getSelectedLostBookLearner = function(){
+    const grade = document.getElementById("lostBookGrade")?.value?.trim();
+    const learnerId = document.getElementById("lostBookLearner")?.value?.trim();
+    const year = document.getElementById("lostBookYear")?.value?.trim();
+    const learner = (window.allStudents || []).find(s=>String(s.id || s.studentId || s.admission || s.adm || "") === String(learnerId));
+    return {grade, learnerId, year, learner};
+};
+
+window.getLearnerLostBooks = async function({learnerId, learner, grade, year}){
+    // Permission-safe implementation: inspect existing library copies only.
+    // The legacy libraryLostBooks collection is not readable under current rules.
+    if (typeof getLostFromExistingLibrary === "function") {
+        return getLostFromExistingLibrary({learnerId, learner, grade, year});
+    }
+    return [];
+};
+
+window.generateLostBooksAccountability = async function(){
+    const {grade, learnerId, year, learner} = getSelectedLostBookLearner();
+    const result = document.getElementById("lostBooksAccountabilityResult");
+    if(!year || !grade || !learnerId || !learner){
+        return Swal.fire("Missing Selection","Select Year, Grade and Learner first.","warning");
+    }
+    openSweetLoader("Generating Lost Books List...");
+    try{
+        const records = await getLearnerLostBooks({learnerId, learner, grade, year});
+        closeSweetLoader();
+        const active = records.filter(r=>!r.replaced && !r.cleared);
+        const name = learner.name || learner.fullName || learner.studentName || "Learner";
+        if(!records.length){
+            result.innerHTML = `<div style="padding:18px;border-radius:10px;background:#f0fdf4;color:#166534;font-weight:700;">✅ ${name} has no lost-book record for ${grade}, ${year}.</div>`;
+            return;
+        }
+        result.innerHTML = `
+          <div style="margin-bottom:12px;font-weight:800;color:#111827;">📋 Lost Books Accountability — ${name} | ${grade} | ${year}</div>
+          <table style="width:100%;border-collapse:collapse;min-width:720px;background:#fff;">
+            <thead><tr style="background:#fee2e2;color:#991b1b;">
+              <th style="padding:10px;text-align:left;">Book</th><th style="padding:10px;text-align:left;">Book No.</th><th style="padding:10px;text-align:left;">Lost Date</th><th style="padding:10px;text-align:left;">Remarks</th><th style="padding:10px;text-align:left;">Status</th>
+            </tr></thead>
+            <tbody>${records.map(r=>`<tr style="border-bottom:1px solid #eee;"><td style="padding:10px;">${r.bookTitle || "Unknown Book"}</td><td style="padding:10px;">${r.bookNumber || "-"}</td><td style="padding:10px;">${r.lostDate || "-"}</td><td style="padding:10px;">${r.reason || r.lostReason || "-"}</td><td style="padding:10px;font-weight:700;color:${r.replaced || r.cleared ? '#166534' : '#dc2626'};">${r.replaced || r.cleared ? '✅ Replaced / Resolved' : '❌ Replacement Required'}</td></tr>`).join("")}</tbody>
+          </table>
+          <div style="margin-top:12px;padding:12px;border-radius:8px;background:${active.length?'#fef2f2':'#f0fdf4'};color:${active.length?'#991b1b':'#166534'};font-weight:700;">${active.length ? `⚠️ ${active.length} lost book(s) still require replacement. Clearance is blocked.` : '✅ All lost books have been replaced. The learner is eligible for library clearance.'}</div>`;
+    }catch(err){ closeSweetLoader(); console.error(err); Swal.fire("Error",err.message,"error"); }
+};
+
+window.runLearnerLibraryClearance = async function(){
+    const {grade, learnerId, year, learner} = getSelectedLostBookLearner();
+    if(!year || !grade || !learnerId || !learner) return Swal.fire("Missing Selection","Select Year, Grade and Learner first.","warning");
+    openSweetLoader("Checking Library Clearance...");
+    try{
+        const records = await getLearnerLostBooks({learnerId, learner, grade, year});
+        const unresolved = records.filter(r=>!r.replaced && !r.cleared);
+        closeSweetLoader();
+        const name = learner.name || learner.fullName || learner.studentName || "Learner";
+        if(unresolved.length){
+            const books = unresolved.map(r=>`• ${r.bookTitle || 'Unknown Book'} — ${r.bookNumber || '-'}`).join("<br>");
+            return Swal.fire({icon:"error",title:"⛔ Clearance Blocked",html:`<b>${name}</b> has the following lost book(s):<br><br><div style="text-align:left;background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;">${books}</div><br>Until replacement is recorded, this learner cannot be cleared.`,confirmButtonText:"Understood"});
+        }
+        const ok = await Swal.fire({icon:"success",title:"✅ Eligible for Clearance",html:`<b>${name}</b> has no unreplaced lost books for <b>${grade}, ${year}</b>. Proceed with library clearance?`,showCancelButton:true,confirmButtonText:"⏻ Clear Learner",confirmButtonColor:"#16a34a"});
+        if(!ok.isConfirmed) return;
+        const clearanceId = `${String(learnerId).replace(/[.#$\[\]/]/g,"_")}_${String(year).replace(/[^a-zA-Z0-9_-]/g,"_")}`;
+        localStorage.setItem(`libraryClearance_${window.schoolId}_${clearanceId}`,JSON.stringify({learnerId:String(learnerId),learnerName:name,grade,year,cleared:true,clearedAt:Date.now(),clearanceDate:new Date().toLocaleString(),clearedBy:localStorage.getItem("username") || window.currentUser?.displayName || window.currentUser?.email || "Admin"}));
+        Swal.fire("Cleared Successfully",`${name} has been cleared by the Library Return Center.`,"success");
+    }catch(err){ closeSweetLoader(); console.error(err); Swal.fire("Error",err.message,"error"); }
+};
+
+window.recordLostBookAccountability = async function(bookId, bookNumber, book, copy, reason){
+    // Keep accountability on the existing book copy path so no new Firebase rule is required.
+    const learnerKey = copy.borrowerAdm || copy.borrowerId || copy.studentId || "";
+    const learner = (window.allStudents || []).find(s=>[s.id,s.studentId,s.admissionNo,s.admission,s.adm].some(v=>String(v || "")===String(learnerKey))) || null;
+    copy.lostAccountability = {
+        bookId:String(bookId), bookNumber:String(bookNumber),
+        bookTitle:book.title || book.bookTitle || book.name || "Unknown Book",
+        learnerId:String(learnerKey),
+        learnerName:learner?.name || learner?.fullName || learner?.studentName || copy.borrower || "Unknown Learner",
+        grade:String(learner?.grade || learner?.class || learner?.gradeName || copy.grade || "Unknown Grade"),
+        year:String(new Date().getFullYear()), lostDate:new Date().toLocaleDateString(),
+        lostTimestamp:Date.now(), reason:reason || "No reason provided", replaced:false, cleared:false
+    };
+};
+
+window.resolveLostBookAccountability = async function(bookId, bookNumber, replacementBy){
+    // Accountability lives on the existing library copy; replacement metadata is updated on that copy.
+    return true;
+};
+
+document.addEventListener("change",function(e){
+    if(e.target?.id === "lostBookGrade") loadLostBooksLearners();
+});
+
+/* =========================================================
    MARK BOOK LOST
 ========================================================= */
 
@@ -80874,8 +81033,22 @@ addCopyHistory(
 );
 
 // ======================================
-// SAVE
+// SAVE LOST COPY + ACCOUNTABILITY RECORD
 // ======================================
+
+try {
+    await recordLostBookAccountability(
+        bookId,
+        bookNumber,
+        book,
+        copies[bookNumber],
+        reason || "No reason provided"
+    );
+} catch (accountabilityError) {
+    // Accountability is supplementary. Never block the existing Mark Lost workflow
+    // if the database rules do not permit the new accountability path.
+    console.warn("Lost-book accountability record skipped:", accountabilityError);
+}
 
 await update(bookRef,{
 
@@ -82000,6 +82173,9 @@ window.loadReturnsCenter = function(){
 
             applyReturnsFilters();
 populateReturnFilters();
+            if (typeof loadLostBooksAccountabilityFilters === "function") {
+                loadLostBooksAccountabilityFilters();
+            }
         }
 
     );
@@ -114304,46 +114480,6 @@ function showRandomPopup(){
     },5000);
 
 }
-printWindow.document.write(`
-
-<!DOCTYPE html>
-
-<html>
-
-<head>
-
-<meta charset="UTF-8">
-
-<title>
-    Fee Balance Notices - ${safe(year)}
-</title>
-
-<style>
-
-/* PUT THE PRINT CSS FROM ABOVE HERE */
-
-</style>
-
-</head>
-
-<body>
-
-${pagesHTML}
-
-</body>
-
-</html>
-
-`);
-
-printWindow.document.close();
-
-setTimeout(() => {
-
-    printWindow.focus();
-    printWindow.print();
-
-}, 600);
 /* First popup after login */
 setTimeout(showRandomPopup,4000);
 
@@ -114386,3 +114522,415 @@ window.getGrade1To6ReportLabel = function(level) {
 </script>
 </body>
 </html>
+
+
+<!-- LOST BOOKS ACCOUNTABILITY FILTER / RECORD FALLBACK FIX -->
+<script>
+(function(){
+  const esc = v => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");
+
+  async function loadAccountabilityStudents(){
+    const schoolId = window.schoolId;
+    let students = Array.isArray(window.allStudents) ? window.allStudents.filter(Boolean) : [];
+    if(!students.length && schoolId){
+      try{
+        const snap = await get(schoolRef("students"));
+        if(snap.exists()){
+          students = [];
+          snap.forEach(ch => students.push({ ...ch.val(), id: ch.key }));
+          window.allStudents = students;
+        }
+      }catch(err){ console.warn("Could not load learners for library accountability", err); }
+    }
+    return students;
+  }
+
+  window.loadLostBooksAccountabilityFilters = async function(){
+    const yearEl = document.getElementById("lostBookYear");
+    const gradeEl = document.getElementById("lostBookGrade");
+    const learnerEl = document.getElementById("lostBookLearner");
+    if(!yearEl || !gradeEl || !learnerEl) return;
+    const selectedYear = yearEl.value;
+    const selectedGrade = gradeEl.value;
+    const students = await loadAccountabilityStudents();
+    const years = new Set();
+    const now = new Date().getFullYear();
+    [now-1, now, now+1].forEach(y=>years.add(String(y)));
+    const grades = new Set();
+    students.forEach(s=>{ const g=String(s.grade||s.class||s.gradeName||"").trim(); if(g) grades.add(g); });
+    yearEl.innerHTML = '<option value="">📅 Select Year</option>' + [...years].sort((a,b)=>Number(b)-Number(a)).map(y=>`<option value="${esc(y)}">${esc(y)}</option>`).join('');
+    gradeEl.innerHTML = '<option value="">🎓 Select Grade</option>' + [...grades].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'})).map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+    if(selectedYear && years.has(selectedYear)) yearEl.value=selectedYear;
+    if(selectedGrade && grades.has(selectedGrade)) gradeEl.value=selectedGrade;
+    learnerEl.innerHTML='<option value="">👨‍🎓 Select Learner</option>';
+    if(gradeEl.value) await window.loadLostBooksLearners();
+  };
+
+  window.loadLostBooksLearners = async function(){
+    const grade = document.getElementById("lostBookGrade")?.value?.trim() || "";
+    const learnerEl = document.getElementById("lostBookLearner");
+    if(!learnerEl) return;
+    const selected = learnerEl.value;
+    const students = await loadAccountabilityStudents();
+    const norm = x => String(x||"").trim().toLowerCase();
+    const learners = students.filter(s=>!grade || norm(s.grade||s.class||s.gradeName)===norm(grade));
+    learnerEl.innerHTML='<option value="">👨‍🎓 Select Learner</option>' + learners
+      .sort((a,b)=>String(a.name||a.fullName||a.studentName||"").localeCompare(String(b.name||b.fullName||b.studentName||"")))
+      .map(s=>{ const id=s.id??s.studentId??s.admissionNo??s.admission??s.adm??""; const name=s.name||s.fullName||s.studentName||"Unknown Learner"; return `<option value="${esc(id)}">${esc(name)}</option>`; }).join('');
+    if(selected && [...learnerEl.options].some(o=>o.value===selected)) learnerEl.value=selected;
+  };
+
+  async function getLostFromExistingLibrary(ctx){
+    const schoolId=window.schoolId;
+    const snap=await get(ref(db,`library/${schoolId}`));
+    const out=[];
+    if(!snap.exists()) return out;
+
+    const learner=ctx.learner||{};
+    const norm=v=>String(v??'').trim().toLowerCase();
+    const ids=new Set();
+    [ctx.learnerId, learner.id, learner.studentId, learner.admissionNo, learner.admission, learner.adm]
+      .forEach(v=>{ if(v!=null && String(v).trim()) ids.add(String(v).trim()); });
+    const learnerNames=new Set([learner.name,learner.fullName,learner.studentName]
+      .filter(v=>String(v??'').trim()).map(norm));
+    const selectedYear=String(ctx.year||'').trim();
+
+    snap.forEach(bookChild=>{
+      const book=bookChild.val()||{};
+      Object.entries(book.copies||{}).forEach(([key,copy])=>{
+        const meta=copy.lostAccountability||{};
+        const status=norm(copy.status);
+        // Accountability must see both Lost and Damaged copies, including old records
+        // created before lostAccountability metadata was introduced.
+        const isAccountability=status==='lost' || status==='damaged' || !!copy.lostAccountability;
+        if(!isAccountability) return;
+
+        const borrowerValues=[meta.learnerId,copy.borrowerAdm,copy.borrowerId,copy.studentId,copy.lostLearnerId]
+          .filter(v=>v!=null && String(v).trim()).map(v=>String(v).trim());
+        const borrowerNames=[meta.learnerName,copy.borrower,copy.borrowerName]
+          .filter(v=>String(v??'').trim()).map(norm);
+        const idMatch=borrowerValues.some(v=>ids.has(v));
+        const nameMatch=borrowerNames.some(v=>learnerNames.has(v));
+        if(!idMatch && !nameMatch) return;
+
+        // Existing records may have only a locale lost/damaged date. Do not exclude
+        // them simply because they predate the accountability metadata.
+        const eventDate=meta.lostDate||copy.lostDate||copy.damagedDate||'';
+        const lostYear=String(meta.year||copy.lostYear||'').trim();
+        if(selectedYear && lostYear && lostYear!==selectedYear) return;
+        if(selectedYear && !lostYear && eventDate){
+          const parsed=new Date(eventDate);
+          if(!Number.isNaN(parsed.getTime()) && String(parsed.getFullYear())!==selectedYear) return;
+        }
+
+        const resolved=!!meta.replaced || !!copy.replacementDate ||
+          (status==='available' && !!(copy.returnDate||copy.replacementDate));
+        out.push({
+          id:`${bookChild.key}_${key}`,
+          bookId:bookChild.key,
+          bookTitle:meta.bookTitle||book.title||book.bookTitle||book.name||'Unknown Book',
+          bookNumber:copy.bookNumber||key,
+          lostDate:eventDate||'-',
+          reason:meta.reason||copy.lostReason||copy.damageReason||'-',
+          replaced:resolved,
+          damaged:status==='damaged' && !resolved
+        });
+      });
+    });
+    return out;
+  }
+
+  // Always derive accountability from existing library records.
+  // Do not call the legacy getter because it reads libraryLostBooks,
+  // a path denied by the current Firebase rules.
+  window.getLearnerLostBooks = async function(ctx){
+    return getLostFromExistingLibrary(ctx);
+  };
+
+  document.addEventListener('change', e=>{ if(e.target?.id==='lostBookGrade') window.loadLostBooksLearners(); });
+  // Final permission-safe accountability loader: never reads the restricted libraryLostBooks path.
+  window.loadLostBooksAccountabilityFilters = async function(){
+    const yearEl=document.getElementById("lostBookYear"), gradeEl=document.getElementById("lostBookGrade"), learnerEl=document.getElementById("lostBookLearner");
+    if(!yearEl||!gradeEl||!learnerEl) return;
+    const oldY=yearEl.value, oldG=gradeEl.value;
+    const students=await loadAccountabilityStudents();
+    const now=new Date().getFullYear();
+    const years=[String(now-1),String(now),String(now+1)];
+    const grades=[...new Set(students.map(s=>String(s.grade||s.class||s.gradeName||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+    yearEl.innerHTML='<option value="">📅 Select Year</option>'+years.map(y=>`<option value="${esc(y)}">${esc(y)}</option>`).join('');
+    gradeEl.innerHTML='<option value="">🎓 Select Grade</option>'+grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+    if(oldY&&years.includes(oldY)) yearEl.value=oldY; else yearEl.value=String(now);
+    if(oldG&&grades.includes(oldG)) gradeEl.value=oldG;
+    learnerEl.innerHTML='<option value="">👨‍🎓 Select Learner</option>';
+    if(gradeEl.value) await window.loadLostBooksLearners();
+  };
+  const boot=()=>setTimeout(()=>window.loadLostBooksAccountabilityFilters?.(),150);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+</script>
+
+
+<!-- FINAL LIBRARY CLEARANCE LOST/DAMAGED DETECTION FIX -->
+<script>
+(function(){
+  const norm=v=>String(v??'').trim().toLowerCase().replace(/\s+/g,' ');
+  const digits=v=>String(v??'').trim();
+  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  const nameMatches=(a,b)=>{
+    a=norm(a); b=norm(b);
+    if(!a||!b) return false;
+    if(a===b) return true;
+    const A=new Set(a.split(' ').filter(Boolean)), B=new Set(b.split(' ').filter(Boolean));
+    let common=0; A.forEach(x=>{if(B.has(x)) common++;});
+    return common>=Math.min(2,Math.min(A.size,B.size)) && common>0;
+  };
+  const yearFromDate=v=>{
+    const m=String(v??'').match(/(?:19|20)\d{2}/);
+    return m?m[0]:'';
+  };
+
+  window.getLearnerLostBooks = async function(ctx){
+    const schoolId=window.schoolId;
+    if(!schoolId) return [];
+    const learner=ctx.learner||{};
+    const wantedIds=new Set([ctx.learnerId,learner.id,learner.studentId,learner.admissionNo,learner.admission,learner.adm,learner.admNo]
+      .map(digits).filter(Boolean));
+    const wantedNames=[learner.name,learner.fullName,learner.studentName,learner.studentFullName,ctx.learnerName].map(norm).filter(Boolean);
+    const selectedYear=digits(ctx.year);
+    const selectedGrade=norm(ctx.grade);
+    const out=[];
+    const snap=await get(ref(db,`library/${schoolId}`));
+    if(!snap.exists()) return out;
+
+    snap.forEach(bookChild=>{
+      const book=bookChild.val()||{};
+      Object.entries(book.copies||{}).forEach(([copyKey,copy])=>{
+        copy=copy||{};
+        const status=norm(copy.status);
+        if(status!=='lost' && status!=='damaged' && status!=='under repair' && !copy.lostAccountability) return;
+        const meta=copy.lostAccountability||{};
+        const copyIds=[meta.learnerId,copy.borrowerAdm,copy.borrowerId,copy.studentId,copy.lostLearnerId,copy.admissionNo,copy.admission,copy.adm]
+          .map(digits).filter(Boolean);
+        const copyNames=[meta.learnerName,copy.borrower,copy.borrowerName,copy.studentName,copy.learnerName]
+          .map(norm).filter(Boolean);
+        const idMatch=copyIds.some(id=>wantedIds.has(id));
+        const nameMatch=copyNames.some(n=>wantedNames.some(w=>nameMatches(n,w)));
+        if(!idMatch && !nameMatch) return;
+
+        // Grade is advisory only. Existing book copies often do not store it.
+        const recordGrade=norm(meta.grade||copy.grade||copy.class||copy.gradeName);
+        if(selectedGrade && recordGrade && recordGrade!==selectedGrade) return;
+
+        // Use an explicit stored year when present; otherwise read the 4-digit year
+        // directly from the event date. Never let locale date parsing hide a record.
+        const eventDate=meta.lostDate||copy.lostDate||copy.damagedDate||copy.repairDate||'';
+        const recordYear=digits(meta.year||copy.lostYear||copy.year||yearFromDate(eventDate));
+        if(selectedYear && recordYear && recordYear!==selectedYear) return;
+
+        const resolved=!!meta.replaced || !!copy.replacementDate || !!copy.replacedAt || !!copy.damageResolved || !!copy.repairCompletedDate;
+        if(status==='available' && !resolved) return;
+        out.push({
+          id:`${bookChild.key}_${copyKey}`,
+          bookId:bookChild.key,
+          bookTitle:meta.bookTitle||book.title||book.bookTitle||book.name||'Unknown Book',
+          bookNumber:copy.bookNumber||copyKey,
+          lostDate:eventDate||'-',
+          reason:meta.reason||copy.lostReason||copy.damageReason||'-',
+          replaced:resolved,
+          cleared:!!meta.cleared,
+          damaged:status==='damaged',
+          status:status
+        });
+      });
+    });
+    return out;
+  };
+
+  // Final clearance override: Lost, Damaged and Under Repair accountability records
+  // must all be resolved before clearance can be granted.
+  window.runLearnerLibraryClearance = async function(){
+    const grade=document.getElementById('lostBookGrade')?.value?.trim()||'';
+    const learnerId=document.getElementById('lostBookLearner')?.value?.trim()||'';
+    const year=document.getElementById('lostBookYear')?.value?.trim()||'';
+    const students=Array.isArray(window.allStudents)?window.allStudents:[];
+    const learner=students.find(s=>[s.id,s.studentId,s.admissionNo,s.admission,s.adm,s.admNo].some(v=>digits(v)===digits(learnerId)))||null;
+    if(!year||!grade||!learnerId||!learner) return Swal.fire('Missing Selection','Select Year, Grade and Learner first.','warning');
+    openSweetLoader('Checking Lost and Damaged Books...');
+    try{
+      const records=await window.getLearnerLostBooks({learnerId,learner,grade,year});
+      const unresolved=records.filter(r=>!r.replaced&&!r.cleared);
+      closeSweetLoader();
+      const name=learner.name||learner.fullName||learner.studentName||'Learner';
+      if(unresolved.length){
+        const books=unresolved.map(r=>`• ${esc(r.bookTitle)} — ${esc(r.bookNumber)} (${r.status==='damaged'?'⚠️ Damaged':'❌ Lost'})`).join('<br>');
+        return Swal.fire({icon:'error',title:'⛔ Clearance Blocked',html:`<b>${esc(name)}</b> has unresolved library books:<br><br><div style="text-align:left;background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;line-height:1.7;">${books}</div><br>Replacement, repair or resolution must be recorded before this learner can be cleared.`,confirmButtonText:'Understood'});
+      }
+      const ok=await Swal.fire({icon:'success',title:'✅ Eligible for Clearance',html:`<b>${esc(name)}</b> has no unresolved lost or damaged books for <b>${esc(grade)}, ${esc(year)}</b>. Proceed with library clearance?`,showCancelButton:true,confirmButtonText:'⏻ Clear Learner',confirmButtonColor:'#16a34a'});
+      if(!ok.isConfirmed) return;
+      const clearanceId=`${digits(learnerId).replace(/[.#$\[\]/]/g,'_')}_${digits(year).replace(/[^a-zA-Z0-9_-]/g,'_')}`;
+      localStorage.setItem(`libraryClearance_${window.schoolId||schoolId}_${clearanceId}`,JSON.stringify({learnerId:digits(learnerId),learnerName:name,grade,year,cleared:true,clearedAt:Date.now(),clearanceDate:new Date().toLocaleString(),clearedBy:localStorage.getItem('username')||window.currentUser?.displayName||window.currentUser?.email||'Admin'}));
+      Swal.fire('Cleared Successfully',`${name} has been cleared by the Library Return Center.`,'success');
+    }catch(err){closeSweetLoader();console.error(err);Swal.fire('Error',err.message,'error');}
+  };
+})();
+</script>
+
+<!-- FINAL CLEARANCE: USE EXACT BOOK COPIES PANEL RECORDS -->
+<script>
+(function(){
+  const norm=v=>String(v??'').trim().toLowerCase().replace(/\s+/g,' ');
+  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  const idsOf=s=>[s?.id,s?.studentId,s?.admissionNo,s?.admission,s?.adm,s?.admNo].map(v=>String(v??'').trim()).filter(Boolean);
+  const namesOf=s=>[s?.name,s?.fullName,s?.studentName,s?.studentFullName].map(norm).filter(Boolean);
+  async function selectedLearner(id){
+    let students=Array.isArray(window.allStudents)?window.allStudents.filter(Boolean):[];
+    let x=students.find(s=>idsOf(s).includes(String(id)));
+    if(x) return x;
+    try{const snap=await get(schoolRef('students')); if(snap.exists()){snap.forEach(ch=>{const s={...(ch.val()||{}),id:ch.key}; if(!x&&idsOf(s).includes(String(id))) x=s;});}}catch(e){console.warn('Clearance learner lookup fallback failed',e)}
+    return x;
+  }
+  function copyBelongsTo(copy,learner){
+    const wantedIds=new Set(idsOf(learner)); const wantedNames=namesOf(learner);
+    const cIds=[copy.borrowerAdm,copy.borrowerId,copy.studentId,copy.lostLearnerId,copy.admissionNo,copy.admission,copy.adm,copy.lostAccountability?.learnerId].map(v=>String(v??'').trim()).filter(Boolean);
+    if(cIds.some(v=>wantedIds.has(v))) return true;
+    const cNames=[copy.borrower,copy.borrowerName,copy.studentName,copy.learnerName,copy.lostAccountability?.learnerName].map(norm).filter(Boolean);
+    return cNames.some(n=>wantedNames.includes(n));
+  }
+  async function panelRecords(learner){
+    const schoolId=window.schoolId; if(!schoolId) throw new Error('School session missing');
+    const snap=await get(ref(db,`library/${schoolId}`)); const rows=[];
+    if(!snap.exists()) return rows;
+    snap.forEach(bookChild=>{const book=bookChild.val()||{}; Object.entries(book.copies||{}).forEach(([key,c])=>{c=c||{}; const status=norm(c.status); if(!['lost','damaged'].includes(status)) return; if(!copyBelongsTo(c,learner)) return; const resolved=!!c.replacementDate||!!c.replacedAt||!!c.damageResolved||!!c.repairCompletedDate||!!c.lostAccountability?.replaced; rows.push({bookId:bookChild.key,bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',bookNumber:c.bookNumber||key,status,resolved,borrower:c.borrower||c.borrowerName||''});});});
+    return rows;
+  }
+  window.runLearnerLibraryClearance=async function(){
+    const grade=document.getElementById('lostBookGrade')?.value?.trim()||''; const learnerId=document.getElementById('lostBookLearner')?.value?.trim()||''; const year=document.getElementById('lostBookYear')?.value?.trim()||'';
+    if(!year||!grade||!learnerId) return Swal.fire('Missing Selection','Select Year, Grade and Learner first.','warning');
+    openSweetLoader('Reading Lost and Damaged Books from Book Copies...');
+    try{
+      const learner=await selectedLearner(learnerId); if(!learner){closeSweetLoader();return Swal.fire('Learner Not Found','The selected learner could not be found.','error');}
+      const records=await panelRecords(learner); const unresolved=records.filter(r=>!r.resolved); closeSweetLoader();
+      const name=learner.name||learner.fullName||learner.studentName||'Learner';
+      if(unresolved.length){const list=unresolved.map(r=>`• <b>${esc(r.bookTitle)}</b> — ${esc(r.bookNumber)} (${r.status==='damaged'?'⚠️ Damaged':'❌ Lost'})`).join('<br>'); return Swal.fire({icon:'error',title:'⛔ Clearance Blocked',html:`<b>${esc(name)}</b> has unresolved records found directly in <b>Book Copies</b>:<br><br><div style="text-align:left;background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;line-height:1.8">${list}</div><br>These books must be replaced, repaired, or otherwise resolved before clearance.`,confirmButtonText:'Understood'});}
+      const ok=await Swal.fire({icon:'success',title:'✅ Eligible for Clearance',html:`<b>${esc(name)}</b> has no unresolved Lost or Damaged books in the Book Copies panel. Proceed with clearance?`,showCancelButton:true,confirmButtonText:'⏻ Clear Learner'}); if(!ok.isConfirmed) return;
+      const record={learnerId,learnerName:name,grade,year,cleared:true,clearedAt:Date.now()};
+      // Store the clearance acknowledgement locally. Do not write to a new Firebase
+      // location here because existing school database rules may deny that path.
+      localStorage.setItem(`libraryClearance_${window.schoolId}_${learnerId}_${year}`,JSON.stringify(record));
+      Swal.fire('Cleared Successfully',`${name} has been cleared by the Library Return Center.`,'success');
+    }catch(e){closeSweetLoader();console.error(e);Swal.fire('Error',e.message,'error');}
+  };
+})();
+</script>
+
+<!-- FINAL LOST/DAMAGED ACCOUNTABILITY: USE EXACT BOOK COPIES PANEL -->
+<script>
+(function(){
+  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  const norm=v=>String(v??'').trim().toLowerCase().replace(/\s+/g,' ');
+  const idsOf=s=>[s?.id,s?.studentId,s?.admissionNo,s?.admission,s?.adm,s?.admNo].map(v=>String(v??'').trim()).filter(Boolean);
+  const namesOf=s=>[s?.name,s?.fullName,s?.studentName,s?.studentFullName].map(norm).filter(Boolean);
+
+  async function findSelectedLearner(learnerId){
+    const wanted=String(learnerId||'').trim();
+    let students=Array.isArray(window.allStudents)?window.allStudents.filter(Boolean):[];
+    let learner=students.find(s=>idsOf(s).includes(wanted));
+    if(learner) return learner;
+    try{
+      const snap=await get(schoolRef('students'));
+      if(snap.exists()) snap.forEach(ch=>{
+        const s={...(ch.val()||{}),id:ch.key};
+        if(!learner && idsOf(s).includes(wanted)) learner=s;
+      });
+    }catch(e){ console.warn('Library accountability learner lookup failed',e); }
+    return learner;
+  }
+
+  function belongsToLearner(copy,learner){
+    const wantedIds=new Set(idsOf(learner));
+    const wantedNames=new Set(namesOf(learner));
+    const copyIds=[copy.borrowerAdm,copy.borrowerId,copy.studentId,copy.lostLearnerId,copy.admissionNo,copy.admission,copy.adm,copy.lostAccountability?.learnerId].map(v=>String(v??'').trim()).filter(Boolean);
+    if(copyIds.some(id=>wantedIds.has(id))) return true;
+    const copyNames=[copy.borrower,copy.borrowerName,copy.studentName,copy.learnerName,copy.lostAccountability?.learnerName].map(norm).filter(Boolean);
+    return copyNames.some(n=>wantedNames.has(n));
+  }
+
+  async function readExactBookCopies(learner){
+    const schoolId=window.schoolId;
+    if(!schoolId) throw new Error('School session missing. Please login again.');
+    const snap=await get(ref(db,`library/${schoolId}`));
+    const rows=[];
+    if(!snap.exists()) return rows;
+    snap.forEach(bookChild=>{
+      const book=bookChild.val()||{};
+      Object.entries(book.copies||{}).forEach(([copyKey,raw])=>{
+        const copy=raw||{};
+        const status=norm(copy.status);
+        if(status!=='lost' && status!=='damaged') return;
+        if(!belongsToLearner(copy,learner)) return;
+        const resolved=!!copy.replacementDate||!!copy.replacedAt||!!copy.damageResolved||!!copy.repairCompletedDate||!!copy.lostAccountability?.replaced;
+        rows.push({
+          bookId:bookChild.key,
+          bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',
+          bookNumber:copy.bookNumber||copyKey,
+          status,
+          lostDate:copy.lostDate||copy.damagedDate||copy.lostAccountability?.lostDate||'-',
+          reason:copy.lostReason||copy.damageReason||copy.lostAccountability?.reason||'-',
+          resolved,
+          borrower:copy.borrower||copy.borrowerName||''
+        });
+      });
+    });
+    return rows;
+  }
+
+  async function getContext(){
+    const grade=document.getElementById('lostBookGrade')?.value?.trim()||'';
+    const learnerId=document.getElementById('lostBookLearner')?.value?.trim()||'';
+    const year=document.getElementById('lostBookYear')?.value?.trim()||'';
+    if(!year||!grade||!learnerId) return {error:'Select Year, Grade and Learner first.'};
+    const learner=await findSelectedLearner(learnerId);
+    if(!learner) return {error:'The selected learner could not be found.'};
+    return {grade,learnerId,year,learner};
+  }
+
+  // The accountability list now uses the same exact copies that the Book Copies panel displays.
+  window.generateLostBooksAccountability=async function(){
+    const result=document.getElementById('lostBooksAccountabilityResult');
+    const ctx=await getContext();
+    if(ctx.error) return Swal.fire('Missing Selection',ctx.error,'warning');
+    openSweetLoader('Reading Lost and Damaged Books from Book Copies...');
+    try{
+      const records=await readExactBookCopies(ctx.learner);
+      closeSweetLoader();
+      const name=ctx.learner.name||ctx.learner.fullName||ctx.learner.studentName||'Learner';
+      if(!records.length){
+        result.innerHTML=`<div style="padding:18px;border-radius:10px;background:#f0fdf4;color:#166534;font-weight:700;">✅ ${esc(name)} has no Lost or Damaged book record in the Book Copies panel.</div>`;
+        return;
+      }
+      const unresolved=records.filter(r=>!r.resolved);
+      result.innerHTML=`<div style="margin-bottom:12px;font-weight:800;color:#111827;">📋 Lost & Damaged Books Accountability — ${esc(name)} | ${esc(ctx.grade)} | ${esc(ctx.year)}</div><table style="width:100%;border-collapse:collapse;min-width:760px;background:#fff;"><thead><tr style="background:#fee2e2;color:#991b1b;"><th style="padding:10px;text-align:left;">Book</th><th style="padding:10px;text-align:left;">Book No.</th><th style="padding:10px;text-align:left;">Condition</th><th style="padding:10px;text-align:left;">Date</th><th style="padding:10px;text-align:left;">Remarks</th><th style="padding:10px;text-align:left;">Accountability</th></tr></thead><tbody>${records.map(r=>`<tr style="border-bottom:1px solid #eee;"><td style="padding:10px;">${esc(r.bookTitle)}</td><td style="padding:10px;">${esc(r.bookNumber)}</td><td style="padding:10px;font-weight:700;color:${r.status==='lost'?'#dc2626':'#d97706'};">${r.status==='lost'?'❌ Lost':'⚠️ Damaged'}</td><td style="padding:10px;">${esc(r.lostDate)}</td><td style="padding:10px;">${esc(r.reason)}</td><td style="padding:10px;font-weight:700;color:${r.resolved?'#166534':'#dc2626'};">${r.resolved?'✅ Resolved':'⛔ Clearance Blocked'}</td></tr>`).join('')}</tbody></table><div style="margin-top:12px;padding:12px;border-radius:8px;background:${unresolved.length?'#fef2f2':'#f0fdf4'};color:${unresolved.length?'#991b1b':'#166534'};font-weight:700;">${unresolved.length?`⛔ ${unresolved.length} unresolved Lost/Damaged book(s) found directly in Book Copies. Clearance is blocked.`:'✅ All listed accountability records are resolved. The learner is eligible for clearance.'}</div>`;
+    }catch(e){closeSweetLoader();console.error(e);Swal.fire('Error',e.message,'error');}
+  };
+
+  window.runLearnerLibraryClearance=async function(){
+    const ctx=await getContext();
+    if(ctx.error) return Swal.fire('Missing Selection',ctx.error,'warning');
+    openSweetLoader('Checking exact Book Copies records...');
+    try{
+      const records=await readExactBookCopies(ctx.learner);
+      const unresolved=records.filter(r=>!r.resolved);
+      closeSweetLoader();
+      const name=ctx.learner.name||ctx.learner.fullName||ctx.learner.studentName||'Learner';
+      if(unresolved.length){
+        const list=unresolved.map(r=>`• <b>${esc(r.bookTitle)}</b> — ${esc(r.bookNumber)} (${r.status==='lost'?'❌ Lost':'⚠️ Damaged'})`).join('<br>');
+        return Swal.fire({icon:'error',title:'⛔ Clearance Blocked',html:`<b>${esc(name)}</b> has unresolved records found directly in <b>📚 Book Copies</b>:<br><br><div style="text-align:left;background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;line-height:1.8;">${list}</div><br>These records must be replaced, repaired or resolved before clearance.`,confirmButtonText:'Understood'});
+      }
+      const ok=await Swal.fire({icon:'success',title:'✅ Eligible for Clearance',html:`<b>${esc(name)}</b> has no unresolved Lost or Damaged books in the Book Copies panel. Proceed with clearance?`,showCancelButton:true,confirmButtonText:'⏻ Clear Learner',confirmButtonColor:'#16a34a'});
+      if(!ok.isConfirmed) return;
+      localStorage.setItem(`libraryClearance_${window.schoolId}_${ctx.learnerId}_${ctx.year}`,JSON.stringify({learnerId:ctx.learnerId,learnerName:name,grade:ctx.grade,year:ctx.year,cleared:true,clearedAt:Date.now(),clearanceDate:new Date().toLocaleString()}));
+      Swal.fire('Cleared Successfully',`${name} has been cleared by the Library Return Center.`,'success');
+    }catch(e){closeSweetLoader();console.error(e);Swal.fire('Error',e.message,'error');}
+  };
+})();
+</script>
