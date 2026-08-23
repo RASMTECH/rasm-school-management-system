@@ -13333,6 +13333,9 @@ margin-bottom:15px;
 <div id="hostelContent" style="display:none;"></div>
 <div id="ictContent" style="display:none;"></div>
 
+
+<div id="filteredLearnersContent" style="display:none;"></div>
+<div id="genderGroupedContent" style="display:none;"></div>
 <!-- FLOATING ACTIVE SCHOOLS COUNTER -->
 <div id="floatingSchoolsCounter"
      style="
@@ -13345,55 +13348,46 @@ margin-bottom:15px;
        z-index: 99999;
        display: flex;
        align-items: center;
-       gap: 8px;
-       width: 145px;
-       padding: 9px 11px;
+       gap: 12px;
        background: rgba(255,255,255,0.95);
-       border-radius: 12px;
+       padding: 12px 16px;
+       border-radius: 14px;
        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
        backdrop-filter: blur(8px);
-       box-sizing: border-box;
      ">
 
   <div class="schools-counter-icon"
        style="
-         font-size: 19px;
-         flex-shrink: 0;
+         font-size: 22px;
        ">
     🏫
   </div>
 
-  <div class="schools-counter-content"
-       style="
-         min-width: 0;
-       ">
+  <div class="schools-counter-content">
 
     <div class="schools-counter-title"
          style="
-           font-size: 10px;
+           font-size: 12px;
            font-weight: 600;
            color: #64748b;
-           white-space: nowrap;
          ">
       Schools Connected
     </div>
 
     <div class="schools-counter-number"
          style="
-           font-size: 16px;
+           font-size: 18px;
            font-weight: 800;
            color: #0f172a;
-           line-height: 1.2;
          ">
       <span id="schoolsCounter">127</span>+
     </div>
 
     <div class="schools-counter-status"
          style="
-           font-size: 9px;
+           font-size: 11px;
            color: #22c55e;
            font-weight: 600;
-           white-space: nowrap;
          ">
       ● Active Network
     </div>
@@ -15698,6 +15692,25 @@ const schoolData = {
 
     sessionStorage.setItem("userUid", uid);
 
+    // =====================================================
+    // 👑 SCHOOL CREATOR IS ALWAYS THE SCHOOL ADMINISTRATOR
+    // =====================================================
+    // The account that creates a school must immediately receive
+    // the same full access as any Administrator login. Without
+    // this explicit session initialization, the UI can still have
+    // a blank/stale currentUserRole after registration and hide
+    // sections even though users/{uid}.role is already "admin".
+    if (typeof window.setCurrentUser === "function") {
+      window.setCurrentUser(userData);
+    } else {
+      window.currentUser = userData;
+      window.currentUserRole = "admin";
+      localStorage.setItem("currentUser", JSON.stringify(userData));
+      if (typeof window.applyRolePermissions === "function") {
+        window.applyRolePermissions();
+      }
+    }
+
     // =========================
     // UPDATE UI
     // =========================
@@ -16426,6 +16439,23 @@ const RASM_PACKAGES = {
     },
 
 
+    value_60days: {
+        icon: "🔥",
+        title: "Value Package - 60 Days",
+        price: "KES 6,700",
+        duration: "60 Days",
+
+        benefits: [
+            "Everything in Starter",
+            "Library Management",
+            "Inventory Management",
+            "Examination System",
+            "60 Days Full Access",
+            "Technical Support"
+        ]
+    },
+
+
     premium_1year: {
         icon: "🟣",
         title: "Premium - 1 Year",
@@ -16623,12 +16653,14 @@ function showRasmPackages(message = "") {
                 margin:auto;
                 display:grid;
                 grid-template-columns:
-                    repeat(3,minmax(0,1fr));
+                    repeat(auto-fit,minmax(240px,1fr));
                 gap:18px;
                 text-align:left;
             ">
 
                 ${createRasmCard("starter", false)}
+
+                ${createRasmCard("value_60days", false)}
 
                 ${createRasmCard("standard", true)}
 
@@ -18141,6 +18173,13 @@ const RASM_PAYMENT_PACKAGES = {
         durationLabel: "90 Days",
         amount: 10000,
         days: 90
+    },
+
+    value_60days: {
+        title: "Value Package - 60 Days",
+        durationLabel: "60 Days",
+        amount: 6700,
+        days: 60
     },
 
     premium_1year: {
