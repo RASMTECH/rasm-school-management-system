@@ -13348,54 +13348,62 @@ margin-bottom:15px;
        z-index: 99999;
        display: flex;
        align-items: center;
-       gap: 12px;
+       gap: 8px;
+       width: 145px;
+       padding: 9px 11px;
        background: rgba(255,255,255,0.95);
-       padding: 12px 16px;
-       border-radius: 14px;
+       border-radius: 12px;
        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
        backdrop-filter: blur(8px);
+       box-sizing: border-box;
      ">
 
   <div class="schools-counter-icon"
        style="
-         font-size: 22px;
+         font-size: 19px;
+         flex-shrink: 0;
        ">
     🏫
   </div>
 
-  <div class="schools-counter-content">
+  <div class="schools-counter-content"
+       style="
+         min-width: 0;
+       ">
 
     <div class="schools-counter-title"
          style="
-           font-size: 12px;
+           font-size: 10px;
            font-weight: 600;
            color: #64748b;
+           white-space: nowrap;
          ">
       Schools Connected
     </div>
 
     <div class="schools-counter-number"
          style="
-           font-size: 18px;
+           font-size: 16px;
            font-weight: 800;
            color: #0f172a;
+           line-height: 1.2;
          ">
       <span id="schoolsCounter">127</span>+
     </div>
 
     <div class="schools-counter-status"
          style="
-           font-size: 11px;
+           font-size: 9px;
            color: #22c55e;
            font-weight: 600;
+           white-space: nowrap;
          ">
       ● Active Network
     </div>
 
   </div>
 
-</div>
-<!-- =========================================
+</div><!-- =========================================
      USER MANAGEMENT PANEL
 ========================================= -->
 
