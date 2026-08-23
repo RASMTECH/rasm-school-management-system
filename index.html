@@ -10316,6 +10316,17 @@ width:100%;
     </button>
 
 </div>
+
+  <!-- GRADE 1–3 SUB-LEARNING AREA -->
+  <div id="subLearningAreaWrap" style="display:none;margin-top:10px;">
+    <label style="display:block;font-weight:600;margin-bottom:6px;color:#333;">
+      Sub-learning Area
+    </label>
+    <select id="subLearningArea" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;font-size:15px;">
+      <option value="">-- Select Sub-learning Area --</option>
+    </select>
+  </div>
+
   <!-- Marks -->
   <label style="
     display:block;
@@ -38880,13 +38891,23 @@ const recordedMap = {};
 const selectedSubject =
     document.getElementById("subject")?.value;
 
+const selectedSubLearningArea =
+    document.getElementById("subLearningArea")?.value || "";
+
+// A selected sub-learning area is handled exactly like a normal subject:
+// one learner at a time, then immediately move to the next learner.
+const selectedRecordedKey =
+    selectedSubject
+        ? getRecordedSubjectKey(selectedSubject, selectedSubLearningArea)
+        : "";
+
 snapshot.forEach(child => {
 
     const data = child.val();
 
     if (
-        selectedSubject &&
-        data?.marks?.[examPeriod]?.[selectedSubject] !== undefined
+        selectedRecordedKey &&
+        data?.marks?.[examPeriod]?.[selectedRecordedKey] !== undefined
     ) {
         recordedMap[child.key] = true;
     }
@@ -38997,6 +39018,7 @@ learners.forEach(item => {
 });
 
     window.__currentLearnerIndex = 0;
+    window.__totalLearners = window.__learnerQueue.length;
 
     setTimeout(() => {
       if (firstPending) {
@@ -39301,6 +39323,145 @@ function markLearnerAsRecorded(learnerKey) {
 
 
 // =========================================================
+// GRADE 1–3 SUB-LEARNING AREAS (DISPLAY / RECORDING ONLY)
+// These entries are NEVER included in totals, averages or points.
+// =========================================================
+const GRADE13_MAIN_SUBJECTS = [
+    "English",
+    "Kiswahili",
+    "Environmental and CRE",
+    "Mathematics",
+    "Creative Arts"
+];
+
+const GRADE13_SUB_LEARNING_AREAS = {
+    "English": ["Listening", "Reading", "Writing", "Grammar"],
+    "Kiswahili": ["Kusikiliza", "Kusoma", "Kuandika", "Sarufi"],
+    "Environmental and CRE": ["Environmental", "CRE"]
+};
+
+function isGrade13MainSubjectKey(key) {
+    return GRADE13_MAIN_SUBJECTS.includes(String(key || "").trim());
+}
+
+function getGradeNumberSafe(value) {
+    const match = String(value || "").match(/(?:GRADE\s*)?(\d{1,2})/i);
+    return match ? Number(match[1]) : null;
+}
+
+function isGrade1To3Value(value) {
+    const n = getGradeNumberSafe(value);
+    return n >= 1 && n <= 3;
+}
+
+function isGrade1To6Value(value) {
+    const n = getGradeNumberSafe(value);
+    return n >= 1 && n <= 6;
+}
+
+function getGrade13SubLearningAreaName(key) {
+    const value = String(key || "").trim();
+    const parts = value.split(/\s*[—–-]\s*/);
+    return (parts.length > 1 ? parts[parts.length - 1] : value).trim();
+}
+
+function isGrade13SubLearningAreaKey(key) {
+    const value = String(key || "").trim();
+    const subArea = getGrade13SubLearningAreaName(value);
+    return Object.values(GRADE13_SUB_LEARNING_AREAS).flat().includes(subArea) &&
+        (value === subArea || value.includes("—") || value.includes("–") || value.includes(" - "));
+}
+
+function subLearningAreaHasLevel(key) {
+    const value = getGrade13SubLearningAreaName(key);
+    return value === "Reading" || value === "Kusoma";
+}
+
+function isCalculableMainSubject(subject, gradeValue) {
+    if (isGrade1To6Value(gradeValue)) {
+        return !isGrade13SubLearningAreaKey(subject);
+    }
+    return true;
+}
+
+function getRecordedSubjectKey(subject, subLearningArea) {
+    if (!isGrade1To3Value(document.getElementById("gradeSelect")?.value)) {
+        return subject;
+    }
+    return subLearningArea ? `${subject} — ${subLearningArea}` : subject;
+}
+
+function refreshGrade13Subjects() {
+    const grade = document.getElementById("gradeSelect")?.value;
+    const subject = document.getElementById("subject");
+    const wrap = document.getElementById("subLearningAreaWrap");
+    const sub = document.getElementById("subLearningArea");
+    if (!subject || !wrap || !sub) return;
+
+    if (!isGrade1To3Value(grade)) {
+        if (window.__originalSubjectOptionsHTML) {
+            subject.innerHTML = window.__originalSubjectOptionsHTML;
+        }
+        wrap.style.display = "none";
+        sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>`;
+        return;
+    }
+
+    // Grade 1–3 has exactly these subjects; other grades keep the existing subject UI.
+    subject.innerHTML = `
+      <option value="">-- Select Subject --</option>
+      <option value="English">English</option>
+      <option value="Kiswahili">Kiswahili</option>
+      <option value="Environmental and CRE">Environmental and CRE</option>
+      <option value="Mathematics">Mathematics</option>
+      <option value="Creative Arts">Creative Arts</option>
+    `;
+    wrap.style.display = "none";
+    sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>`;
+}
+
+function refreshSubLearningAreas() {
+    const grade = document.getElementById("gradeSelect")?.value;
+    const subject = document.getElementById("subject")?.value;
+    const wrap = document.getElementById("subLearningAreaWrap");
+    const sub = document.getElementById("subLearningArea");
+    if (!wrap || !sub) return;
+
+    if (!isGrade1To3Value(grade) || !GRADE13_SUB_LEARNING_AREAS[subject]) {
+        wrap.style.display = "none";
+        sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>`;
+        return;
+    }
+
+    sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>` +
+        GRADE13_SUB_LEARNING_AREAS[subject]
+            .map(area => `<option value="${area}">${area}</option>`)
+            .join("");
+    wrap.style.display = "block";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const subjectSelect = document.getElementById("subject");
+    if (subjectSelect && !window.__originalSubjectOptionsHTML) {
+        window.__originalSubjectOptionsHTML = subjectSelect.innerHTML;
+    }
+
+    document.getElementById("gradeSelect")?.addEventListener("change", () => {
+        refreshGrade13Subjects();
+        loadLearnersFromStudents?.();
+    });
+    document.getElementById("subject")?.addEventListener("change", refreshSubLearningAreas);
+
+    // Treat every sub-learning area like its own normal recording session.
+    // Selecting Reading/Listening/etc. reloads the learner queue for that exact entry.
+    document.getElementById("subLearningArea")?.addEventListener("change", () => {
+        if (document.getElementById("subLearningArea")?.value) {
+            loadLearnersFromStudents?.();
+        }
+    });
+});
+
+// =========================================================
 // 🧹 CLEAR FORM
 // =========================================================
 function clearMarksFormPreserveSelections() {
@@ -39550,6 +39711,15 @@ document.getElementById("saveMarksButton")
             return;
         }
 
+        const subLearningArea =
+            document.getElementById("subLearningArea")?.value || "";
+
+        const recordedSubjectKey =
+            getRecordedSubjectKey(
+                input.subject.value,
+                subLearningArea
+            );
+
         const data = {
 
             schoolId,
@@ -39557,7 +39727,7 @@ document.getElementById("saveMarksButton")
             grade,
 
             // Save ONLY this subject
-            [input.subject.value]: Number(input.mark.value),
+            [recordedSubjectKey]: Number(input.mark.value),
 
             updatedAt: Date.now()
 
@@ -39989,26 +40159,25 @@ async function loadMarksUnifiedClean() {
         "Processing learners..."
     );
 
+    // Let the browser paint the progress message before processing data.
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
     console.time("Processing Learners");
 
     const learners = [];
 
     const gradeSet = new Set();
 
-    snapshot.forEach(child=>{
-
+    const rawStudents = snapshot.val() || {};
+    Object.entries(rawStudents).forEach(([studentKey, student]) => {
         try{
+            const child = { key: studentKey, val: () => student };
 
             const data = child.val();
 
-            console.log(
-                "Student:",
-                child.key,
-                Object.keys(data?.marks || {})
-            );
-
-            const marks =
-                data?.marks?.[examPeriod];
+            // Do not log every learner while loading. Large classes can make
+            // the browser appear frozen at "Processing learners...".
+            const marks = data?.marks?.[examPeriod];
 
             if(!marks) return;
 
@@ -40108,15 +40277,77 @@ async function loadMarksUnifiedClean() {
     subjects =
         [...recordedSubjects].sort();
 
-    window.schoolSubjects =
-        subjects;
+    // =====================================================
+    // GRADE-SPECIFIC SUBJECT FILTER
+    // Never allow Grade 1–3 sub-learning areas to appear in
+    // the marks table when Grade 4–12 is selected.
+    // =====================================================
+    const grade13SubLearningKeys = new Set([
+        "listening", "reading", "writing", "grammar",
+        "kusikiliza", "kusoma", "kuandika", "sarufi",
+        "environmental", "cre"
+    ]);
 
-    buildMarksHeader();
+    const selectedGradeIs13 = isGrade1To3Value(selectedGrade);
+    const selectedGradeIsSpecific =
+        String(selectedGrade || "").trim() !== "" &&
+        String(selectedGrade || "").trim().toUpperCase() !== "ALL GRADES";
+
+    if (selectedGradeIsSpecific && !selectedGradeIs13) {
+        subjects = subjects.filter(subject => {
+            const key = String(subject || "")
+                .trim()
+                .toLowerCase()
+                .replace(/[\s\-_/&()]/g, "");
+
+            return !grade13SubLearningKeys.has(key);
+        });
+    }
+
+    // Keep the active subject list tied strictly to the selected grade/family.
+    // Grade 1–3 records must never create columns for Grade 4–12, and vice versa.
+    const learnersForSelectedGrade = selectedGradeIsSpecific
+        ? learners.filter(l => String(l.grade || "").trim().toUpperCase() === selectedGrade)
+        : learners;
+
+    const selectedGradeFamily = selectedGradeIsSpecific
+        ? learnersForSelectedGrade
+        : learners;
+
+    // This list must be local to this filtering block. The earlier
+    // ignoredFields variable is scoped inside the learner-processing callback.
+    const ignoredFieldsForSubjectFilter = [
+        "schoolId",
+        "name",
+        "grade",
+        "updatedAt",
+        "createdAt",
+        "id",
+        "uid"
+    ];
+
+    const selectedFamilySubjects = new Set();
+    selectedGradeFamily.forEach(learner => {
+        Object.keys(learner.marks || {}).forEach(key => {
+            if (!ignoredFieldsForSubjectFilter.includes(key)) {
+                if (!isMarksMetadataField(key)) selectedFamilySubjects.add(key);
+            }
+        });
+    });
+
+    subjects = [...selectedFamilySubjects].filter(subject => {
+        if (!selectedGradeIsSpecific) return true;
+        const isSub = isGrade13SubLearningAreaKey(subject);
+        return selectedGradeIs13 ? true : !isSub;
+    }).sort();
+
+    window.schoolSubjects = subjects;
 
 
 
 // =====================================================
 // CALCULATE TOTALS & AVERAGES
+// Grade 1–3 sub-learning area marks are display-only.
 // =====================================================
 learners.forEach(learner => {
 
@@ -40124,6 +40355,13 @@ learners.forEach(learner => {
     let enteredSubjects = 0;
 
     subjects.forEach(subject => {
+
+        // Grade 1–3 computes ONLY the five main subjects.
+        // Sub-learning area scores remain display/recording only.
+        if (
+            isGrade1To3Value(learner.grade) &&
+            !isGrade13MainSubjectKey(subject)
+        ) return;
 
         const value = learner.marks?.[subject];
 
@@ -40151,9 +40389,10 @@ learners.forEach(learner => {
     "Sorting data..."
   );
 
-  learners.sort(
-    (a, b) => b.total - a.total
-  );
+  learners.sort((a, b) => {
+    if (isGrade1To3Value(a.grade) || isGrade1To3Value(b.grade)) return 0;
+    return (Number(b.total) || 0) - (Number(a.total) || 0);
+  });
 
   allLoadedLearners = learners;
 window.allLoadedLearners = learners;
@@ -40186,6 +40425,11 @@ window.allLoadedLearners = learners;
 
  window.currentFilteredLearners = filteredLearners;
 
+  // IMPORTANT: Build the header only AFTER the filtered learners are stored.
+  // Previously the header was built too early, so the table body could contain
+  // subject score/level cells while the header still had no matching subject names.
+  buildMarksHeader(window.reportContext.grade || selectedGrade, filteredLearners);
+
 // =====================================================
 // RESET PAGINATION
 // =====================================================
@@ -40193,17 +40437,28 @@ window.__marksPagination.page = 0;
 window.__marksPagination.loading = false;
 window.__marksPagination.finished = false;
 
-clearMarksTable();
+try {
+  clearMarksTable();
+  renderNextMarksBatch();
+  renderTotals(filteredLearners);
+  renderAverages(filteredLearners);
 
-renderNextMarksBatch();
-
-renderTotals(filteredLearners);
-
-renderAverages(filteredLearners);
-
-requestAnimationFrame(() => {
-  populateGradeSelectors(gradeSet);
-});
+  requestAnimationFrame(() => {
+    try {
+      populateGradeSelectors(gradeSet);
+    } catch (selectorErr) {
+      console.error("Grade selector refresh error:", selectorErr);
+    }
+  });
+} catch (renderErr) {
+  console.error("Marks table render error:", renderErr);
+  hideLoader();
+  return Swal.fire(
+    "Marks Loading Error",
+    renderErr.message || "The marks table could not be rendered.",
+    "error"
+  );
+}
 
 updateProgress(
   100,
@@ -40266,13 +40521,144 @@ document.addEventListener("DOMContentLoaded", () => {
 // =========================================================
 // 🚀 BUILD DYNAMIC MARKS HEADER
 // =========================================================
-function buildMarksHeader() {
+
+
+// ===============================================================
+// MARKS FIELD CLEANUP + SHARED DISPLAY/CALCULATION SUBJECT RULES
+// ===============================================================
+const MARKS_METADATA_FIELDS = new Set([
+    "schoolId","school_id","uid","id","learnerId","studentId","name","grade",
+    "examPeriod","period","timestamp","createdAt","updatedAt","createdBy",
+    "recordedBy","teacherId"
+]);
+
+function isMarksMetadataField(key) {
+    const value = String(key ?? "").trim();
+    return !value ||
+        MARKS_METADATA_FIELDS.has(value) ||
+        /^school_[A-Za-z0-9_-]+$/.test(value) ||
+        /^\d{10,}$/.test(value);
+}
+
+function getCleanRecordedSubjects(subjects) {
+    return (subjects || []).map(s => String(s ?? "").trim())
+        .filter(s => s && !isMarksMetadataField(s));
+}
+
+function getMarksDisplaySubjects(gradeValue, learners) {
+    const grade = getGradeNumber(gradeValue);
+    const candidates = new Set();
+
+    // IMPORTANT: Loaded Marks must be the source of truth. Do not add subjects
+    // from schoolSubjects when a grade is being filtered, because that causes
+    // subjects belonging to other grades to appear with empty scores.
+    (learners || []).forEach(learner => {
+        const marks = learner?.marks || {};
+        getCleanRecordedSubjects(Object.keys(marks)).forEach(subject => {
+            const value = marks[subject];
+            const hasRecordedValue = value !== undefined && value !== null &&
+                String(value).trim() !== "";
+            if (hasRecordedValue) candidates.add(subject);
+        });
+    });
+
+    let subjects = [...candidates];
+
+    if (grade >= 1 && grade <= 3) {
+        // Grades 1-3: display EVERY recorded main subject and sub-learning area.
+        // Keep a predictable curriculum order, but never drop a recorded column.
+        const ordered = [
+            "English", "English — Listening", "English — Reading", "English — Writing", "English — Grammar",
+            "Listening", "Reading", "Writing", "Grammar",
+            "Kiswahili", "Kiswahili — Kusikiliza", "Kiswahili — Kusoma", "Kiswahili — Kuandika", "Kiswahili — Sarufi",
+            "Kusikiliza", "Kusoma", "Kuandika", "Sarufi",
+            "Environmental and CRE", "Environmental and CRE — Environmental", "Environmental and CRE — CRE",
+            "Environmental", "CRE",
+            "Mathematics", "Creative Arts"
+        ];
+
+        const orderedRecorded = ordered.filter(subject => subjects.includes(subject));
+        const remainingRecorded = subjects.filter(subject => !ordered.includes(subject));
+        return [...orderedRecorded, ...remainingRecorded];
+    }
+
+    // Grades 4-12: show only real, recorded main subjects for this grade.
+    return subjects.filter(s => !isReportSubLearningArea(s));
+}
+
+// ===============================================================
+// MARKS TABLE CALCULATION SAFETY
+// Totals, averages and points must ignore sub-learning areas.
+// ===============================================================
+function getLoadedMarksMainSubjects(subjects, gradeValue) {
+    const grade = getGradeNumber(gradeValue);
+    const list = (subjects || []).map(s => String(s).trim()).filter(Boolean);
+
+    if (grade >= 1 && grade <= 3) {
+        return list.filter(s => REPORT_GRADE13_MAIN_SUBJECTS.includes(s));
+    }
+    return list.filter(s => !isReportSubLearningArea(s));
+}
+
+function calculateLoadedLearnerPerformance(learner, subjects, gradeValue) {
+    const grade = getGradeNumber(gradeValue || learner?.grade);
+    const mainSubjects = getLoadedMarksMainSubjects(
+        subjects || Object.keys(learner?.marks || {}),
+        grade
+    );
+
+    let total = 0;
+    let count = 0;
+    let points = 0;
+
+    mainSubjects.forEach(subject => {
+        const value = getNumericRecordedValue(learner?.marks?.[subject]);
+        if (value === null) return;
+
+        total += value;
+        count++;
+
+        if (grade >= 1 && grade <= 6) {
+            points += getGrade16Points(value);
+        }
+    });
+
+    return {
+        subjects: mainSubjects,
+        total,
+        count,
+        average: count ? total / count : 0,
+        totalPoints: grade >= 1 && grade <= 6 ? points : null
+    };
+}
+
+function buildMarksHeader(gradeOverride = "", learnersOverride = null) {
 
     const headerRow = document.getElementById("marksHeaderRow");
 
     if (!headerRow) return;
 
-    const subjects = window.schoolSubjects || [];
+    const activeHeaderGrade = String(
+        gradeOverride ||
+        window.reportContext?.grade ||
+        document.getElementById("resultsGradeFilter")?.value ||
+        document.getElementById("gradeFilter")?.value ||
+        (Array.isArray(learnersOverride) && learnersOverride.length ? learnersOverride[0]?.grade : "") ||
+        ""
+    ).trim();
+
+    const headerLearners = Array.isArray(learnersOverride)
+        ? learnersOverride
+        : (window.currentFilteredLearners || window.allLoadedLearners || []);
+
+    const subjects = getMarksDisplaySubjects(
+        activeHeaderGrade,
+        headerLearners
+    );
+
+    // Cache the exact subject order used by the header so rows, totals and
+    // averages can stay aligned with the same grade-filtered columns.
+    window.__activeMarksSubjects = subjects.slice();
 
     let html = `
 
@@ -40357,7 +40743,23 @@ function renderMarksTable(learners, append = false) {
 
   if (!append) tbody.innerHTML = "";
 
-  const subjects = window.schoolSubjects || [];
+  // renderMarksTable has no local selectedGrade/gradeFromUI scope.
+// Derive the active grade from the marks filter, then fall back to the
+// current learner batch.
+const activeMarksGrade =
+    (document.getElementById("resultsGradeFilter")?.value || "").trim() ||
+    (learners && learners.length ? learners[0]?.grade : "");
+
+const activeMarksLearners = window.currentFilteredLearners || learners || [];
+const subjects = getMarksDisplaySubjects(
+    activeMarksGrade,
+    activeMarksLearners
+);
+
+  // Keep header and body in lockstep whenever a fresh filtered table is rendered.
+  if (!append) {
+    buildMarksHeader(activeMarksGrade, activeMarksLearners);
+  }
 
   if (!learners.length && !append) {
 
@@ -40378,35 +40780,28 @@ function renderMarksTable(learners, append = false) {
 
     const marks = learner.marks || {};
 
-    let total = 0;
-    let enteredSubjects = 0;
-
+    const isGrade13 = isGrade1To3Value(learner.grade);
+    const performance = calculateLoadedLearnerPerformance(
+      learner, subjects, learner.grade
+    );
+    const total = performance.total;
+    const enteredSubjects = performance.count;
     let subjectCells = "";
 
     subjects.forEach(subject => {
-
       const value = marks[subject];
+      const showLevel =
+        value !== undefined && value !== null && value !== "" &&
+        (!isGrade13 || !isGrade13SubLearningAreaKey(subject) || subLearningAreaHasLevel(subject));
 
-      if (value !== undefined && value !== null && value !== "") {
-
-        total += Number(value);
-        enteredSubjects++;
-
-      }
-
-  subjectCells += `
-    <td>${value ?? "-"}</td>
-    <td>${value != null ? getLevelDisplay(value) : "-"}</td>
-`;
-
+      subjectCells += `
+        <td>${value ?? "-"}</td>
+        <td>${showLevel ? getLevelDisplay(value, learner.grade) : "-"}</td>
+      `;
     });
 
-    const average =
-      enteredSubjects
-        ? (total / enteredSubjects).toFixed(2)
-        : "-";
-
-    const pts = getStudentPoints(marks);
+    const average = enteredSubjects ? performance.average.toFixed(2) : "-";
+    const pts = getStudentPoints(marks, learner.grade);
 
     html += `
       <tr>
@@ -40479,11 +40874,19 @@ function clearMarksTable() {
 // =========================================================
 // 🚀 PERFORMANCE LEVEL
 // =========================================================
-function getLevel(score) {
+function getLevel(score, gradeValue = "") {
 
     score = Number(score);
 
     if (isNaN(score)) return "-";
+
+    // Grades 1–6 use Level 1–4.
+    if (isGrade1To6Value(gradeValue)) {
+        if (score >= 75) return 4;
+        if (score >= 50) return 3;
+        if (score >= 25) return 2;
+        return 1;
+    }
 
     if (score >= 90) return 8;
     if (score >= 75) return 7;
@@ -40507,265 +40910,141 @@ const levelLabels = {
     1: "1(BE1)"
 };
 
-function getLevelDisplay(score) {
-    const level = getLevel(score);
+function getLevelDisplay(score, gradeValue = "") {
+    const level = getLevel(score, gradeValue);
+
+    if (isGrade1To6Value(gradeValue)) {
+        return {1:"BE(1)",2:"AE(2)",3:"ME(3)",4:"EE(4)"}[level] || "-";
+    }
+
     return levelLabels[level] || "-";
 }
 
 // =========================================================
 // 🚀 STUDENT POINTS (DYNAMIC SUBJECTS)
 // =========================================================
-function getStudentPoints(marks) {
-
-    const subjects = window.schoolSubjects || [];
-
-    let totalPoints = 0;
-    let enteredSubjects = 0;
-
+function getStudentPoints(marks, gradeValue = "") {
+    const grade = getGradeNumber(gradeValue);
+    const subjects = getLoadedMarksMainSubjects(
+        getCleanRecordedSubjects(Object.keys(marks || {})),
+        gradeValue
+    );
+    let totalPoints = 0, enteredSubjects = 0;
     subjects.forEach(subject => {
-
-        if (
-            marks?.[subject] !== undefined &&
-            marks?.[subject] !== null &&
-            marks?.[subject] !== ""
-        ) {
-
-            totalPoints += getLevel(marks[subject]);
+        if (!isCalculableMainSubject(subject, gradeValue)) return;
+        const value = getNumericRecordedValue(marks?.[subject]);
+        if (value === null) return;
+        const points = Number(getLevel(value, gradeValue));
+        if (Number.isFinite(points)) {
+            totalPoints += points;
             enteredSubjects++;
-
         }
-
     });
-
     return {
-
         total: totalPoints,
-
-        average: enteredSubjects
-            ? (totalPoints / enteredSubjects).toFixed(2)
-            : "0.00"
-
+        average: enteredSubjects ? (totalPoints / enteredSubjects).toFixed(2) : "0.00",
+        max: enteredSubjects ? enteredSubjects * (grade >= 1 && grade <= 6 ? 4 : 8) : 0
     };
-
 }
-
 
 // =========================================================
 // 🚀 CLASS POINTS SUMMARY
 // =========================================================
 function getClassPointsSummary(learners) {
-
-    const subjects = window.schoolSubjects || [];
-
     let totalPoints = 0;
     let totalEntries = 0;
-
     learners.forEach(learner => {
-
-        subjects.forEach(subject => {
-
-            if (
-                learner.marks?.[subject] !== undefined &&
-                learner.marks?.[subject] !== null &&
-                learner.marks?.[subject] !== ""
-            ) {
-
-                totalPoints += getLevel(
-                    learner.marks[subject]
-                );
-
-                totalEntries++;
-
-            }
-
-        });
-
+        const pts = getStudentPoints(learner.marks || {}, learner.grade);
+        totalPoints += Number(pts.total) || 0;
+        const subjects = getMainSubjectsForGradeFromAnySource(
+            learner.grade || document.getElementById("resultsGradeFilter")?.value || "",
+            window.schoolSubjects || Object.keys(learner.marks || {}),
+            [learner]
+        );
+        totalEntries += subjects.filter(subject =>
+            isCalculableMainSubject(subject, learner.grade) &&
+            learner.marks?.[subject] !== undefined &&
+            learner.marks?.[subject] !== null &&
+            learner.marks?.[subject] !== ""
+        ).length;
     });
-
-    return {
-
-        total: totalPoints,
-
-        average: totalEntries
-            ? (totalPoints / totalEntries).toFixed(2)
-            : "0.00"
-
-    };
-
+    return { total: totalPoints, average: totalEntries ? (totalPoints / totalEntries).toFixed(2) : "0.00" };
 }
-
 
 // =========================================================
 // 🚀 SUBJECT TOTALS (DYNAMIC)
 // =========================================================
 function getSubjectTotals(learners) {
-
-    const subjects = window.schoolSubjects || [];
-
-    const totals = {};
-
-    subjects.forEach(subject => {
-
-        totals[subject] = 0;
-
-    });
-
+    const activeGrade =
+        (document.getElementById("resultsGradeFilter")?.value || "").trim() ||
+        (learners?.[0]?.grade || "");
+    const displaySubjects = getMarksDisplaySubjects(activeGrade, learners || []);
+    const totals = Object.fromEntries(displaySubjects.map(s => [s, 0]));
     totals.total = 0;
 
-    learners.forEach(learner => {
-
-        let learnerTotal = 0;
-
-        subjects.forEach(subject => {
-
-            const value = learner.marks?.[subject];
-
-            if (
-                value !== undefined &&
-                value !== null &&
-                value !== ""
-            ) {
-
-                totals[subject] += Number(value);
-
-                learnerTotal += Number(value);
-
-            }
-
+    (learners || []).forEach(learner => {
+        const p = calculateLoadedLearnerPerformance(learner, displaySubjects, learner.grade);
+        p.subjects.forEach(subject => {
+            const value = getNumericRecordedValue(learner.marks?.[subject]);
+            if (value !== null) totals[subject] += value;
         });
-
-        totals.total += learnerTotal;
-
+        totals.total += p.total;
     });
-
     return totals;
-
 }
-
 
 // =========================================================
 // 🚀 TOTALS ROW (DYNAMIC)
 // =========================================================
 function renderTotals(learners) {
-
-    const row =
-        document.getElementById("totalsRow");
-
+    const row = document.getElementById("totalsRow");
     if (!row) return;
+    const activeGrade =
+        (document.getElementById("resultsGradeFilter")?.value || "").trim() ||
+        (learners?.[0]?.grade || "");
+    const subjects = getMarksDisplaySubjects(activeGrade, learners || []);
+    const totals = getSubjectTotals(learners || []);
+    const pts = getClassPointsSummary(learners || []);
 
-    const subjects =
-        window.schoolSubjects || [];
-
-    const totals =
-        getSubjectTotals(learners);
-
-    const pts =
-        getClassPointsSummary(learners);
-
-    let html = `
-
-        <td></td>
-        <td></td>
-
-        <td colspan="2">
-            <b>TOTALS</b>
-        </td>
-
-    `;
-
+    let html = `<td></td><td></td><td colspan="2"><b>TOTALS</b></td>`;
     subjects.forEach(subject => {
-
-        html += `
-            <td>${totals[subject]}</td>
-            <td></td>
-        `;
-
+        const calculable = isCalculableMainSubject(subject, activeGrade);
+        html += `<td>${calculable ? (totals[subject] ?? 0) : "-"}</td><td></td>`;
     });
-
-    html += `
-
-        <td><b>${totals.total}</b></td>
-
-        <td></td>
-
-        <td><b>${pts.total}</b></td>
-
-        <td></td>
-
-        <td></td>
-
-    `;
-
+    html += `<td><b>${totals.total ?? 0}</b></td><td></td><td><b>${pts.total ?? 0}</b></td><td></td><td></td>`;
     row.innerHTML = html;
-
 }
+
 // =========================================================
 // 🚀 AVERAGES (DYNAMIC SUBJECTS)
 // =========================================================
 function renderAverages(learners) {
-
     const row = document.getElementById("averagesRow");
-
     if (!row) return;
+    const activeGrade =
+        (document.getElementById("resultsGradeFilter")?.value || "").trim() ||
+        (learners?.[0]?.grade || "");
+    const subjects = getMarksDisplaySubjects(activeGrade, learners || []);
+    const totals = getSubjectTotals(learners || []);
+    const pts = getClassPointsSummary(learners || []);
 
-    const subjects = window.schoolSubjects || [];
-
-    const totals = getSubjectTotals(learners);
-
-    const pts = getClassPointsSummary(learners);
-
-    let html = `
-        <td></td>
-        <td></td>
-
-        <td colspan="2">
-            <b>AVERAGE</b>
-        </td>
-    `;
-
+    let html = `<td></td><td></td><td colspan="2"><b>AVERAGE</b></td>`;
     subjects.forEach(subject => {
-
-        let total = 0;
-        let count = 0;
-
-        learners.forEach(learner => {
-
-            const value = learner.marks?.[subject];
-
-            if (
-                value !== undefined &&
-                value !== null &&
-                value !== ""
-            ) {
-                total += Number(value);
-                count++;
-            }
-
+        if (!isCalculableMainSubject(subject, activeGrade)) {
+            html += `<td>-</td><td></td>`;
+            return;
+        }
+        let total = 0, count = 0;
+        (learners || []).forEach(learner => {
+            const value = getNumericRecordedValue(learner.marks?.[subject]);
+            if (value !== null) { total += value; count++; }
         });
-
-        html += `
-            <td>${count ? (total / count).toFixed(1) : "-"}</td>
-            <td></td>
-        `;
-
+        html += `<td>${count ? (total / count).toFixed(1) : "-"}</td><td></td>`;
     });
 
-    const learnerCount = learners.length || 1;
-
-    html += `
-        <td><b>${(totals.total / learnerCount).toFixed(1)}</b></td>
-
-        <td></td>
-
-        <td><b>${pts.average}</b></td>
-
-        <td></td>
-
-        <td></td>
-    `;
-
+    const learnerCount = (learners || []).length || 1;
+    html += `<td><b>${((totals.total ?? 0) / learnerCount).toFixed(1)}</b></td><td></td><td><b>${pts.average ?? "0.00"}</b></td><td></td><td></td>`;
     row.innerHTML = html;
-
 }
 
 
@@ -40779,29 +41058,18 @@ document.getElementById("gradeSelect")
 ?.addEventListener("change", function () {
 
     const selected = this.value.trim();
+    const filtered = !selected
+        ? allLoadedLearners
+        : allLoadedLearners.filter(learner =>
+            (learner.grade || "").toLowerCase() === selected.toLowerCase()
+        );
 
-    if (!selected) {
-
-        renderMarksTable(allLoadedLearners);
-
-        renderTotals(allLoadedLearners);
-
-        renderAverages(allLoadedLearners);
-
-        return;
-
-    }
-
-    const filtered = allLoadedLearners.filter(learner =>
-        (learner.grade || "")
-            .toLowerCase() ===
-        selected.toLowerCase()
-    );
-
+    window.currentFilteredLearners = filtered;
+    window.reportContext = window.reportContext || {};
+    window.reportContext.grade = selected || null;
+    buildMarksHeader(selected || (filtered[0]?.grade || ""), filtered);
     renderMarksTable(filtered);
-
     renderTotals(filtered);
-
     renderAverages(filtered);
 
 });
@@ -41537,19 +41805,17 @@ ${err.message || "Unknown error."}
 };
 document.getElementById("gradeFilter")?.addEventListener("change", function () {
 
-  const selected = this.value;
+  const selected = this.value.trim();
+  const filtered = !selected
+    ? allLoadedLearners
+    : allLoadedLearners.filter(l =>
+        (l.grade || "").toUpperCase() === selected.toUpperCase()
+      );
 
-  if (!selected) {
-    renderMarksTable(allLoadedLearners);
-    renderTotals(allLoadedLearners);
-    renderAverages(allLoadedLearners);
-    return;
-  }
-
-  const filtered = allLoadedLearners.filter(l =>
-    (l.grade || "").toUpperCase() === selected.toUpperCase()
-  );
-
+  window.currentFilteredLearners = filtered;
+  window.reportContext = window.reportContext || {};
+  window.reportContext.grade = selected || null;
+  buildMarksHeader(selected || (filtered[0]?.grade || ""), filtered);
   renderMarksTable(filtered);
   renderTotals(filtered);
   renderAverages(filtered);
@@ -41997,24 +42263,204 @@ function saveTeacherSetup(grade) {
 
 let reportMeta = null;
 
+// ======================================================
+// REPORT SUBJECT DISPLAY NAME
+// ======================================================
+function subjectDisplayNameForReport(subject) {
+
+    return (
+        window.subjectDisplayNames?.[subject] ||
+        ({
+            eng: "English",
+            math: "Mathematics",
+            maths: "Mathematics",
+            kiswahili: "Kiswahili",
+            science: "Integrated Science",
+            social: "Social Studies",
+            agriculture: "Agriculture",
+            cre: "Religious Education",
+            preTech: "Pre-Technical Studies",
+            creativeArt: "Creative Arts"
+        }[subject]) ||
+        String(subject || "")
+            .replace(/([A-Z])/g, " $1")
+            .replace(/^./, c => c.toUpperCase())
+    );
+
+}
+
 // ==========================
 // OPEN MODAL + PREFILL
 // ==========================
+// =========================================================
+// ASSESSMENT REPORT GRADE CONTEXT FIX
+// Always use the grade currently selected for loaded results.
+// =========================================================
+window.getActiveAssessmentGrade = function () {
+    const candidates = [
+        document.getElementById("resultsGradeFilter")?.value,
+        document.getElementById("gradeFilter")?.value,
+        window.currentLoadedGrade,
+        window.reportContext?.grade,
+        document.getElementById("gradeSelect")?.value
+    ];
+    const explicit = candidates.map(v => String(v || "").trim()).find(Boolean);
+    if (explicit) return explicit;
+
+    const learners = Array.isArray(window.currentFilteredLearners) && window.currentFilteredLearners.length
+        ? window.currentFilteredLearners
+        : (Array.isArray(window.allLoadedLearners) ? window.allLoadedLearners : []);
+    const grades = [...new Set(learners.map(l => String(l?.grade || "").trim()).filter(Boolean))];
+    return grades.length === 1 ? grades[0] : "";
+};
+
 window.openReportMeta = function () {
 
-    document.getElementById(
-        "reportMetaModal"
-    ).style.display = "flex";
+    const modal = document.getElementById("reportMetaModal");
 
-    const grade =
-        document.getElementById("metaGrade")
-            ?.value.trim() || "default";
+    if (modal) {
+        modal.style.display = "flex";
+    }
+
+    /*
+     * =========================================================
+     * GRADE-AWARE SUBJECT TEACHER LIST
+     * =========================================================
+     * Grade 1-3:
+     *   ONLY the five main learning areas are requested.
+     *   Sub-learning areas are never requested.
+     *
+     * Grade 4-12:
+     *   ONLY subjects that actually have recorded marks for
+     *   the selected grade are requested.
+     *   Subjects belonging to another grade are excluded.
+     */
+
+    const gradeInput =
+        document.getElementById("metaGrade");
+
+    // IMPORTANT: do not let a stale Grade 1-3 value left in the modal
+    // override the grade currently selected in the Results/Marks filters.
+    const detectedGrade = String(
+        window.getActiveAssessmentGrade?.() || gradeInput?.value || ""
+    ).trim();
+
+    // Keep the modal grade field synchronized with the active report grade.
+    if (gradeInput && detectedGrade) {
+        gradeInput.value = detectedGrade;
+    }
+
+    const gradeNo =
+        getGradeNumber(detectedGrade);
+
+    const isGrade1To3 =
+        gradeNo >= 1 && gradeNo <= 3;
+
+    const allLearners =
+        Array.isArray(window.allLoadedLearners)
+            ? window.allLoadedLearners
+            : [];
+
+    const activeLearners =
+        Array.isArray(window.currentFilteredLearners) &&
+        window.currentFilteredLearners.length
+            ? window.currentFilteredLearners
+            : allLearners;
+
+    // ---------------------------------------------------------
+    // FILTER LEARNERS TO THE SELECTED GRADE FAMILY
+    // ---------------------------------------------------------
+    const gradeLearners =
+        gradeNo
+            ? activeLearners.filter(learner => {
+                return getGradeNumber(learner?.grade) === gradeNo;
+            })
+            : activeLearners;
+
+    // ---------------------------------------------------------
+    // GRADE 1-3: EXACTLY FIVE MAIN LEARNING AREAS
+    // ---------------------------------------------------------
+    let subjects = [];
+
+    if (isGrade1To3) {
+
+        subjects =
+            [...REPORT_GRADE13_MAIN_SUBJECTS];
+
+    } else {
+
+        // -----------------------------------------------------
+        // GRADE 4-12:
+        // Build the teacher list directly from the subjects that
+        // are actually loaded/recorded for THIS selected grade.
+        // This deliberately uses the same grade-aware subject
+        // resolver used by the marks/report logic so Grade 4-12
+        // never falls back to the Grade 1-3 five-subject list.
+        // -----------------------------------------------------
+        const recordedSubjects = new Set();
+
+        gradeLearners.forEach(learner => {
+            const marks = learner?.marks || {};
+
+            Object.entries(marks).forEach(([subject, value]) => {
+                if (isMarksMetadataField(subject)) return;
+
+                const numericValue = getNumericRecordedValue(value);
+                if (numericValue !== null) recordedSubjects.add(subject);
+            });
+        });
+
+        // Include all subjects currently represented in the selected
+        // grade's loaded marks, then remove sub-learning areas only.
+        // If marks were loaded with empty values, preserve their column
+        // when it belongs to the grade-aware loaded subject list.
+        const gradeAwareSubjects = getMarksDisplaySubjects(
+            detectedGrade,
+            gradeLearners
+        );
+
+        // IMPORTANT: do not merge window.schoolSubjects here. That list can
+        // contain subjects from Grade 1-3 and old aliases from other grades.
+        // Use ONLY subjects actually recorded in the selected grade, then
+        // collapse aliases such as Eng/English and Math/Mathematics.
+        const subjectAliases = {
+            eng: "English", english: "English",
+            math: "Mathematics", maths: "Mathematics", mathematics: "Mathematics",
+            kisw: "Kiswahili", kiswahili: "Kiswahili",
+            agric: "Agriculture", agriculture: "Agriculture",
+            scien: "Integrated Science", science: "Integrated Science", integratedscience: "Integrated Science",
+            social: "Social Studies", socialstudies: "Social Studies",
+            creativearts: "Creative Arts", creativeart: "Creative Arts",
+            pretech: "Pre-Technical Studies", pretechnical: "Pre-Technical Studies",
+            cre: "CRE", religiouseducation: "CRE"
+        };
+        const normalizeSubjectKey = subject => String(subject || "")
+            .toLowerCase()
+            .replace(/[—–-]/g, "")
+            .replace(/[^a-z0-9]/g, "");
+        const canonicalSubjects = new Map();
+        [...recordedSubjects].forEach(subject => {
+            const raw = String(subject || "").trim();
+            const key = normalizeSubjectKey(raw);
+            // Grade 1-3 sub-learning areas must never leak into Grade 4-12.
+            if (!raw || isMarksMetadataField(raw) ||
+                isReportSubLearningArea(raw) ||
+                /^(english(listening|reading|writing)|kiswahili(kuandika|kusikiliza|kusoma)|environmentalandcre(environment|cre))$/i.test(key)) return;
+            const canonical = subjectAliases[key] || raw;
+            const canonicalKey = normalizeSubjectKey(canonical);
+            if (!canonicalSubjects.has(canonicalKey)) canonicalSubjects.set(canonicalKey, canonical);
+        });
+        subjects = [...canonicalSubjects.values()].sort((a,b) => a.localeCompare(b));
+    }
 
     const all =
         loadTeacherSetup();
 
+    const gradeKey =
+        detectedGrade || "default";
+
     const savedTeachers =
-        all[grade] || {};
+        all[gradeKey] || {};
 
     const container =
         document.getElementById(
@@ -42025,9 +42471,9 @@ window.openReportMeta = function () {
 
     container.innerHTML = "";
 
-    const subjects =
-        window.schoolSubjects || [];
-
+    // ---------------------------------------------------------
+    // DISPLAY TEACHER INPUTS
+    // ---------------------------------------------------------
     subjects.forEach(subject => {
 
         const row =
@@ -42042,17 +42488,17 @@ window.openReportMeta = function () {
 
             <label
                 style="
-                    width:170px;
+                    width:190px;
                     font-weight:bold;
                 ">
-                ${subject}
+                ${subjectDisplayNameForReport(subject)}
             </label>
 
             <input
                 class="subjectTeacherInput"
                 data-subject="${subject}"
                 value="${savedTeachers[subject] || ""}"
-                placeholder="${subject} Teacher"
+                placeholder="${subjectDisplayNameForReport(subject)} Teacher"
                 style="
                     flex:1;
                     padding:8px;
@@ -42535,6 +42981,25 @@ window.generateAssessmentReports = function () {
         document.getElementById("assessmentReportsContent");
 
     if (!container) return;
+
+    const activeAssessmentGrade = String(
+        window.getActiveAssessmentGrade?.() || ""
+    ).trim();
+
+    // A previously saved Grade 1-3 report setup must never be reused when
+    // the user has now selected another grade such as Grade 9.
+    if (
+        activeAssessmentGrade &&
+        (!reportMeta || String(reportMeta.grade || "").trim().toLowerCase() !== activeAssessmentGrade.toLowerCase())
+    ) {
+        reportMeta = null;
+        const gradeField = document.getElementById("metaGrade");
+        if (gradeField) gradeField.value = activeAssessmentGrade;
+        window.reportContext = {
+            ...(window.reportContext || {}),
+            grade: activeAssessmentGrade
+        };
+    }
 
     if (!reportMeta) {
         openReportMeta();
@@ -43370,8 +43835,8 @@ window.generateAssessmentReports = function () {
                     ).toLowerCase();
 
 
-                const isGrade4To6 =
-                    /4|5|6/.test(
+                const isGrade1To6 =
+                    /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(
                         gradeText
                     );
 
@@ -43389,41 +43854,76 @@ window.generateAssessmentReports = function () {
                 // ==================================================
                 // SUBJECTS
                 // ==================================================
+                //
+                // Grade 1-3:
+                //   ONLY the five main learning areas.
+                //
+                // Grade 4-12:
+                //   ONLY subjects that have actual recorded marks
+                //   for this learner/grade. No unrelated subjects.
+                // ==================================================
 
-                const subjects = [
+                const gradeNumber =
+                    getGradeNumber(s.grade);
 
-                    ...new Set([
+                const isGrade1To3 =
+                    gradeNumber >= 1 &&
+                    gradeNumber <= 3;
 
-                        ...Object.keys(
-                            currentMarks
-                        ),
+                let subjects = [];
 
-                        ...(hasPreviousExam
-                            ? Object.keys(
-                                previousMarks
-                            )
+                if (isGrade1To3) {
+
+                    subjects =
+                        [...REPORT_GRADE13_MAIN_SUBJECTS];
+
+                } else {
+
+                    const recordedSubjects =
+                        new Set();
+
+                    [
+                        ...Object.keys(currentMarks),
+                        ...(learnerHasPreviousExam
+                            ? Object.keys(previousMarks)
                             : [])
+                    ].forEach(subject => {
 
-                    ])
+                        if (
+                            isMarksMetadataField(subject)
+                        ) {
+                            return;
+                        }
 
-                ]
+                        const currentValue =
+                            getNumericRecordedValue(
+                                currentMarks?.[subject]
+                            );
 
-                .filter(key =>
+                        const previousValue =
+                            getNumericRecordedValue(
+                                previousMarks?.[subject]
+                            );
 
-                    ![
-                        "schoolId",
-                        "name",
-                        "grade",
-                        "updatedAt",
-                        "createdAt",
-                        "examPeriod",
-                        "previousExamPeriod"
-                    ].includes(key)
+                        if (
+                            currentValue !== null ||
+                            previousValue !== null
+                        ) {
+                            recordedSubjects.add(subject);
+                        }
 
-                )
+                    });
 
-                .sort();
-
+                    subjects =
+                        [...recordedSubjects]
+                            .filter(subject =>
+                                isReportMainSubject(
+                                    subject,
+                                    s.grade
+                                )
+                            )
+                            .sort();
+                }
 
                 // ==================================================
                 // SUBJECT TABLE
@@ -43583,7 +44083,7 @@ window.generateAssessmentReports = function () {
                             <!-- CURRENT POINTS -->
 
                             ${
-                                !isGrade4To6
+                                !isGrade1To6
                                     ? `
                                         <td style="
                                             border:2px solid #000;
@@ -43629,7 +44129,7 @@ window.generateAssessmentReports = function () {
 
 
                                         ${
-                                            !isGrade4To6
+                                            !isGrade1To6
                                                 ? `
                                                     <td style="
                                                         border:2px solid #000;
@@ -43818,7 +44318,7 @@ window.generateAssessmentReports = function () {
 
 
                                 ${
-                                    !isGrade4To6
+                                    !isGrade1To6
                                         ? `
                                             <th style="
                                                 border:3px solid #000;
@@ -43851,7 +44351,7 @@ window.generateAssessmentReports = function () {
 
 
                                             ${
-                                                !isGrade4To6
+                                                !isGrade1To6
                                                     ? `
                                                         <th style="
                                                             border:3px solid #000;
@@ -44012,7 +44512,7 @@ window.generateAssessmentReports = function () {
 
 
                                                 ${
-                                                    !isGrade4To6
+                                                    !isGrade1To6
                                                         ? `
                                                             <td style="
                                                                 padding:6px;
@@ -44149,7 +44649,7 @@ window.generateAssessmentReports = function () {
 
 
                                                             ${
-                                                                !isGrade4To6
+                                                                !isGrade1To6
                                                                     ? `
                                                                         <td style="
                                                                             padding:6px;
@@ -47312,6 +47812,195 @@ function normalize(value) {
     .trim();
 
 }
+
+// ===============================================================
+// GRADE 1-3 SUB-LEARNING AREA RULES
+// Shared rule for reports, rankings, totals, averages and points.
+// Sub-learning areas are assessment/display records only.
+// ===============================================================
+const REPORT_GRADE13_MAIN_SUBJECTS = [
+    "English",
+    "Kiswahili",
+    "Environmental and CRE",
+    "Mathematics",
+    "Creative Arts"
+];
+
+const REPORT_GRADE13_SUB_LEARNING_AREAS = new Set([
+    "Listening", "Reading", "Writing", "Grammar",
+    "Kusikiliza", "Kusoma", "Kuandika", "Sarufi",
+    "Environmental", "CRE"
+]);
+
+function getGradeNumber(value) {
+    const match = String(value ?? "").match(/\d+/);
+    return match ? Number(match[0]) : null;
+}
+
+function isReportSubLearningArea(subject) {
+    return REPORT_GRADE13_SUB_LEARNING_AREAS.has(String(subject ?? "").trim());
+}
+
+function isReportMainSubject(subject, gradeValue) {
+    const grade = getGradeNumber(gradeValue);
+    const key = String(subject ?? "").trim();
+
+    // Grade 1-3: only the five main learning areas are report/calculation subjects.
+    if (grade >= 1 && grade <= 3) {
+        return REPORT_GRADE13_MAIN_SUBJECTS.includes(key);
+    }
+
+    // Grade 4-12: never allow Grade 1-3 sub-learning areas to leak into reports.
+    return !isReportSubLearningArea(key);
+}
+
+function getReportMainSubjects(gradeValue, subjects) {
+    return (subjects || []).filter(subject =>
+        isReportMainSubject(subject, gradeValue)
+    );
+}
+
+function getReportLevel14(score) {
+    score = Number(score);
+    if (!Number.isFinite(score)) return "-";
+    if (score >= 75) return 4;
+    if (score >= 50) return 3;
+    if (score >= 25) return 2;
+    return 1;
+}
+
+function getReportPoints14(scoreOrLevel) {
+    const value = Number(scoreOrLevel);
+    if (!Number.isFinite(value)) return 0;
+    return value >= 1 && value <= 4
+        ? value
+        : getReportLevel14(value);
+}
+
+
+function getNumericRecordedValue(value) {
+    if (value === null || value === undefined || value === "") return null;
+
+    if (typeof value === "object") {
+        const candidates = [
+            value.mark, value.score, value.marks, value.value, value.points
+        ];
+        for (const candidate of candidates) {
+            const n = Number(candidate);
+            if (Number.isFinite(n)) return n;
+        }
+        return null;
+    }
+
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+function getGrade16Level(score) {
+    const n = getNumericRecordedValue(score);
+    if (n === null) return null;
+
+    // Required Grade 1-6 representation:
+    // 1(BE), 2(AE), 3(ME), 4(EE)
+    if (n >= 1 && n <= 4 && Number.isInteger(n)) return n;
+    if (n >= 75) return 4;
+    if (n >= 50) return 3;
+    if (n >= 25) return 2;
+    return 1;
+}
+
+function getGrade16LevelLabel(score) {
+    const level = getGrade16Level(score);
+    return {
+        1: "1(BE)",
+        2: "2(AE)",
+        3: "3(ME)",
+        4: "4(EE)"
+    }[level] || "-";
+}
+
+function getGrade16Points(score) {
+    const level = getGrade16Level(score);
+    return level || 0;
+}
+
+function getReportMainSubjectKeysForLearner(learner) {
+    const grade = getGradeNumber(learner?.grade);
+    const recordedKeys = Object.keys(learner?.marks || {});
+
+    if (grade >= 1 && grade <= 3) {
+        // Grade 1-3 reports must contain ONLY the five main learning areas.
+        return recordedKeys.filter(key =>
+            REPORT_GRADE13_MAIN_SUBJECTS.includes(String(key).trim())
+        );
+    }
+
+    // Grade 4-12 must never receive Grade 1-3 sub-learning-area columns.
+    return recordedKeys.filter(key => !isReportSubLearningArea(key));
+}
+
+function normalizeLearnerForMainSubjectReports(learner) {
+    const grade = getGradeNumber(learner?.grade);
+    const originalMarks = { ...(learner?.marks || {}) };
+    const marks = {};
+
+    getReportMainSubjectKeysForLearner({ ...learner, marks: originalMarks })
+        .forEach(subject => {
+            marks[subject] = originalMarks[subject];
+        });
+
+    const availableSubjects = Object.keys(marks);
+    let total = 0;
+    let count = 0;
+    let totalPoints = 0;
+
+    availableSubjects.forEach(subject => {
+        const value = getNumericRecordedValue(marks[subject]);
+        if (value !== null) {
+            total += value;
+            count++;
+
+            // Grades 1-6: points are exactly the numeric level 1-4.
+            if (grade >= 1 && grade <= 6) {
+                totalPoints += getGrade16Points(value);
+            }
+        }
+    });
+
+    return {
+        ...learner,
+        originalMarks,
+        marks,
+        reportMainSubjects: availableSubjects,
+        total,
+        average: count ? total / count : 0,
+        totalPoints,
+        levelForReport: grade >= 1 && grade <= 6
+            ? getGrade16Level
+            : undefined
+    };
+}
+
+function getMainSubjectsForGradeFromAnySource(gradeValue, subjectSource, learners) {
+    const grade = getGradeNumber(gradeValue);
+    const candidate = new Set();
+
+    (subjectSource || []).forEach(s => candidate.add(String(s).trim()));
+    (learners || []).forEach(learner => {
+        if (getGradeNumber(learner?.grade) === grade) {
+            Object.keys(learner?.marks || {}).forEach(s => candidate.add(String(s).trim()));
+        }
+    });
+
+    const list = [...candidate].filter(Boolean);
+
+    if (grade >= 1 && grade <= 3) {
+        return REPORT_GRADE13_MAIN_SUBJECTS.filter(subject => list.includes(subject));
+    }
+
+    return list.filter(subject => !isReportSubLearningArea(subject));
+}
+
 function getFilteredLearners(selectedGrade, selectedExamPeriod) {
 
   // ===============================
@@ -47331,29 +48020,25 @@ function getFilteredLearners(selectedGrade, selectedExamPeriod) {
       window.reportContext?.examPeriod
     );
 
-  return (allLoadedLearners || []).filter(l => {
+  return (allLoadedLearners || [])
+    .filter(l => {
 
-    const learnerGrade = normalize(l.grade);
-    const learnerPeriod = normalize(l.examPeriod || l.period);
+      const learnerGrade = normalize(l.grade);
+      const learnerPeriod = normalize(l.examPeriod || l.period);
 
-    // ===============================
-    // 🔥 ALLOW "ALL GRADES"
-    // ===============================
-    const gradeMatch =
-      !grade ||
-      grade === "all grades" ||
-      learnerGrade === grade;
+      const gradeMatch =
+        !grade ||
+        grade === "all grades" ||
+        learnerGrade === grade;
 
-    // ===============================
-    // 🔥 ALLOW ALL PERIODS
-    // ===============================
-    const periodMatch =
-      !period ||
-      period === "all periods" ||
-      learnerPeriod === period;
+      const periodMatch =
+        !period ||
+        period === "all periods" ||
+        learnerPeriod === period;
 
-    return gradeMatch && periodMatch;
-  });
+      return gradeMatch && periodMatch;
+    })
+    .map(normalizeLearnerForMainSubjectReports);
 }
 
 
@@ -47389,10 +48074,8 @@ async function generateSubjectChampions(selectedGrade, selectedExamPeriod) {
 // =====================================
 const gradeText = gradeFromUI.toLowerCase();
 
-const isGrade4To6 =
-    gradeText.includes("4") ||
-    gradeText.includes("5") ||
-    gradeText.includes("6");
+const isGrade1To6 =
+    /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(String(gradeText || ""));
   const container = document.getElementById("subjectChampionsContent");
 
   // ===============================
@@ -47443,7 +48126,7 @@ const isGrade4To6 =
  // ===============================
 // 🔹 USE ONLY RECORDED SUBJECTS
 // ===============================
-const subjects = (window.schoolSubjects || []).map(subject => ({
+const subjects = getMainSubjectsForGradeFromAnySource(gradeFromUI, window.schoolSubjects || [], getFilteredLearners(gradeFromUI, selectedExamPeriod)).map(subject => ({
 
   key: subject,
 
@@ -47459,13 +48142,13 @@ function getLevel(score) {
 
     score = Number(score) || 0;
 
-    // Grades 4–6
-    if (isGrade4To6) {
+    // Grades 1–6
+    if (isGrade1To6) {
 
-        if (score >= 75) return "EE";
-        if (score >= 50) return "ME";
-        if (score >= 25) return "AE";
-        return "BE";
+        if (score >= 75) return 4;
+        if (score >= 50) return 3;
+        if (score >= 25) return 2;
+        return 1;
 
     }
 
@@ -47482,15 +48165,12 @@ function getLevel(score) {
 
   function getPoints(level) {
 
-    // Grades 4–6
-    if (isGrade4To6) {
+    // Grades 1–6
+    if (isGrade1To6) {
 
-        return {
-            "EE": 4,
-            "ME": 3,
-            "AE": 2,
-            "BE": 1
-        }[level] || 0;
+        return Number(level) >= 1 && Number(level) <= 4
+            ? Number(level)
+            : 0;
 
     }
 
@@ -47621,7 +48301,7 @@ function getLevel(score) {
             Level
           </th>
 
-       ${!isGrade4To6 ? `
+       ${!isGrade1To6 ? `
 <th style="border:2px solid black;padding:8px;">
     Points
 </th>
@@ -47663,7 +48343,7 @@ function getLevel(score) {
           ${level}
         </td>
 
-      ${!isGrade4To6 ? `
+      ${!isGrade1To6 ? `
 <td style="border:2px solid black;padding:8px;">
     ${points}
 </td>
@@ -47852,23 +48532,21 @@ if (!subjects.length) {
 // =====================================
 const gradeText = String(gradeFromUI || "").toLowerCase();
 
-const isGrade4To6 =
-    gradeText.includes("4") ||
-    gradeText.includes("5") ||
-    gradeText.includes("6");
+const isGrade1To6 =
+    /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(String(gradeText || ""));
 
 // LEVELS
 // =====================================
-const levels = isGrade4To6
+const levels = isGrade1To6
     ? ['4','3','2','1']
     : ['8','7','6','5','4','3','2','1'];
 
-const levelLabels = isGrade4To6
+const levelLabels = isGrade1To6
 ? {
-    '4': '4 (EE)',
-    '3': '3 (ME)',
-    '2': '2 (AE)',
-    '1': '1 (BE)'
+    '4': 'EE(4)',
+    '3': 'ME(3)',
+    '2': 'AE(2)',
+    '1': 'BE(1)'
 }
 : {
     '8': '8 (EE1)',
@@ -47923,7 +48601,7 @@ subjects.forEach(subject => {
 
        let level;
 
-if (isGrade4To6) {
+if (isGrade1To6) {
 
     level =
         score >= 75 ? "4" :
@@ -47947,7 +48625,7 @@ if (isGrade4To6) {
 
         summary[subject.name][level]++;
 
-        const topLevels = isGrade4To6
+        const topLevels = isGrade1To6
     ? ["4"]
     : ["8", "7"];
 
@@ -48974,10 +49652,8 @@ async function generateSubjectPerformance(selectedGrade, selectedExamPeriod) {
 // =====================================
 const gradeText = gradeFromUI.toLowerCase();
 
-const isGrade4To6 =
-    gradeText.includes("4") ||
-    gradeText.includes("5") ||
-    gradeText.includes("6");
+const isGrade1To6 =
+    /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(String(gradeText || ""));
   const container = document.getElementById("subjectPerformanceContent");
 
   // ===============================
@@ -49055,47 +49731,51 @@ const recordedSubjects = new Set();
 
 });
 
-const subjects = (window.schoolSubjects || [])
+const subjects = isGrade1To3Value(grade)
+    ? REPORT_GRADE13_MAIN_SUBJECTS
+        .map(subject => ({
+            key: subject,
+            name: subject
+        }))
+    : (window.schoolSubjects || [])
+        .filter(subject => recordedSubjects.has(subject))
+        .map(subject => ({
 
-    .filter(subject => recordedSubjects.has(subject))
+            key: subject,
 
-    .map(subject => ({
+            name:
 
-        key: subject,
+                window.subjectDisplayNames?.[subject] ||
 
-        name:
+                ({
+                    eng: "English",
+                    math: "Mathematics",
+                    kiswahili: "Kiswahili",
+                    science: "Integrated Science",
+                    social: "Social Studies",
+                    agriculture: "Agriculture",
+                    cre: "Religious Education",
+                    preTech: "Pre-Technical Studies",
+                    creativeArt: "Creative Arts"
+                }[subject]) ||
 
-            window.subjectDisplayNames?.[subject] ||
+                subject
+                    .replace(/([A-Z])/g, " $1")
+                    .replace(/^./, c => c.toUpperCase())
 
-            ({
-                eng: "English",
-                math: "Mathematics",
-                kiswahili: "Kiswahili",
-                science: "Integrated Science",
-                social: "Social Studies",
-                agriculture: "Agriculture",
-                cre: "Religious Education",
-                preTech: "Pre-Technical Studies",
-                creativeArt: "Creative Arts"
-            }[subject]) ||
-
-            subject
-                .replace(/([A-Z])/g, " $1")
-                .replace(/^./, c => c.toUpperCase())
-
-    }));
+        }));
 
   function getLevel(score) {
 
     score = Number(score) || 0;
 
-    // CBC Grades 4-6
-    if (isGrade4To6) {
+    // CBC Grades 1-6
+    if (isGrade1To6) {
 
-        if (score >= 75) return "EE";
-        if (score >= 50) return "ME";
-        if (score >= 25) return "AE";
-        return "BE";
+        if (score >= 75) return 4;
+        if (score >= 50) return 3;
+        if (score >= 25) return 2;
+        return 1;
 
     }
 
@@ -49113,15 +49793,12 @@ const subjects = (window.schoolSubjects || [])
 
  function getPoints(level) {
 
-    // CBC Grades 4-6
-    if (isGrade4To6) {
+    // CBC Grades 1-6
+    if (isGrade1To6) {
 
-        return {
-            "EE": 4,
-            "ME": 3,
-            "AE": 2,
-            "BE": 1
-        }[level] || 0;
+        return Number(level) >= 1 && Number(level) <= 4
+            ? Number(level)
+            : 0;
 
     }
 
@@ -51916,17 +52593,15 @@ window.generateSubjectRanking = async function (
 // =====================================
 const gradeText = String(gradeFromUI || "").toLowerCase();
 
-const isGrade4To6 =
-    gradeText.includes("4") ||
-    gradeText.includes("5") ||
-    gradeText.includes("6");
+const isGrade1To6 =
+    /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(String(gradeText || ""));
 
 function getLevel(score) {
 
     score = Number(score) || 0;
 
-    // Grades 4–6
-    if (isGrade4To6) {
+    // Grades 1–6
+    if (isGrade1To6) {
 
         if (score >= 75) return 4;
         if (score >= 50) return 3;
@@ -51952,14 +52627,9 @@ function getLevelName(score) {
 
     const level = getLevel(score);
 
-    if (isGrade4To6) {
+    if (isGrade1To6) {
 
-        return {
-            4: "EE",
-            3: "ME",
-            2: "AE",
-            1: "BE"
-        }[level] || "";
+        return {4:"EE(4)",3:"ME(3)",2:"AE(2)",1:"BE(1)"}[level] || "";
 
     }
 
@@ -55400,8 +56070,8 @@ function getLevel(score) {
 
     score = Number(score) || 0;
 
-    // Grades 4-6
-    if (isGrade4To6) {
+    // Grades 1-6
+    if (isGrade1To6) {
 
         if (score >= 75) return 4;
         if (score >= 50) return 3;
@@ -55442,14 +56112,14 @@ function getLevelName(score) {
 
     const level = getLevel(score);
 
-    // CBC Grades 4–6
-    if (isGrade4To6) {
+    // CBC Grades 1–6
+    if (isGrade1To6) {
 
         return {
-            4: "EE",
-            3: "ME",
-            2: "AE",
-            1: "BE"
+            4: "4(EE)",
+            3: "3(ME)",
+            2: "2(AE)",
+            1: "1(BE)"
         }[level] || "-";
 
     }
@@ -55489,7 +56159,7 @@ function getLevelName(score) {
 // ================= CBC GRADE DETECTION =================
 const gradeNo = parseInt(String(grade).match(/\d+/)?.[0] || 0);
 
-const isGrade4To6 = gradeNo >= 4 && gradeNo <= 6;
+const isGrade1To6 = gradeNo >= 1 && gradeNo <= 6;
   // ================= FILTER LEARNERS =================
   updateProgress(25, "Filtering learners...");
   await new Promise(r => setTimeout(r, 300));
@@ -55635,7 +56305,7 @@ const subjects = (window.schoolSubjects || [])
 
   subjects.forEach(subject => {
 
-levelSummary[subject.key] = isGrade4To6
+levelSummary[subject.key] = isGrade1To6
 ? {
     4: 0,
     3: 0,
@@ -55812,8 +56482,8 @@ subjects.forEach(() => {
 
     html += `
         <th>Sco</th>
-        <th>${isGrade4To6 ? "Lvl" : "Pts"}</th>
-        <th>${isGrade4To6 ? "Band" : "Lev"}</th>
+        <th>${isGrade1To6 ? "Lvl" : "Pts"}</th>
+        <th>${isGrade1To6 ? "Band" : "Lev"}</th>
     `;
 
 });
@@ -55957,7 +56627,7 @@ const score =
 <th>Subject</th>
 
 ${
-isGrade4To6
+isGrade1To6
 ?`
 <th>4 (EE)</th>
 <th>3 (ME)</th>
@@ -55981,7 +56651,13 @@ isGrade4To6
 `;
 
   // ================= SUMMARY ROWS =================
-  subjects.forEach(subject => {
+  const summarySubjects = isGrade1To3Value(grade)
+      ? subjects.filter(subject =>
+          REPORT_GRADE13_MAIN_SUBJECTS.includes(subject.key)
+        )
+      : subjects;
+
+  summarySubjects.forEach(subject => {
 
     html += `
 <tr>
@@ -55990,7 +56666,7 @@ isGrade4To6
   ${subject.name}
 </td>
 ${
-isGrade4To6
+isGrade1To6
 ? `
 <td>${levelSummary[subject.key][4]}</td>
 <td>${levelSummary[subject.key][3]}</td>
@@ -56167,10 +56843,8 @@ window.combineMarksByGradeWithDetails = async function (selectedGrade, selectedE
 // =====================================
 const gradeText = String(gradeFromUI || "").toLowerCase();
 
-const isGrade4To6 =
-    gradeText.includes("4") ||
-    gradeText.includes("5") ||
-    gradeText.includes("6");
+const isGrade1To6 =
+    /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(String(gradeText || ""));
   // ===============================
   // 🔥 LOADER START
   // ===============================
@@ -56285,8 +56959,8 @@ function getLevel(score) {
 
     score = Number(score) || 0;
 
-    // Grades 4–6
-    if (isGrade4To6) {
+    // Grades 1–6
+    if (isGrade1To6) {
 
         if (score >= 75) return 4;
         if (score >= 50) return 3;
@@ -56311,14 +56985,9 @@ function getLevelName(score) {
 
     const level = getLevel(score);
 
-    if (isGrade4To6) {
+    if (isGrade1To6) {
 
-        return {
-            4: "EE",
-            3: "ME",
-            2: "AE",
-            1: "BE"
-        }[level] || "";
+        return {4:"EE(4)",3:"ME(3)",2:"AE(2)",1:"BE(1)"}[level] || "";
 
     }
 
@@ -56385,6 +57054,13 @@ const learner = {
 let total = 0;
 let enteredSubjects = 0;
 
+// Grade 1-3 rule for the COMBINED MARKS REPORT:
+// Show every recorded subject/sub-learning area in the table, but calculate
+// each learner's Total and Average using ONLY the five main learning areas.
+const learnerGradeNumber = getGradeNumber(l.grade);
+const isGrade1To3Learner =
+    learnerGradeNumber >= 1 && learnerGradeNumber <= 3;
+
 subjects.forEach(subject => {
 
     const rawValue = l.marks?.[subject.key];
@@ -56399,9 +57075,14 @@ subjects.forEach(subject => {
 
         learner[subject.key] = mark;
 
-        total += mark;
+        const countsTowardTotal =
+            !isGrade1To3Learner ||
+            REPORT_GRADE13_MAIN_SUBJECTS.includes(String(subject.key).trim());
 
-        enteredSubjects++;
+        if (countsTowardTotal && Number.isFinite(mark)) {
+            total += mark;
+            enteredSubjects++;
+        }
 
     } else {
 
@@ -56413,6 +57094,7 @@ subjects.forEach(subject => {
 
 learner.totalMarks = total;
 
+// For Grade 1-3 this is the number of entered MAIN learning areas only.
 learner.enteredSubjects = enteredSubjects;
 
 learner.average =
@@ -56499,7 +57181,8 @@ learnerCount++;
     Exam Period: ${rawPeriod || "All Periods"}
 
 </div>
-    <table class="report-table">
+    <div class="combined-marks-scroll table-responsive" style="width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;">
+    <table class="report-table" style="width:max-content;min-width:1300px;">
       <thead>
         <tr>
           <th rowspan="2">No</th>
@@ -56522,7 +57205,7 @@ subjects.forEach(() => {
 
     html += `
         <th>Score</th>
-        <th>${isGrade4To6 ? "Lvl" : "Pts"}</th>
+        <th>${isGrade1To6 ? "Lvl" : "Pts"}</th>
         <th>Level</th>
     `;
 
@@ -56625,7 +57308,7 @@ const overallAverage = learnerCount > 0
 
 html += `<td>${overallAverage.toFixed(2)}</td><td>-</td></tr>`;
 
-html += "</tbody></table>";
+html += "</tbody></table></div>";
 
   container.innerHTML = html;
 
@@ -59821,16 +60504,14 @@ const gradeText = String(
 
 ).toLowerCase();
 
-const isGrade4To6 =
-    gradeText.includes("4") ||
-    gradeText.includes("5") ||
-    gradeText.includes("6");
+const isGrade1To6 =
+    /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(String(gradeText || ""));
 
 function getLevel(score) {
 
     score = Number(score) || 0;
 
-    if (isGrade4To6) {
+    if (isGrade1To6) {
         if (score >= 75) return 4;
         if (score >= 50) return 3;
         if (score >= 25) return 2;
@@ -59852,7 +60533,7 @@ function getLevelName(score) {
 
     const p = getLevel(score);
 
-    if (isGrade4To6) {
+    if (isGrade1To6) {
 
         return {
             4: "EE",
@@ -59995,7 +60676,7 @@ Marks
 </th>
 
 <th style="border:2px solid #000;padding:8px;">
-${isGrade4To6 ? "Level Points" : "Points"}
+${isGrade1To6 ? "Level Points" : "Points"}
 </th>
 
 <th style="border:2px solid #000;padding:8px;">
@@ -68897,6 +69578,104 @@ window.getSchoolPrintHeader = function (
   `;
 };
 // =====================================
+// 🖨️ PRINT REPORT PREPARATION BRIDGE
+// Keeps reports selected from the Print Reports dropdown
+// connected to their live sections / tables.
+// =====================================
+window.prepareSelectedReportForPrint = function (selectedId) {
+  const target = document.getElementById(selectedId);
+  if (!target) return false;
+  if (target.innerHTML.trim() !== "") return true;
+
+  const setReport = (title, source) => {
+    if (!source) return false;
+    target.innerHTML = `
+      <div class="dropdown-print-report" style="padding:20px;font-family:Arial,sans-serif;">
+        ${typeof window.getSchoolPrintHeader === "function" ? window.getSchoolPrintHeader(title) : `<h2 style="text-align:center;">${title}</h2>`}
+        <div style="margin-top:15px;">${source.outerHTML}</div>
+      </div>`;
+    return true;
+  };
+
+  const first = (...selectors) => {
+    for (const selector of selectors) {
+      const node = document.querySelector(selector);
+      if (node) return node;
+    }
+    return null;
+  };
+
+  switch (selectedId) {
+    case "filteredLearnersContent":
+      return setReport("FILTERED LEARNERS", first("#learnersTableVerticalArea table", "#learnersTableVerticalArea", "#learnersList"));
+
+    case "teacherList": {
+      const rows = document.getElementById("teacherList");
+      return !!(rows && rows.closest("table") && setReport("TEACHERS LIST", rows.closest("table")));
+    }
+
+    case "supportStaffContent": {
+      const rows = document.getElementById("supportStaffList");
+      return !!(rows && rows.closest("table") && setReport("SUPPORT STAFF LIST", rows.closest("table")));
+    }
+
+    case "feesTable":
+      return setReport("FEES TABLE", document.getElementById("feesTable"));
+
+    case "defaultersContent": {
+      let printSource = document.getElementById("defaultersPrintContent");
+      if (printSource && printSource.innerHTML.trim() !== "") {
+        return setReport("FEE DEFAULTERS LIST", printSource);
+      }
+      const table = first("#defaultersModal table", "#defaultersBodyClone");
+      return setReport("FEE DEFAULTERS LIST", table);
+    }
+
+    case "generatedOutput":
+      // This report is produced by generateClassList().
+      return false;
+
+    case "genderGroupedContent": {
+      const learners = (typeof getFilteredStudents === "function"
+        ? getFilteredStudents()
+        : (window.allStudents || []));
+      if (!Array.isArray(learners) || !learners.length) return false;
+      const groups = {};
+      learners.forEach((learner) => {
+        const gender = String(learner.gender || "Not Specified").trim() || "Not Specified";
+        (groups[gender] ||= []).push(learner);
+      });
+      const body = Object.entries(groups).map(([gender, list]) => `
+        <h3 style="margin-top:20px;">${gender} (${list.length})</h3>
+        <table class="learners-table" style="width:100%;border-collapse:collapse;">
+          <thead><tr><th>No.</th><th>Learner Name</th><th>Grade</th></tr></thead>
+          <tbody>${list.map((learner, index) => `<tr><td>${index + 1}</td><td>${learner.name || ""}</td><td>${learner.grade || ""}</td></tr>`).join("")}</tbody>
+        </table>`).join("");
+      target.innerHTML = `<div style="padding:20px;font-family:Arial,sans-serif;">${typeof window.getSchoolPrintHeader === "function" ? window.getSchoolPrintHeader("GENDER GROUPED LIST") : "<h2>Gender Grouped List</h2>"}${body}</div>`;
+      return true;
+    }
+
+    case "libraryContent":
+      return setReport("LIBRARY RECORDS", first("#libraryList", "#library"));
+
+    case "inventoryContent":
+      return setReport("INVENTORY RECORDS", first("#inventoryList", "#inventory"));
+
+    case "transportContent":
+      return setReport("TRANSPORT REPORT", first("#transportList", "#transport"));
+
+    case "hostelContent":
+      return setReport("HOSTEL REPORT", first("#hostelList", "#hostel"));
+
+    case "ictContent":
+      return setReport("ICT ASSETS REPORT", first("#ictList", "#ict"));
+
+    default:
+      return false;
+  }
+};
+
+// =====================================
 // 🖨️ PRINT SELECTED REPORT
 // =====================================
 window.printSelectedReport = function () {
@@ -68918,6 +69697,81 @@ window.printSelectedReport = function () {
   const el = document.getElementById(selectedId);
 
   if (!el || el.innerHTML.trim() === "") {
+
+    // Selected reports use their normal generation scripts before
+    // printing. This keeps the Print Reports dropdown consistent
+    // with opening the report from its own menu.
+    const reportSections = {
+      subjectChampionsContent: "subjectChampions",
+      reportOutput: "generateMerit",
+      subjectPerformanceContent: "subjectPerformance",
+      genderPerformanceContent: "genderPerformance",
+      levelSummaryContent: "levelSummary",
+      groupByPathwaysContent: "groupByPathways",
+      combineMarksByGradeContent: "combineMarksByGrade",
+      assessmentReportsContent: "generateAssessmentReports",
+      subjectRankingReportContent: "subjectRankingReport",
+      blankMeritContent: "generateBlankMerit",
+      marksStatusContent: "generateMarksStatus",
+      filteredLearnersContent: "students",
+      teacherList: "teachers",
+      supportStaffContent: "supportStaff",
+      feesTable: "fees",
+      defaultersContent: "fees",
+      generatedOutput: "students",
+      genderGroupedContent: "students",
+      libraryContent: "library",
+      inventoryContent: "inventory",
+      transportContent: "transport",
+      hostelContent: "hostel",
+      ictContent: "ict"
+    };
+
+    const sectionId = reportSections[selectedId];
+
+    if (sectionId && typeof window.show === "function") {
+      window.show(sectionId);
+
+      setTimeout(() => {
+        // Build the selected printable report from its live section/table.
+        if (typeof window.prepareSelectedReportForPrint === "function") {
+          window.prepareSelectedReportForPrint(selectedId);
+        }
+
+        // Reports that genuinely require a dedicated generator are triggered here.
+        if (selectedId === "generatedOutput" && typeof window.generateClassList === "function") {
+          window.generateClassList();
+          setTimeout(() => window.printSelectedReport(), 1800);
+          return;
+        }
+
+        if (selectedId === "defaultersContent" && typeof window.showDefaulters === "function") {
+          const existing = document.getElementById(selectedId);
+          if (!existing || existing.innerHTML.trim() === "") {
+            window.showDefaulters().finally(() => {
+              if (typeof window.prepareSelectedReportForPrint === "function") {
+                window.prepareSelectedReportForPrint(selectedId);
+              }
+              window.printSelectedReport();
+            });
+            return;
+          }
+        }
+
+        const refreshed = document.getElementById(selectedId);
+        if (refreshed && refreshed.innerHTML.trim() !== "") {
+          window.printSelectedReport();
+        } else if (selectedId !== "assessmentReportsContent") {
+          Swal.fire(
+            "Not Ready",
+            "The selected report could not be prepared yet. Open the report once to load its records, then print again.",
+            "info"
+          );
+        }
+      }, 1200);
+
+      return;
+    }
 
     Swal.fire(
       "Not Ready",
@@ -69043,7 +69897,7 @@ window.printSelectedReport = function () {
     teacherList:
       "Teachers List",
 
-    supportStaffListContent:
+    supportStaffContent:
       "Support Staff List",
 
     // =====================================
@@ -69051,7 +69905,7 @@ window.printSelectedReport = function () {
     // =====================================
 
     generatedOutput:
-      "Parent List",
+      "Class List",
 
     libraryContent:
       "Library Records",
@@ -69067,7 +69921,7 @@ window.printSelectedReport = function () {
     inventoryIssuedContent:
       "Issued Inventory Report",
 
-    transport:
+    transportContent:
       "Transport Report",
 
     hostelContent:
@@ -107849,9 +108703,9 @@ window.generateOverallTopFiveByGrade = function () {
                             let count = 0;
 
 
-                            (
-                                window.schoolSubjects ||
-                                []
+                            getReportMainSubjects(
+                                learner.grade,
+                                window.schoolSubjects || Object.keys(learner.marks || {})
                             ).forEach(
                                 subject => {
 
@@ -113416,6 +114270,40 @@ setTimeout(showRandomPopup,4000);
 
 /* Keep appearing randomly */
 setInterval(showRandomPopup,30000);
+
+// ===============================================================
+// FINAL REPORT SAFETY RULE
+// Recording keeps sub-learning areas. Reports must use main areas.
+// ===============================================================
+window.getReportMainSubjects = getReportMainSubjects;
+window.normalizeLearnerForMainSubjectReports =
+    normalizeLearnerForMainSubjectReports;
+window.getReportLevel14 = getReportLevel14;
+window.getReportPoints14 = getReportPoints14;
+
+
+window.getGrade16LevelLabel = getGrade16LevelLabel;
+window.getGrade16Points = getGrade16Points;
+window.getLoadedMarksMainSubjects = getLoadedMarksMainSubjects;
+window.calculateLoadedLearnerPerformance = calculateLoadedLearnerPerformance;
+
+// ===============================================================
+// FINAL GRADE 1-6 REPORT LEVEL / POINT SAFETY
+// ===============================================================
+window.getGrade1To6ReportLevel = function(score, gradeValue) {
+    const match = String(gradeValue || "").match(/\d+/);
+    const grade = match ? Number(match[0]) : null;
+    if (!(grade >= 1 && grade <= 6)) return null;
+    const n = Number(score);
+    if (!Number.isFinite(n)) return "";
+    if (n >= 75) return 4;
+    if (n >= 50) return 3;
+    if (n >= 25) return 2;
+    return 1;
+};
+window.getGrade1To6ReportLabel = function(level) {
+    return {1:"BE(1)",2:"AE(2)",3:"ME(3)",4:"EE(4)"}[Number(level)] || "";
+};
 </script>
 </body>
 </html>
