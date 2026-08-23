@@ -10613,6 +10613,16 @@ margin-bottom:18px;
                 📤 Send Loaded Grade
             </button>
 
+            <!-- EDIT LEARNER MARK SUBJECT-WISE -->
+            <button
+                onclick="openLoadedMarksEditor()"
+                class="action-btn"
+                title="Correct one learner's recorded mark without deleting other subjects"
+                style="background:#2563eb;color:#fff;">
+                <i class="fas fa-edit"></i>
+                Edit Learner Mark
+            </button>
+
             <!-- DELETE SELECTED -->
             <button
                 onclick="deleteSelectedLearnersMarks()"
@@ -13403,7 +13413,8 @@ margin-bottom:15px;
 
   </div>
 
-</div><!-- =========================================
+</div>
+<!-- =========================================
      USER MANAGEMENT PANEL
 ========================================= -->
 
@@ -41229,6 +41240,351 @@ function renderAverages(learners) {
 }
 
 
+// =========================================================
+// ✏️ EDIT LOADED MARKS — SUBJECT-WISE CORRECTION WIZARD
+// The Loaded Marks table remains read-only. This controlled workflow
+// corrects one learner + one subject and immediately refreshes the table.
+// =========================================================
+function escapeLoadedMarksEditorHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function getLoadedMarksEditorSource() {
+    const sources = [
+        window.allLoadedLearners,
+        window.currentFilteredLearners,
+        window.loadedLearners
+    ];
+
+    for (const source of sources) {
+        if (Array.isArray(source) && source.length) {
+            const seen = new Set();
+            return source.filter(learner => {
+                const key = String(
+                    learner?.id ??
+                    learner?.key ??
+                    learner?.studentId ??
+                    learner?.learnerId ??
+                    ""
+                ).trim();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        }
+    }
+    return [];
+}
+
+function getLoadedMarksEditorLearnerId(learner) {
+    return String(
+        learner?.id ??
+        learner?.key ??
+        learner?.studentId ??
+        learner?.learnerId ??
+        ""
+    ).trim();
+}
+
+function refreshLoadedMarksAfterEdit() {
+    const activeGrade =
+        (document.getElementById("resultsGradeFilter")?.value || "").trim();
+
+    const source = Array.isArray(window.allLoadedLearners)
+        ? window.allLoadedLearners
+        : [];
+
+    const filtered = activeGrade &&
+        activeGrade.toUpperCase() !== "ALL GRADES"
+        ? source.filter(learner =>
+            String(learner?.grade || "").trim().toLowerCase() ===
+            activeGrade.toLowerCase()
+        )
+        : source;
+
+    window.currentFilteredLearners = filtered;
+
+    buildMarksHeader(
+        activeGrade || (filtered[0]?.grade || ""),
+        filtered
+    );
+
+    clearMarksTable();
+    renderMarksTable(filtered);
+    renderTotals(filtered);
+    renderAverages(filtered);
+}
+
+window.openLoadedMarksEditor = async function () {
+    const examPeriod = normalizeExamPeriod(
+        document.getElementById("resultsExamPeriod")?.value || ""
+    );
+
+    if (!examPeriod) {
+        return Swal.fire(
+            "Select Exam Period",
+            "Choose the examination period in Loaded Marks first, then load the marks you want to correct.",
+            "warning"
+        );
+    }
+
+    const learners = getLoadedMarksEditorSource();
+
+    if (!learners.length) {
+        return Swal.fire(
+            "No Loaded Marks",
+            "Load the marks first. The editor uses the currently loaded results as its source.",
+            "info"
+        );
+    }
+
+    const grades = [...new Set(
+        learners
+            .map(learner => String(learner?.grade || "").trim())
+            .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric:true }));
+
+    if (!grades.length) {
+        return Swal.fire("No Grades Found", "The loaded marks do not contain grade information.", "info");
+    }
+
+    // STEP 1: GRADE
+    const gradeResult = await Swal.fire({
+        title: "✏️ Edit Learner Mark",
+        text: "Step 1 of 4 — Select the grade.",
+        input: "select",
+        inputOptions: Object.fromEntries(grades.map(grade => [grade, grade])),
+        inputPlaceholder: "Select grade",
+        showCancelButton: true,
+        confirmButtonText: "Next →",
+        confirmButtonColor: "#2563eb",
+        inputValidator: value => !value ? "Please select a grade." : undefined
+    });
+
+    if (!gradeResult.isConfirmed) return;
+    const grade = String(gradeResult.value).trim();
+
+    const gradeLearners = learners
+        .filter(learner =>
+            String(learner?.grade || "").trim().toLowerCase() ===
+            grade.toLowerCase()
+        )
+        .sort((a, b) =>
+            String(a?.name || a?.fullName || "").localeCompare(
+                String(b?.name || b?.fullName || "")
+            )
+        );
+
+    if (!gradeLearners.length) {
+        return Swal.fire("No Learners", `No loaded learners were found in ${grade}.`, "info");
+    }
+
+    // STEP 2: LEARNER
+    const learnerOptions = {};
+    gradeLearners.forEach(learner => {
+        const id = getLoadedMarksEditorLearnerId(learner);
+        if (id) {
+            learnerOptions[id] =
+                learner?.name ||
+                learner?.fullName ||
+                `Learner ${id}`;
+        }
+    });
+
+    const learnerResult = await Swal.fire({
+        title: "👨‍🎓 Select Learner",
+        text: `Step 2 of 4 — ${grade}`,
+        input: "select",
+        inputOptions: learnerOptions,
+        inputPlaceholder: "Select learner",
+        showCancelButton: true,
+        confirmButtonText: "Next →",
+        confirmButtonColor: "#2563eb",
+        inputValidator: value => !value ? "Please select a learner." : undefined
+    });
+
+    if (!learnerResult.isConfirmed) return;
+
+    const learnerId = String(learnerResult.value);
+    const learner = gradeLearners.find(item =>
+        getLoadedMarksEditorLearnerId(item) === learnerId
+    );
+
+    if (!learner) {
+        return Swal.fire("Learner Not Found", "Please reopen the editor and try again.", "error");
+    }
+
+    // STEP 3: SUBJECT — ONLY REAL SUBJECT KEYS WITH RECORDED NUMERIC MARKS
+    const subjects = getCleanRecordedSubjects(
+        Object.keys(learner?.marks || {})
+    ).filter(subject => {
+        const value = getNumericRecordedValue(learner?.marks?.[subject]);
+        return value !== null;
+    });
+
+    if (!subjects.length) {
+        return Swal.fire(
+            "No Subjects Found",
+            `${learner.name || "This learner"} has no editable recorded subjects in ${grade}.`,
+            "info"
+        );
+    }
+
+    const subjectOptions = {};
+    subjects.forEach(subject => {
+        subjectOptions[subject] = subject
+            .replace(/([A-Z])/g, " $1")
+            .replace(/[_-]/g, " ")
+            .replace(/^./, char => char.toUpperCase());
+    });
+
+    const subjectResult = await Swal.fire({
+        title: "📚 Select Subject",
+        text: "Step 3 of 4 — Choose the subject whose mark you want to change.",
+        input: "select",
+        inputOptions: subjectOptions,
+        inputPlaceholder: "Select subject",
+        showCancelButton: true,
+        confirmButtonText: "Next →",
+        confirmButtonColor: "#2563eb",
+        inputValidator: value => !value ? "Please select a subject." : undefined
+    });
+
+    if (!subjectResult.isConfirmed) return;
+    const subject = String(subjectResult.value);
+    const oldMark = getNumericRecordedValue(learner?.marks?.[subject]);
+
+    // STEP 4: NEW MARK
+    const markResult = await Swal.fire({
+        title: "📝 Change Mark",
+        html: `
+            <div style="text-align:left;line-height:1.7;">
+                <div><b>Grade:</b> ${escapeLoadedMarksEditorHtml(grade)}</div>
+                <div><b>Learner:</b> ${escapeLoadedMarksEditorHtml(learner.name || learner.fullName || "")}</div>
+                <div><b>Subject:</b> ${escapeLoadedMarksEditorHtml(subjectOptions[subject] || subject)}</div>
+                <div><b>Current Mark:</b> ${oldMark ?? "-"}</div>
+            </div>
+        `,
+        input: "number",
+        inputValue: oldMark ?? "",
+        inputLabel: "Enter the corrected mark",
+        inputAttributes: {
+            min: 0,
+            max: 100,
+            step: 1,
+            inputmode: "numeric"
+        },
+        showCancelButton: true,
+        confirmButtonText: "💾 Save Corrected Mark",
+        confirmButtonColor: "#16a34a",
+        preConfirm: value => {
+            const mark = Number(value);
+            if (value === "" || !Number.isFinite(mark)) {
+                Swal.showValidationMessage("Enter a valid numeric mark.");
+                return false;
+            }
+            if (mark < 0 || mark > 100) {
+                Swal.showValidationMessage("Marks must be between 0 and 100.");
+                return false;
+            }
+            if (!Number.isInteger(mark)) {
+                Swal.showValidationMessage("Marks must be whole numbers.");
+                return false;
+            }
+            return mark;
+        }
+    });
+
+    if (!markResult.isConfirmed) return;
+    const newMark = Number(markResult.value);
+
+    if (newMark === oldMark) {
+        return Swal.fire({
+            icon: "info",
+            title: "No Change Made",
+            text: "The corrected mark is the same as the current mark."
+        });
+    }
+
+    try {
+        Swal.fire({
+            title: "Saving Correction...",
+            text: `Updating ${subjectOptions[subject] || subject} for ${learner.name || learner.fullName || "learner"}.`,
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const schoolId =
+            window.schoolId ||
+            localStorage.getItem("schoolId") ||
+            sessionStorage.getItem("schoolId");
+
+        if (!schoolId) {
+            throw new Error("School ID is missing. Please log in again.");
+        }
+
+        await saveMarksToFirebase(
+            schoolId,
+            learnerId,
+            examPeriod,
+            {
+                schoolId,
+                name: learner.name || learner.fullName || "",
+                grade: learner.grade || grade,
+                [subject]: newMark,
+                updatedAt: Date.now()
+            }
+        );
+
+        // Keep every in-memory marks collection synchronized immediately.
+        const updateLocalCollection = collection => {
+            if (!Array.isArray(collection)) return;
+            collection.forEach(item => {
+                if (getLoadedMarksEditorLearnerId(item) !== learnerId) return;
+                item.marks = item.marks || {};
+                item.marks[subject] = newMark;
+            });
+        };
+
+        updateLocalCollection(window.allLoadedLearners);
+        updateLocalCollection(window.currentFilteredLearners);
+        updateLocalCollection(window.loadedLearners);
+
+        refreshLoadedMarksAfterEdit();
+
+        await Swal.fire({
+            icon: "success",
+            title: "Mark Updated Successfully",
+            html: `
+                <b>${escapeLoadedMarksEditorHtml(learner.name || learner.fullName || "Learner")}</b><br>
+                ${escapeLoadedMarksEditorHtml(subjectOptions[subject] || subject)}:
+                <b>${oldMark}</b> → <b>${newMark}</b>
+            `,
+            timer: 2200,
+            showConfirmButton: false
+        });
+
+    } catch (error) {
+        console.error("Loaded Marks edit error:", error);
+        Swal.fire(
+            "Unable to Update Mark",
+            error?.message || "The mark could not be saved. No local table update was kept.",
+            "error"
+        );
+    }
+};
+
+// =========================================================
+// 🚀 CLEAR TABLE
+// =========================================================
+// Duplicate clearMarksTable removed; existing implementation above is reused.
+
+
 // =======================
 // EVENTS
 // =======================
@@ -45368,7 +45724,13 @@ if (firstLearner) {
             .replace(/[^0-9]/g, "")
     );
 
-    if (gradeNo >= 4 && gradeNo <= 6) {
+    // Rank certificates across the complete school level, not only one grade.
+    if (gradeNo >= 1 && gradeNo <= 3) {
+
+        allowedGrades = [1, 2, 3];
+
+    }
+    else if (gradeNo >= 4 && gradeNo <= 6) {
 
         allowedGrades = [4, 5, 6];
 
