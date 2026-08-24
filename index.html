@@ -6268,6 +6268,124 @@ button.primary{
     color: #dc2626;
 }
 
+
+/* =========================================================
+   🚀 ASSIGNMENT PUBLISH / AVAILABLE TOGGLES
+========================================================= */
+
+.assignment-toggle-btn{
+    width:100%;
+    min-height:58px;
+    margin-top:20px;
+    padding:14px 20px;
+    border:none;
+    border-radius:14px;
+    background:linear-gradient(135deg,#16a34a,#15803d);
+    color:#fff;
+    font-size:17px;
+    font-weight:800;
+    cursor:pointer;
+    box-shadow:0 8px 22px rgba(22,163,74,.22);
+    transition:transform .25s ease,box-shadow .25s ease,background .25s ease;
+}
+
+.assignment-toggle-btn:hover{
+    transform:translateY(-2px);
+    box-shadow:0 12px 28px rgba(22,163,74,.30);
+}
+
+.assignment-toggle-btn.available{
+    background:linear-gradient(135deg,#2563eb,#1d4ed8);
+    box-shadow:0 8px 22px rgba(37,99,235,.22);
+}
+
+.assignment-toggle-btn.available:hover{
+    box-shadow:0 12px 28px rgba(37,99,235,.30);
+}
+
+#assignmentPublisherPanel{
+    display:none;
+}
+
+#assignmentAvailablePanel{
+    display:none;
+}
+
+#assignmentContainer{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:14px !important;
+    width:100% !important;
+    align-items:stretch !important;
+}
+
+#assignmentContainer .assignment-card{
+    width:100% !important;
+    min-width:0 !important;
+    height:auto !important;
+    margin-bottom:0 !important;
+    border:2px solid #cbd5e1 !important;
+    border-left:6px solid #2563eb !important;
+    border-radius:18px !important;
+    box-shadow:0 8px 22px rgba(15,23,42,.10) !important;
+    transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;
+}
+
+#assignmentContainer .assignment-card:hover{
+    transform:translateY(-5px);
+    border-color:#2563eb !important;
+    box-shadow:0 16px 34px rgba(15,23,42,.16) !important;
+}
+
+@media(max-width:700px){
+    #assignmentContainer{
+        display:flex !important;
+        flex-direction:column !important;
+        gap:12px !important;
+    }
+
+    .assignment-toggle-btn{
+        font-size:15px;
+        min-height:54px;
+    }
+}
+
+
+/* =========================================================
+   📚 ASSIGNMENTS — ONE FULL-WIDTH HORIZONTAL ROW PER CARD
+========================================================= */
+
+#assignmentContainer .assignment-card{
+    display:block !important;
+    width:100% !important;
+    max-width:none !important;
+    box-sizing:border-box !important;
+}
+
+#assignmentContainer .assignment-card > div{
+    box-sizing:border-box;
+}
+
+@media(max-width:768px){
+    #assignmentContainer .assignment-card{
+        width:100% !important;
+    }
+}
+
+
+
+/* =========================================================
+   ASSIGNMENTS: PUBLISH FORM IS CLOSED BY DEFAULT
+   Parents must never see publishing controls
+   ========================================================= */
+#assignmentPublisherPanel[hidden]{
+    display:none !important;
+}
+
+body.assignment-parent-user #publishAssignmentToggleBtn,
+body.assignment-parent-user #assignmentPublisherPanel{
+    display:none !important;
+}
 </style>
 </head>
 
@@ -7826,10 +7944,22 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
 </div>
 
 
+<!-- 🚀 PUBLISH ASSIGNMENT TOGGLE -->
+<button
+    type="button"
+    id="publishAssignmentToggleBtn"
+    class="assignment-toggle-btn teacher-admin-only"
+    onclick="toggleAssignmentPublisher()"
+    aria-expanded="false"
+    aria-controls="assignmentPublisherPanel"
+>
+    🚀 Publish Assignment
+</button>
+
 <div id="assignmentPublisherPanel"
      class="teacher-admin-only"
      style="
-       margin-top:25px;
+       display:none; margin-top:15px;
        background-image: url('https://i.imgur.com/3YWQS7J.jpeg');
        background-position: center;
        background-size: cover;
@@ -7838,11 +7968,6 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
        border-radius:16px;
        box-shadow:0 4px 12px rgba(0,0,0,0.08);
      ">
-
-  <h2 style="margin-bottom:15px; color:#dc2626;">
-    🚀 Publish Assignment
-</h2>
-
 
 <input
     type="text"
@@ -8037,22 +8162,32 @@ Answer: C</pre>
      (EVERYONE CAN SEE)
 ========================================= -->
 
+<!-- 📚 AVAILABLE ASSIGNMENTS TOGGLE -->
+<button
+    type="button"
+    id="availableAssignmentsToggleBtn"
+    class="assignment-toggle-btn available"
+    onclick="toggleAvailableAssignments()"
+    aria-expanded="false"
+    aria-controls="assignmentAvailablePanel"
+>
+    📚 Available Assignments
+</button>
+
 <div
+  id="assignmentAvailablePanel"
   style="
-    margin-top:25px;
+    display:none; margin-top:15px;
     background:white;
     padding:20px;
     border-radius:16px;
-    box-shadow:0 4px 12px rgba(0,0,0,0.08);
+    border:2px solid #cbd5e1;
+    box-shadow:0 8px 22px rgba(15,23,42,.10);
   "
 >
-
-<h2 style="margin-bottom:15px; color:red;">
-    📚 Available Assignments
-</h2>
   <div
     id="assignmentContainer"
-    style="margin-top:15px;">
+    style="margin-top:0;">
   </div>
 </div>
 </div>
@@ -10194,7 +10329,7 @@ width:100%;
 
 <!-- ================= LANGUAGES ================= -->
 <optgroup label="📖 Languages">
-  <option value="Eng">Eng</option>
+  <option value="English">English</option>
   <option value="Kisw">Kisw</option>
   <option value="Kenya Sign Language">Kenya Sign Language</option>
   <option value="French">French</option>
@@ -13358,55 +13493,46 @@ margin-bottom:15px;
        z-index: 99999;
        display: flex;
        align-items: center;
-       gap: 8px;
-       width: 145px;
-       padding: 9px 11px;
+       gap: 12px;
        background: rgba(255,255,255,0.95);
-       border-radius: 12px;
+       padding: 12px 16px;
+       border-radius: 14px;
        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
        backdrop-filter: blur(8px);
-       box-sizing: border-box;
      ">
 
   <div class="schools-counter-icon"
        style="
-         font-size: 19px;
-         flex-shrink: 0;
+         font-size: 22px;
        ">
     🏫
   </div>
 
-  <div class="schools-counter-content"
-       style="
-         min-width: 0;
-       ">
+  <div class="schools-counter-content">
 
     <div class="schools-counter-title"
          style="
-           font-size: 10px;
+           font-size: 12px;
            font-weight: 600;
            color: #64748b;
-           white-space: nowrap;
          ">
       Schools Connected
     </div>
 
     <div class="schools-counter-number"
          style="
-           font-size: 16px;
+           font-size: 18px;
            font-weight: 800;
            color: #0f172a;
-           line-height: 1.2;
          ">
       <span id="schoolsCounter">127</span>+
     </div>
 
     <div class="schools-counter-status"
          style="
-           font-size: 9px;
+           font-size: 11px;
            color: #22c55e;
            font-weight: 600;
-           white-space: nowrap;
          ">
       ● Active Network
     </div>
@@ -13602,118 +13728,6 @@ font-weight:bold;
 ">
 ⬅ Back to Learners
 </button>
-
-</div>
-  <!-- ========================================= -->
-<!-- INSTRUCTIONS -->
-<!-- ========================================= -->
-
-<div style="
-    position:relative;
-    overflow:hidden;
-    background:
-        linear-gradient(rgba(15,23,42,.80),rgba(15,23,42,.80)),
-        url('https://i.imgur.com/3jvkGsj.jpeg') center center/cover no-repeat;
-    border-left:5px solid #22c55e;
-    padding:22px;
-    border-radius:16px;
-    margin-bottom:20px;
-    line-height:1.8;
-    box-shadow:0 15px 35px rgba(0,0,0,.25);
-">
-
-    <h3 style="
-        margin-top:0;
-        color:#ffffff;
-        text-shadow:0 2px 6px rgba(0,0,0,.5);
-    ">
-        📖 How to Check Fee Balance
-    </h3>
-
-    <!-- Parent Instructions -->
-    <div id="parentFeeInstructions">
-
-        <div style="
-            background:rgba(255,255,255,.92);
-            padding:18px;
-            border-radius:12px;
-            border:1px solid rgba(255,255,255,.4);
-            backdrop-filter:blur(10px);
-        ">
-
-            <b style="color:#166534;">👨‍👩‍👧 Parent Instructions</b>
-
-            <ol style="
-                margin-top:10px;
-                padding-left:20px;
-                color:#374151;
-                line-height:2;
-            ">
-
-                <li>Select the <b>Academic Year</b>.</li>
-
-                <li>Enter the <b>registered parent phone number</b>.</li>
-
-                <li>Click <b>🔍 Check Fee Balance</b>.</li>
-
-                <li>Your learner's fee statement will appear automatically.</li>
-
-            </ol>
-
-        </div>
-
-    </div>
-
-    <!-- Admin Instructions -->
-    <div id="adminFeeInstructions" style="display:none;">
-
-        <div style="
-            background:rgba(255,255,255,.92);
-            padding:18px;
-            border-radius:12px;
-            border:1px solid rgba(255,255,255,.4);
-            backdrop-filter:blur(10px);
-        ">
-
-            <b style="color:#1d4ed8;">🏫 Administrator Instructions</b>
-
-            <ol style="
-                margin-top:10px;
-                padding-left:20px;
-                color:#374151;
-                line-height:2;
-            ">
-
-                <li>Select the <b>Academic Year</b>.</li>
-
-                <li>Select the <b>Grade</b>.</li>
-
-                <li>Select the <b>Learner</b>.</li>
-
-                <li>
-                    You may also search directly using the parent's phone number.
-                </li>
-
-                <li>Click <b>🔍 Check Fee Balance</b>.</li>
-
-            </ol>
-
-        </div>
-
-    </div>
-
-    <div style="
-        margin-top:18px;
-        background:rgba(255,251,235,.95);
-        border-left:4px solid #f59e0b;
-        padding:14px;
-        border-radius:10px;
-        color:#92400e;
-        font-size:14px;
-        backdrop-filter:blur(6px);
-    ">
-        💡 <b>Tip:</b> Parents only require the registered phone number and the academic year to access their learner's fee statement.
-    </div>
 
 </div>
 <!-- ========================================= -->
@@ -14179,119 +14193,6 @@ Generate
             </ol>
 
         </div>
-
-
-<div style="
-    max-width:550px;
-    margin:0 auto 25px;
-    padding:25px;
-    border-radius:20px;
-    overflow:hidden;
-
-    background:
-        linear-gradient(rgba(15,23,42,.45),rgba(15,23,42,.45)),
-        url('https://i.imgur.com/HogMBvi.jpeg');
-
-    background-size:cover;
-    background-position:center;
-    background-repeat:no-repeat;
-
-    border:1px solid rgba(255,255,255,.15);
-    box-shadow:0 15px 35px rgba(0,0,0,.25);
-">
-
-    <!-- Header -->
-
-    <div style="
-        display:flex;
-        align-items:center;
-        gap:15px;
-        margin-bottom:20px;
-    ">
-
-        <div style="
-            width:55px;
-            height:55px;
-            border-radius:50%;
-            background:linear-gradient(135deg,#2563eb,#1d4ed8);
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            color:#fff;
-            font-size:26px;
-            box-shadow:0 10px 25px rgba(37,99,235,.45);
-        ">
-            🏫
-        </div>
-
-        <div>
-
-            <h3 style="
-                margin:0;
-                color:#fff;
-                font-size:22px;
-                font-weight:700;
-                text-shadow:0 2px 8px rgba(0,0,0,.7);
-            ">
-                Administrator Guide
-            </h3>
-
-            <small style="
-                display:block;
-                margin-top:5px;
-                color:#fde68a;
-                font-size:13px;
-                font-weight:700;
-                text-shadow:0 2px 8px rgba(0,0,0,.7);
-            ">
-                ⭐ Full Access Mode
-            </small>
-
-        </div>
-
-    </div>
-
-    <!-- Instructions -->
-
-    <ol style="
-        margin:0;
-        padding-left:25px;
-        color:#fff;
-        line-height:2.2;
-        font-size:15px;
-        font-weight:600;
-        text-shadow:0 2px 6px rgba(0,0,0,.85);
-    ">
-
-        <li>
-            🎓 Select the
-            <strong style="color:#facc15;">Grade</strong>.
-        </li>
-
-        <li>
-            📅 Choose the
-            <strong style="color:#facc15;">Exam Period</strong>.
-        </li>
-
-        <li>
-            👨‍🎓 Select the
-            <strong style="color:#facc15;">Learner</strong>.
-        </li>
-
-        <li>
-            📱 Or search using the
-            <strong style="color:#facc15;">Parent's Phone Number</strong>.
-        </li>
-
-        <li>
-            📊 Click
-            <strong style="color:#4ade80;">View Results</strong>
-            to display the learner's complete performance report.
-        </li>
-
-    </ol>
-
-</div>
 
 
 
@@ -30224,6 +30125,15 @@ window.loadFees = async function () {
             );
 
 
+        if (
+            /School context missing|No school context/i.test(String(error?.message || "")) ||
+            !(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId"))
+        ) {
+            // Logout state is expected while no school is selected. Do not show a fee error.
+            if (tbody) tbody.innerHTML = "";
+            return;
+        }
+
         if (tbody) {
 
             tbody.innerHTML = `
@@ -40760,9 +40670,9 @@ function getMarksDisplaySubjects(gradeValue, learners) {
         // Grades 1-3: display EVERY recorded main subject and sub-learning area.
         // Keep a predictable curriculum order, but never drop a recorded column.
         const ordered = [
-            "English", "English — Listening", "English — Reading", "English — Writing", "English — Grammar",
+            "English", "ENG", "eng", "English — Listening", "English — Reading", "English — Writing", "English — Grammar",
             "Listening", "Reading", "Writing", "Grammar",
-            "Kiswahili", "Kiswahili — Kusikiliza", "Kiswahili — Kusoma", "Kiswahili — Kuandika", "Kiswahili — Sarufi",
+            "Kiswahili", "KISWA", "KISW", "kiswa", "Kiswahili — Kusikiliza", "Kiswahili — Kusoma", "Kiswahili — Kuandika", "Kiswahili — Sarufi",
             "Kusikiliza", "Kusoma", "Kuandika", "Sarufi",
             "Environmental and CRE", "Environmental and CRE — Environmental", "Environmental and CRE — CRE",
             "Environmental", "CRE",
@@ -40784,14 +40694,13 @@ function getMarksDisplaySubjects(gradeValue, learners) {
 // ===============================================================
 function getLoadedMarksMainSubjects(subjects, gradeValue) {
     const grade = getGradeNumber(gradeValue);
-    const list = (subjects || []).map(s => String(s).trim()).filter(Boolean);
-
+    const list = (subjects || []).map(s => String(s).trim()).filter(s => s && !isMarksMetadataField(s));
     if (grade >= 1 && grade <= 3) {
-        return list.filter(s => REPORT_GRADE13_MAIN_SUBJECTS.includes(s));
+        const canonicalMain = new Set(REPORT_GRADE13_MAIN_SUBJECTS.map(s => rasmCanonicalSubjectName(s)));
+        return list.filter(s => canonicalMain.has(rasmCanonicalSubjectName(s)));
     }
     return list.filter(s => !isReportSubLearningArea(s));
 }
-
 function calculateLoadedLearnerPerformance(learner, subjects, gradeValue) {
     const grade = getGradeNumber(gradeValue || learner?.grade);
     const mainSubjects = getLoadedMarksMainSubjects(
@@ -40869,7 +40778,7 @@ function buildMarksHeader(gradeOverride = "", learnersOverride = null) {
     subjects.forEach(subject => {
 
         html += `
-            <th>${subject}</th>
+            <th>${rasmCanonicalSubjectName(subject)}</th>
             <th>Level</th>
         `;
 
@@ -40984,7 +40893,7 @@ const subjects = getMarksDisplaySubjects(
       const value = marks[subject];
       const showLevel =
         value !== undefined && value !== null && value !== "" &&
-        (!isGrade13 || !isGrade13SubLearningAreaKey(subject) || subLearningAreaHasLevel(subject));
+        (!isGrade13 || !isGrade13SubLearningAreaKey(subject) || rasmGrade13SubHasLevel(subject));
 
       subjectCells += `
         <td>${value ?? "-"}</td>
@@ -45707,62 +45616,56 @@ window.generateCertificates = function () {
         // ==========================================
 
        // ==========================================
-// GET LEARNERS BASED ON SCHOOL LEVEL
+// GET LEARNERS BASED ON THE SELECTED GRADE SCHOOL LEVEL
 // ==========================================
+// IMPORTANT: The selected/filtered grade determines the certificate level.
+// Grade 1 -> 1-3, Grade 4 -> 4-6, Grade 7 -> 7-9, Grade 10 -> 10-12.
 
-let learners = [...getFilteredLearners()];
+const selectedCertificateGrade =
+    document.getElementById("gradeFilter")?.value ||
+    window.reportContext?.grade ||
+    "";
 
-// Make it available everywhere
+const selectedCertificatePeriod =
+    document.getElementById("examPeriodSelect")?.value ||
+    window.reportContext?.examPeriod ||
+    "";
+
+const selectedGradeNo = parseInt(
+    String(selectedCertificateGrade).replace(/[^0-9]/g, ""),
+    10
+);
+
 let allowedGrades = [];
 
-const firstLearner = learners[0];
+if (selectedGradeNo >= 1 && selectedGradeNo <= 3) {
+    allowedGrades = [1, 2, 3];
+} else if (selectedGradeNo >= 4 && selectedGradeNo <= 6) {
+    allowedGrades = [4, 5, 6];
+} else if (selectedGradeNo >= 7 && selectedGradeNo <= 9) {
+    allowedGrades = [7, 8, 9];
+} else if (selectedGradeNo >= 10 && selectedGradeNo <= 12) {
+    allowedGrades = [10, 11, 12];
+}
 
-if (firstLearner) {
-
-    const gradeNo = parseInt(
-        String(firstLearner.grade)
-            .replace(/[^0-9]/g, "")
-    );
-
-    // Rank certificates across the complete school level, not only one grade.
-    if (gradeNo >= 1 && gradeNo <= 3) {
-
-        allowedGrades = [1, 2, 3];
-
-    }
-    else if (gradeNo >= 4 && gradeNo <= 6) {
-
-        allowedGrades = [4, 5, 6];
-
-    }
-    else if (gradeNo >= 7 && gradeNo <= 9) {
-
-        allowedGrades = [7, 8, 9];
-
-    }
-    else if (gradeNo >= 10 && gradeNo <= 12) {
-
-        allowedGrades = [10, 11, 12];
-
-    }
-    else {
-
-        allowedGrades = [gradeNo];
-
-    }
-
-    learners = (window.allLoadedLearners || []).filter(l => {
-
-        const g = parseInt(
-            String(l.grade)
-                .replace(/[^0-9]/g, "")
+// If no grade is selected, retain the current filtered learner set.
+let learners = allowedGrades.length
+    ? (window.allLoadedLearners || []).filter(l => {
+        const learnerGradeNo = parseInt(
+            String(l.grade || "").replace(/[^0-9]/g, ""),
+            10
         );
 
-        return allowedGrades.includes(g);
+        const learnerPeriod = normalize(l.examPeriod || l.period || "");
+        const wantedPeriod = normalize(selectedCertificatePeriod);
+        const periodMatches =
+            !wantedPeriod ||
+            wantedPeriod === "all periods" ||
+            learnerPeriod === wantedPeriod;
 
-    });
-
-}
+        return allowedGrades.includes(learnerGradeNo) && periodMatches;
+    })
+    : [...getFilteredLearners()];
    
 const gradeRangeText =
     allowedGrades.length > 1
@@ -46389,6 +46292,105 @@ function getCertificateLevel(totalMarks) {
     return "BE2";
 }
 
+// ============================================================
+// REPORT SAFETY + SCHOOL LEVEL RANGE HELPERS
+// ============================================================
+function rasmGradeNumber(value){
+  const m=String(value ?? '').match(/\d+/); return m ? Number(m[0]) : 0;
+}
+function rasmGradeRangeFor(value){
+  const n=rasmGradeNumber(value);
+  if(n>=1&&n<=3) return [1,2,3];
+  if(n>=4&&n<=6) return [4,5,6];
+  if(n>=7&&n<=9) return [7,8,9];
+  if(n>=10&&n<=12) return [10,11,12];
+  return n?[n]:[];
+}
+function rasmSelectedGrade(){
+  return window.currentLoadedGrade || window.reportContext?.grade ||
+    document.getElementById('resultsGradeFilter')?.value ||
+    document.getElementById('reportGradeSelect')?.value ||
+    document.getElementById('gradeFilter')?.value || '';
+}
+function rasmSelectedPeriod(){
+  return window.reportContext?.examPeriod ||
+    document.getElementById('resultsExamPeriod')?.value ||
+    document.getElementById('reportExamPeriodSelect')?.value ||
+    document.getElementById('examPeriodSelect')?.value || '';
+}
+function rasmReportLevelLearners(selectedGrade=rasmSelectedGrade(), selectedPeriod=rasmSelectedPeriod()){
+  const range=rasmGradeRangeFor(selectedGrade);
+  const period=String(selectedPeriod||'').trim().toLowerCase();
+  const pool=window.allLoadedLearners || allLoadedLearners || [];
+  return pool.filter(l=>{
+    const g=rasmGradeNumber(l.grade);
+    const p=String(l.examPeriod||l.period||'').trim().toLowerCase();
+    return (!range.length || range.includes(g)) && (!period || period==='all periods' || p===period);
+  });
+}
+function rasmCanonicalSubjectName(value){
+  const raw=String(value??'').trim();
+  const parts=raw.split(/\s*[—–-]\s*/);
+  const head=parts.shift()||raw;
+  const tail=parts.join(' — ');
+  const k=head.toLowerCase().replace(/[^a-z]/g,'');
+  let canonical=head;
+  if(['eng','english'].includes(k)) canonical='English';
+  else if(['kiswa','kisw','kiswahili'].includes(k)) canonical='Kiswahili';
+  else if(['envcre','environmentalcre'].includes(k)) canonical='Environmental and CRE';
+  else if(['math','maths','mathematics'].includes(k)) canonical='Mathematics';
+  return tail ? `${canonical} — ${tail}` : canonical;
+}
+function rasmValidMark(value){
+  if(value===null||value===undefined||String(value).trim()==='') return null;
+  const n=Number(value); return Number.isFinite(n) && n>=0 && n<=100 ? n : null;
+}
+function rasmSafeLearnerPerformance(learner){
+  const grade=learner?.grade;
+  const rawSubjects = (typeof getCleanRecordedSubjects === 'function')
+    ? getCleanRecordedSubjects(Object.keys(learner?.marks||{}))
+    : Object.keys(learner?.marks||{}).filter(key => String(key).toLowerCase() !== 'updatedat');
+  const subjects=(typeof getLoadedMarksMainSubjects==='function')
+    ? getLoadedMarksMainSubjects(rawSubjects,grade)
+    : rawSubjects.filter(key => String(key).toLowerCase() !== 'updatedat');
+  let total=0,count=0;
+  subjects.forEach(key=>{const n=rasmValidMark(learner?.marks?.[key]); if(n!==null){total+=n;count++;}});
+  return {total,count,average:count?total/count:0};
+}
+function rasmGrade13SubHasLevel(key){
+  const raw = String(key ?? "").trim();
+  const parsed = raw.split(/\s*(?:—|–|-)\s*/).pop().trim();
+  const sub = (typeof getGrade13SubLearningAreaName === "function"
+      ? getGrade13SubLearningAreaName(parsed)
+      : parsed).toLowerCase();
+  return sub === "reading" || sub === "kusoma";
+}
+function rasmReportMetaLine(grade, year, period){
+  return `<div style="display:flex;justify-content:center;align-items:center;gap:18px;white-space:nowrap;flex-wrap:nowrap;margin:8px 0 15px;font-size:14px;font-weight:700;"><span><b>Year:</b> ${year||'-'}</span><span><b>Grade:</b> ${grade||'-'}</span><span><b>Exam Period:</b> ${period||'-'}</span></div>`;
+}
+
+// ==========================
+// DASHBOARD CONTEXT + SUBJECT SAFETY
+// ==========================
+function rasmDashboardContext() {
+  const learners = rasmReportLevelLearners();
+  const first = learners[0] || {};
+  const ctx = window.reportContext || {};
+  const exam = ctx.exam || ctx.examName || ctx.examPeriod ||
+    first.exam || first.examName || first.examPeriod || first.period || "-";
+  const term = ctx.term || ctx.termName || first.term || first.termName || "-";
+  const year = ctx.year || ctx.examYear || first.year || first.examYear ||
+    (String(exam).match(/\b(20\d{2})\b/) || [])[1] || "-";
+  return { learners, exam, term, year };
+}
+function rasmDashboardSubjects(learners, gradeValue) {
+  const keys = new Set();
+  (learners || []).forEach(l => {
+    getCleanRecordedSubjects(Object.keys(l?.marks || {})).forEach(k => keys.add(k));
+  });
+  return getLoadedMarksMainSubjects([...keys], gradeValue);
+}
+
 // ==========================
 // 🔥 PERFORMANCE INSIGHT (FIXED)
 // ==========================
@@ -46444,7 +46446,8 @@ function generatePerformanceInsight() {
       // ==========================
       // 🔥 FILTERED DATA (FIX)
       // ==========================
-      const learners = getFilteredLearners();
+      const dashboardContext = rasmDashboardContext();
+      const learners = dashboardContext.learners;
 
       if (!learners?.length) {
         container.innerHTML = `
@@ -46477,7 +46480,8 @@ function generatePerformanceInsight() {
 
       learners.forEach(l => {
 
-        const score = Number(l.total || 0);
+        const perf = rasmSafeLearnerPerformance(l);
+        const score = perf.total;
         totalMarks += score;
 
         if (score > highest.score) highest = { name: l.name, score };
@@ -46497,7 +46501,7 @@ function generatePerformanceInsight() {
       };
 
       learners.forEach(l => {
-        const lvl = getLevel(l.total || 0);
+        const lvl = getLevel(rasmSafeLearnerPerformance(l).total);
         levels[lvl] = (levels[lvl] || 0) + 1;
       });
 
@@ -46566,17 +46570,17 @@ opacity:.9;
 ">
 
 Exam:
-<b>${reportMeta?.exam || "Current Exam"}</b>
+<b>${dashboardContext.exam}</b>
 
 &nbsp;&nbsp;|&nbsp;&nbsp;
 
 Term:
-<b>${reportMeta?.term || "-"}</b>
+<b>${dashboardContext.term}</b>
 
 &nbsp;&nbsp;|&nbsp;&nbsp;
 
 Year:
-<b>${reportMeta?.year || "-"}</b>
+<b>${dashboardContext.year}</b>
 
 </div>
 
@@ -46592,7 +46596,7 @@ font-weight:800;
 line-height:1;
 ">
 
-${eePercent.toFixed(0)}%
+${avg.toFixed(1)}%
 
 </div>
 
@@ -46879,7 +46883,7 @@ function generateTopStudents() {
         try {
 
             const learners =
-                [...getFilteredLearners()];
+                [...rasmReportLevelLearners()];
 
             if (!learners.length) {
 
@@ -46893,18 +46897,14 @@ function generateTopStudents() {
 
             }
 
-            const subjects =
-                window.schoolSubjects || [];
+            const subjects = rasmDashboardSubjects(learners, window.reportContext?.grade || rasmSelectedGrade());
 
-            const maxTotal =
-                subjects.length * 100;
+            const maxTotal = subjects.length * 100;
 
             // =====================================
             // SORT BY TOTAL
             // =====================================
-            learners.sort(
-                (a,b)=>b.total-a.total
-            );
+            learners.sort((a,b)=>rasmSafeLearnerPerformance(b).total-rasmSafeLearnerPerformance(a).total);
 
             const colors=[
                 "#FFD700",
@@ -47008,12 +47008,10 @@ gap:22px;
                     .slice(0,5)
                     .map((student,index)=>{
 
-                        const percentage=
-                            maxTotal
-                            ? (student.total/maxTotal)*100
-                            : 0;
+                        const perf = rasmSafeLearnerPerformance(student);
+                        const percentage=maxTotal ? (perf.total/maxTotal)*100 : 0;
 
-                       const performanceLevel = getPerformanceLevel(student.total);
+                       const performanceLevel = getPerformanceLevel(perf.total);
 
                         return`
 
@@ -47061,7 +47059,7 @@ transition:.3s;
 
                                 <b>Total:</b>
 
-                                ${student.total}
+                                ${perf.total}
 
                                 /
 
@@ -47073,7 +47071,7 @@ transition:.3s;
 
                                 <b>Average:</b>
 
-                                ${student.average.toFixed(2)}%
+                                ${perf.average.toFixed(2)}%
 
                             </p>
 
@@ -47242,6 +47240,7 @@ function generateTermPerformance(selectedGrade, selectedExamPeriod) {
         window.reportContext?.examPeriod
       );
 
+      const gradeRange = rasmGradeRangeFor(selectedGrade ?? rasmSelectedGrade());
       const filteredLearners = learners.filter(l => {
 
         const g = normalize(l.grade);
@@ -47255,7 +47254,7 @@ function generateTermPerformance(selectedGrade, selectedExamPeriod) {
           (
             !gradeFilter ||
             gradeFilter === "all grades" ||
-            g === gradeFilter
+            (!gradeRange.length || gradeRange.includes(rasmGradeNumber(l.grade)))
           )
 
           &&
@@ -47282,8 +47281,10 @@ function generateTermPerformance(selectedGrade, selectedExamPeriod) {
       // =====================================
       // SUBJECTS RECORDED
       // =====================================
-      const subjects =
-        window.schoolSubjects || [];
+      const subjects = rasmDashboardSubjects(
+        filteredLearners,
+        selectedGrade ?? rasmSelectedGrade()
+      ).filter(subject => !isMarksMetadataField(subject));
 
       if (!subjects.length) {
 
@@ -47339,10 +47340,10 @@ function generateTermPerformance(selectedGrade, selectedExamPeriod) {
 
         filteredLearners.forEach(l => {
 
-          const mark =
-            Number(l.marks?.[subject]);
+          const rawKey = Object.keys(l.marks||{}).find(k => rasmCanonicalSubjectName(k) === subject);
+          const mark = rasmValidMark(rawKey ? l.marks?.[rawKey] : null);
 
-          if(!isNaN(mark)){
+          if(mark !== null){
 
             total += mark;
 
@@ -47868,7 +47869,7 @@ function generateTopGrade() {
 
     try {
 
-      const learners = getFilteredLearners();
+      const learners = rasmReportLevelLearners();
 
       if (!learners.length) {
 
@@ -47900,9 +47901,9 @@ function generateTopGrade() {
 
         }
 
-        gradesMap[l.grade].totalMarks += Number(l.total || 0);
-
-        gradesMap[l.grade].totalAverage += Number(l.average || 0);
+        const perf = rasmSafeLearnerPerformance(l);
+        gradesMap[l.grade].totalMarks += perf.total;
+        gradesMap[l.grade].totalAverage += perf.average;
 
         gradesMap[l.grade].learners++;
 
@@ -48381,7 +48382,17 @@ function getGradeNumber(value) {
 }
 
 function isReportSubLearningArea(subject) {
-    return REPORT_GRADE13_SUB_LEARNING_AREAS.has(String(subject ?? "").trim());
+    const raw = String(subject ?? "").trim();
+    if (!raw) return false;
+
+    // Accept both bare sub-learning names (Listening) and stored/display keys
+    // such as "English — Listening" or "Kiswahili - Kusoma".
+    const normalized = raw.replace(/\s+/g, " ").trim();
+    const parts = normalized.split(/\s*(?:—|–|-)\s*/);
+    const candidate = parts[parts.length - 1].trim();
+
+    return REPORT_GRADE13_SUB_LEARNING_AREAS.has(candidate) ||
+           REPORT_GRADE13_SUB_LEARNING_AREAS.has(normalized);
 }
 
 function isReportMainSubject(subject, gradeValue) {
@@ -56785,6 +56796,9 @@ const subjects = (window.schoolSubjects || [])
 
             ({
                 eng: "English",
+                ENG: "English",
+                kiswa: "Kiswahili",
+                KISWA: "Kiswahili",
                 math: "Mathematics",
                 kiswahili: "Kiswahili",
                 science: "Integrated Science",
@@ -56979,13 +56993,7 @@ ${window.getSchoolPrintHeader("MERIT LIST REPORT")}
   font-weight:600;
 ">
 
-  Year: ${year}
-  &nbsp; | &nbsp;
-  Grade: ${grade || "All Grades"}
-  &nbsp; | &nbsp;
-  Period: ${period || "All Periods"}
-  &nbsp; | &nbsp;
-  Learners: ${learnerCount}
+  Grade: ${grade || "All Grades"} &nbsp; | &nbsp; Year: ${year} &nbsp; | &nbsp; Exam Period: ${period || "All Periods"}
 
 </div>
 <div style="flex:1;"></div>
@@ -57006,10 +57014,7 @@ ${window.getSchoolPrintHeader("MERIT LIST REPORT")}
   subjects.forEach(s => {
 
     html += `
-      <th colspan="3"
-          class="subhead">
-          ${s.name}
-      </th>
+      <th colspan="${isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key) ? 1 : 3}" class="subhead">${rasmCanonicalSubjectName(s.name)}</th>
     `;
   });
 
@@ -57021,14 +57026,14 @@ ${window.getSchoolPrintHeader("MERIT LIST REPORT")}
 <tr>
 `;
 
-subjects.forEach(() => {
+subjects.forEach(s => {
+    const scoreOnly = isGrade1To3Value(grade) &&
+        isReportSubLearningArea(s.key) &&
+        !rasmGrade13SubHasLevel(s.key);
 
-    html += `
-        <th>Sco</th>
-        <th>${isGrade1To6 ? "Lvl" : "Pts"}</th>
-        <th>${isGrade1To6 ? "Band" : "Lev"}</th>
-    `;
-
+    html += scoreOnly
+        ? `<th>Sco</th>`
+        : `<th>Sco</th><th>${isGrade1To6 ? "Lvl" : "Pts"}</th><th>${isGrade1To6 ? "Band" : "Lev"}</th>`;
 });
 
   html += `
@@ -57083,19 +57088,13 @@ const score =
     ? Number(value)
     : "";
 
-    html += `
+    const scoreOnly = isGrade1To3Value(grade) &&
+        isReportSubLearningArea(s.key) &&
+        !rasmGrade13SubHasLevel(s.key);
 
-<td>${score}</td>
-
-<td>
-    ${score === "" ? "" : getLevel(score)}
-</td>
-
-<td>
-    ${score === "" ? "" : getLevelName(score)}
-</td>
-
-`;
+    html += scoreOnly
+      ? `<td>${score}</td>`
+      : `<td>${score}</td><td>${score === "" ? "" : getLevel(score)}</td><td>${score === "" ? "" : getLevelName(score)}</td>`;
     });
 
     html += `
@@ -57118,11 +57117,8 @@ const score =
 
   subjects.forEach(s => {
 
-    html += `
-<td>${totals[s.key]}</td>
-<td>-</td>
-<td>-</td>
-`;
+    const scoreOnly = isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
+    html += scoreOnly ? `<td>${totals[s.key]}</td>` : `<td>${totals[s.key]}</td><td>-</td><td>-</td>`;
   });
 
   html += `
@@ -57142,11 +57138,8 @@ const score =
 
   subjects.forEach(s => {
 
-    html += `
-<td>${avg(totals[s.key])}</td>
-<td>-</td>
-<td>-</td>
-`;
+    const scoreOnly = isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
+    html += scoreOnly ? `<td>${avg(totals[s.key])}</td>` : `<td>${avg(totals[s.key])}</td><td>-</td><td>-</td>`;
   });
 
   html += `
@@ -57482,6 +57475,9 @@ const subjects = (window.schoolSubjects || [])
 
             ({
                 eng: "English",
+                ENG: "English",
+                kiswa: "Kiswahili",
+                KISWA: "Kiswahili",
                 math: "Mathematics",
                 kiswahili: "Kiswahili",
                 science: "Integrated Science",
@@ -57710,20 +57706,7 @@ learnerCount++;
     </style>
 
  ${window.getSchoolPrintHeader("COMBINED MARKS REPORT")}
-<div style="
-    margin:10px 0 20px;
-    text-align:center;
-    font-size:14px;
-    font-weight:600;
-">
-
-    Year: ${year}
-    &nbsp;/&nbsp;
-    Grade: ${rawGrade || "All Grades"}
-    &nbsp;/&nbsp;
-    Exam Period: ${rawPeriod || "All Periods"}
-
-</div>
+${rasmReportMetaLine(rawGrade || "All Grades", year, rawPeriod || "All Periods")}
     <div class="combined-marks-scroll table-responsive" style="width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;">
     <table class="report-table" style="width:max-content;min-width:1300px;">
       <thead>
@@ -57734,7 +57717,7 @@ learnerCount++;
   `;
 
   subjects.forEach(s => {
-    html += `<th colspan="3" class="subhead">${s.name}</th>`;
+    html += `<th colspan="${isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key) ? 1 : 3}" class="subhead">${rasmCanonicalSubjectName(s.name)}</th>`;
 });
 
   html += `
@@ -57744,14 +57727,9 @@ learnerCount++;
         <tr>
   `;
 
-subjects.forEach(() => {
-
-    html += `
-        <th>Score</th>
-        <th>${isGrade1To6 ? "Lvl" : "Pts"}</th>
-        <th>Level</th>
-    `;
-
+subjects.forEach(s => {
+    const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
+    html += scoreOnly ? `<th>Score</th>` : `<th>Score</th><th>${isGrade1To6 ? "Lvl" : "Pts"}</th><th>Level</th>`;
 });
 
   html += `</tr></thead><tbody>`;
@@ -57773,17 +57751,8 @@ subjects.forEach(s => {
 
     const mark = l[s.key];
 
-    html += `
-        <td>${mark ?? ""}</td>
-
-        <td>
-            ${mark != null ? getLevel(mark) : ""}
-        </td>
-
-        <td>
-            ${mark != null ? getLevelName(mark) : ""}
-        </td>
-    `;
+    const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
+    html += scoreOnly ? `<td>${mark ?? ""}</td>` : `<td>${mark ?? ""}</td><td>${mark != null ? getLevel(mark) : ""}</td><td>${mark != null ? getLevelName(mark) : ""}</td>`;
 
 });
     html += `
@@ -57806,11 +57775,8 @@ subjects.forEach(s => {
 
     }, 0);
 
-    html += `
-    <td>${total}</td>
-    <td>-</td>
-    <td>-</td>
-`;
+    const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
+    html += scoreOnly ? `<td>${total}</td>` : `<td>${total}</td><td>-</td><td>-</td>`;
 
 });
 
@@ -57837,11 +57803,8 @@ subjects.forEach(s => {
 
     const entered = learnersData.filter(learner => learner[s.key] != null).length;
 
-  html += `
-    <td>${entered ? (total / entered).toFixed(2) : ""}</td>
-    <td>-</td>
-    <td>-</td>
-`;
+  const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
+  html += scoreOnly ? `<td>${entered ? (total / entered).toFixed(2) : ""}</td>` : `<td>${entered ? (total / entered).toFixed(2) : ""}</td><td>-</td><td>-</td>`;
 
 });
 
@@ -83063,6 +83026,38 @@ font-weight:bold;
 </button>
 
 <button
+onclick="markBorrowedReturnItem('${item.id}','${item.bookId}','${item.bookNumber}','Lost')"
+style="
+background:#dc2626;
+color:white;
+border:none;
+padding:10px 14px;
+border-radius:10px;
+cursor:pointer;
+font-weight:bold;
+">
+
+❌ Mark Lost
+
+</button>
+
+<button
+onclick="markBorrowedReturnItem('${item.id}','${item.bookId}','${item.bookNumber}','Damaged')"
+style="
+background:#d97706;
+color:white;
+border:none;
+padding:10px 14px;
+border-radius:10px;
+cursor:pointer;
+font-weight:bold;
+">
+
+⚠️ Mark Damaged
+
+</button>
+
+<button
 onclick="toggleBorrowSelection('${item.id}')"
 style="
 background:#2563eb;
@@ -87329,9 +87324,11 @@ window.publishAssignment = async function () {
         // ===
         // =====================================
 
+        // Accept both === and \=== as question separators.
+        // This also supports pasted questions whose A-D options are on one line.
         const rawQuestions =
             instructions
-                .split("===")
+                .split(/(?:^|\r?\n)\s*\\?={3,}\s*(?=\r?\n|$)/m)
                 .map(q => q.trim())
                 .filter(q => q !== "");
 
@@ -87354,8 +87351,16 @@ window.publishAssignment = async function () {
 
         rawQuestions.forEach((rawQuestion, index) => {
 
+            // Normalise pasted MCQs before parsing. Teachers often paste:
+            // "Question? A. ... B. ... C. ... D. ... Answer: B"
+            // on a single line. Convert each A-D marker and Answer line into its
+            // own logical line so the normal MCQ parser can detect all four options.
+            const normalisedQuestion = String(rawQuestion)
+                .replace(/\s+([ABCD])\s*[\.\)]\s*/gi, "\n$1. ")
+                .replace(/\s+(answer|correct\s*answer|correct)\s*[:=]\s*/gi, "\n$1: ");
+
             const lines =
-                rawQuestion
+                normalisedQuestion
                     .split(/\r?\n/)
                     .map(line => line.trim())
                     .filter(line => line !== "");
@@ -88705,6 +88710,74 @@ window.getCurrentLearnerIdentity = function(){
 };
 
 // =====================================================
+
+// =========================================================
+// 🚀 ASSIGNMENT UI TOGGLES
+// =========================================================
+
+window.toggleAssignmentPublisher = function(){
+    const role = String(
+        window.currentUserRole || window.userRole || ""
+    ).trim().toLowerCase();
+
+    if (role === "parent") {
+        return;
+    }
+
+    const panel = document.getElementById("assignmentPublisherPanel");
+    const button = document.getElementById("publishAssignmentToggleBtn");
+    if (!panel || !button) return;
+
+    const isOpen = panel.style.display === "block";
+
+    if (isOpen) {
+        panel.style.display = "none";
+        panel.setAttribute("hidden", "hidden");
+        button.setAttribute("aria-expanded", "false");
+        button.innerHTML = "🚀 Publish Assignment";
+    } else {
+        panel.removeAttribute("hidden");
+        panel.style.display = "block";
+        button.setAttribute("aria-expanded", "true");
+        button.innerHTML = "✖️ Close Publishing Form";
+        panel.scrollIntoView({ behavior:"smooth", block:"start" });
+    }
+};
+
+window.toggleAvailableAssignments = function(){
+
+    const panel =
+        document.getElementById("assignmentAvailablePanel");
+
+    const button =
+        document.getElementById("availableAssignmentsToggleBtn");
+
+    if(!panel || !button) return;
+
+    const isOpen =
+        panel.style.display === "block";
+
+    panel.style.display =
+        isOpen ? "none" : "block";
+
+    button.setAttribute(
+        "aria-expanded",
+        String(!isOpen)
+    );
+
+    button.innerHTML =
+        isOpen
+        ? "📚 Available Assignments"
+        : "✖️ Hide Available Assignments";
+
+    if(!isOpen){
+        panel.scrollIntoView({
+            behavior:"smooth",
+            block:"start"
+        });
+    }
+};
+
 // 📚 RENDER ASSIGNMENTS
 // IMPORTANT:
 // This function ONLY renders the assignment UI.
@@ -89491,6 +89564,50 @@ const dynamicAnswersHTML = `
 
             }
 
+
+            // =============================================
+            // EXTRA MCQ FORMAT FALLBACK
+            // Supports arrays such as ["A text","B text",...] and
+            // objects such as {optionA:"...", option1:"..."}.
+            // =============================================
+
+            if (normalizedOptions.length === 0 && storedOptions) {
+
+                const letters = ["A", "B", "C", "D", "E"];
+                const addOption = function(letter, value) {
+                    const text = String(value ?? "").trim();
+                    if (/^[A-E]$/.test(letter) && text !== "" &&
+                        !normalizedOptions.some(function(o){ return o.letter === letter; })) {
+                        normalizedOptions.push({ letter: letter, text: text });
+                    }
+                };
+
+                if (Array.isArray(storedOptions)) {
+                    storedOptions.forEach(function(value, i) {
+                        if (value && typeof value === "object") {
+                            addOption(String(value.letter || value.key || letters[i] || "").trim().toUpperCase(),
+                                      value.text ?? value.option ?? value.value ?? value.label ?? "");
+                        } else {
+                            addOption(letters[i] || "", value);
+                        }
+                    });
+                } else if (typeof storedOptions === "object") {
+                    Object.keys(storedOptions).forEach(function(key, i) {
+                        const raw = storedOptions[key];
+                        const match = String(key).match(/(?:option|choice|answer)?\s*([A-E]|[1-5])$/i);
+                        let letter = match ? String(match[1]).toUpperCase() : String(key).trim().toUpperCase();
+                        if (/^[1-5]$/.test(letter)) letter = letters[Number(letter)-1];
+                        if (!/^[A-E]$/.test(letter)) letter = letters[i] || "";
+                        if (raw && typeof raw === "object") {
+                            addOption(String(raw.letter || letter).trim().toUpperCase(), raw.text ?? raw.option ?? raw.value ?? raw.label ?? "");
+                        } else {
+                            addOption(letter, raw);
+                        }
+                    });
+                }
+
+                normalizedOptions.sort(function(a,b){ return a.letter.localeCompare(b.letter); });
+            }
 
             // =============================================
             // LEGACY TEXT FORMAT FALLBACK
@@ -90983,60 +91100,47 @@ html += `
     </span>
 
 
-    ${
-        isTeacher
-        ?
-        `
+    <span style="
+        color:#cbd5e1;
+        font-weight:bold;
+    ">•</span>
 
-        <span style="
-            color:#cbd5e1;
-            font-weight:bold;
-        ">•</span>
+    <!-- SUBMISSIONS -->
+    <span style="
+        display:inline-flex;
+        align-items:center;
+        gap:4px;
+        color:#16a34a;
+        font-weight:700;
+        font-size:13px;
+        white-space:nowrap;
+    ">
+        📥 Submissions:
+        <strong>
+            ${submissions.length}
+        </strong>
+    </span>
 
+    <span style="
+        color:#cbd5e1;
+        font-weight:bold;
+    ">•</span>
 
-        <!-- SUBMISSIONS -->
-        <span style="
-            display:inline-flex;
-            align-items:center;
-            gap:4px;
-            color:#16a34a;
-            font-weight:700;
-            font-size:13px;
-            white-space:nowrap;
-        ">
-            📥 Submissions:
-            <strong>
-                ${submissions.length}
-            </strong>
-        </span>
-
-
-        <span style="
-            color:#cbd5e1;
-            font-weight:bold;
-        ">•</span>
-
-
-        <!-- TOTAL QUESTIONS -->
-        <span style="
-            display:inline-flex;
-            align-items:center;
-            gap:4px;
-            color:#7c3aed;
-            font-weight:700;
-            font-size:13px;
-            white-space:nowrap;
-        ">
-            📚 Total Questions:
-            <strong>
-                ${totalQuestions}
-            </strong>
-        </span>
-
-        `
-        :
-        ""
-    }
+    <!-- TOTAL QUESTIONS -->
+    <span style="
+        display:inline-flex;
+        align-items:center;
+        gap:4px;
+        color:#7c3aed;
+        font-weight:700;
+        font-size:13px;
+        white-space:nowrap;
+    ">
+        📚 Total Questions:
+        <strong>
+            ${totalQuestions}
+        </strong>
+    </span>
 
 </div>
 
@@ -93641,6 +93745,32 @@ ${escapeHtml(schemeContent)}
                                 marks[index] ??
                                 0;
 
+                            // =========================================
+                            // CORRECT-ANSWER / RESULT NORMALIZATION
+                            // =========================================
+                            const normalizeChoice = value =>
+                                String(value ?? "")
+                                    .trim()
+                                    .replace(/^answer\s*:\s*/i, "")
+                                    .replace(/^correct(?:\s+answer)?\s*:\s*/i, "")
+                                    .match(/[A-E]/i)?.[0]?.toUpperCase() || "";
+
+                            const learnerChoice = normalizeChoice(learnerAnswer);
+                            const correctChoice = normalizeChoice(
+                                question && typeof question === "object"
+                                    ? (question.correctAnswer || question.answer || question.correct || "")
+                                    : ""
+                            );
+
+                            const isCorrectMCQ =
+                                !!correctChoice &&
+                                learnerChoice === correctChoice;
+
+                            // For MCQs, show the actual result even when an older
+                            // saved submission still contains a stale 0 mark.
+                            const displayMark = isCorrectMCQ ? 1 : mark;
+                            const displayOutOf = 1;
+
 
                             // =========================================
                             // MCQ OPTIONS
@@ -93792,38 +93922,33 @@ ${escapeHtml(schemeContent)}
 
                                     <div style="
                                         margin-top:10px;
-                                        padding:12px;
+                                        padding:8px 10px;
                                         background:#fffbeb;
                                         border:1px solid #fde68a;
                                         border-left:4px solid #f59e0b;
                                         border-radius:8px;
-                                        white-space:pre-wrap;
-                                        line-height:1.7;
                                         color:#78350f;
                                         font-size:14px;
+                                        line-height:1.35;
                                     ">
-
-                                        <strong style="
-                                            color:#b45309;
-                                        ">
-
-                                            ✍ Your Answer:
-
-                                        </strong>
-
-
                                         <div style="
-                                            margin-top:6px;
-                                            color:#78350f;
+                                            display:flex;
+                                            align-items:center;
+                                            gap:8px;
+                                            flex-wrap:wrap;
                                         ">
-
-                                            ${escapeHtml(
-                                                learnerAnswer ||
-                                                "No answer provided"
-                                            )}
-
+                                            <strong style="color:#b45309;">✍ Your Answer:</strong>
+                                            <span style="font-weight:700; color:#78350f;">
+                                                ${escapeHtml(learnerAnswer || "No answer provided")}
+                                            </span>
+                                            ${isCorrectMCQ ? `
+                                                <span style="
+                                                    color:#dc2626;
+                                                    font-weight:800;
+                                                    font-size:13px;
+                                                ">✔ Correct</span>
+                                            ` : ``}
                                         </div>
-
                                     </div>
 
 
@@ -93854,7 +93979,7 @@ ${escapeHtml(schemeContent)}
         font-weight:800;
         color:#2563eb;
     ">
-        0
+        ${displayMark}
     </span>
 
     <span style="
@@ -93870,7 +93995,7 @@ ${escapeHtml(schemeContent)}
         font-weight:700;
         color:#64748b;
     ">
-        1
+        ${displayOutOf}
     </span>
 
 </div>
@@ -101462,7 +101587,6 @@ teacher: [
     "reportsSection"
 ],
  parent: [
-    "dashboard",
     "eLearningSection",
     "assignmentHelpSection",
     "resultsSection",
@@ -101678,6 +101802,7 @@ window.checkAccess = function(section) {
   if (role === "parent") {
 
     const blocked = [
+      "dashboard",
       ...REPORT_SECTIONS,
       ...EXAM_SECTIONS,
       "settingsSection",
@@ -102274,11 +102399,8 @@ window.configureELearningPermissions = function () {
     );
 
   if (assignmentPublisher) {
-
-    assignmentPublisher.style.display =
-      isParent
-        ? "none"
-        : "block";
+    assignmentPublisher.style.display = "none";
+    assignmentPublisher.setAttribute("hidden", "hidden");
   }
 
   // =====================================
@@ -115048,7 +115170,92 @@ window.getGrade1To6ReportLabel = function(level) {
     return {1:"BE(1)",2:"AE(2)",3:"ME(3)",4:"EE(4)"}[Number(level)] || "";
 };
 </script>
-</body>
+\n<script id="final-library-subject-fixes-v4">
+/* Final fixes: lost-book clearance, metadata subjects, lazy borrowed-book rendering */
+(function(){
+  const META = new Set(['updatedat','createdat','timestamp','id','key','schoolid','school_id','school','admissionno','admissionnumber','studentid','learnerid','name','gender','grade','class','year','term','exam','examperiod','period']);
+  const norm=v=>String(v??'').trim().toLowerCase().replace(/[\s_\-—–]+/g,'');
+  const isMetaSubject=v=>META.has(norm(v)) || /^(updatedat|createdat|timestamp)$/i.test(String(v||'').trim());
+
+  // Absolute final subject sanitiser used by reports that derive keys from learner marks.
+  const oldGetMain=window.getMainSubjectsForGradeFromAnySource;
+  if(typeof oldGetMain==='function'){
+    window.getMainSubjectsForGradeFromAnySource=function(...args){
+      const result=oldGetMain.apply(this,args)||[];
+      return [...new Set(result.filter(x=>!isMetaSubject(x)))];
+    };
+  }
+
+  // Rebuild clearance lookup directly from the actual library copy records.
+  window.getLearnerLostBooks = async function(ctx){
+    const schoolId=window.schoolId;
+    if(!schoolId) return [];
+    const snap=await get(ref(db,`library/${schoolId}`));
+    if(!snap.exists()) return [];
+    const learner=ctx.learner||{};
+    const ids=new Set([ctx.learnerId,learner.id,learner.studentId,learner.admissionNo,learner.admission,learner.adm]
+      .filter(v=>String(v??'').trim()).map(v=>norm(v)));
+    const names=new Set([learner.name,learner.fullName,learner.studentName]
+      .filter(v=>String(v??'').trim()).map(norm));
+    const records=[];
+    snap.forEach(bookChild=>{
+      const book=bookChild.val()||{};
+      Object.entries(book.copies||{}).forEach(([copyKey,copy])=>{
+        const status=String(copy.status||'').trim().toLowerCase();
+        const meta=copy.lostAccountability||{};
+        // Only unresolved LOST records block clearance. A replacement/resolution releases the block.
+        if(status!=='lost' && !meta.lostDate && !meta.lostTimestamp) return;
+        const vals=[meta.learnerId,copy.borrowerAdm,copy.borrowerId,copy.studentId,copy.lostLearnerId,copy.adm,copy.admissionNo]
+          .filter(v=>String(v??'').trim()).map(norm);
+        const nms=[meta.learnerName,copy.borrower,copy.borrowerName,copy.studentName]
+          .filter(v=>String(v??'').trim()).map(norm);
+        if(!vals.some(v=>ids.has(v)) && !nms.some(v=>names.has(v))) return;
+        const replaced=!!meta.replaced || !!meta.cleared || !!copy.replaced || !!copy.replacementDate || !!copy.replacementBookNumber || status==='replaced';
+        records.push({
+          id:`${bookChild.key}_${copyKey}`, bookId:bookChild.key,
+          bookTitle:meta.bookTitle||book.title||book.bookTitle||book.name||'Unknown Book',
+          bookNumber:copy.bookNumber||copyKey,
+          lostDate:meta.lostDate||copy.lostDate||'-',
+          reason:meta.reason||copy.lostReason||'-',
+          replaced, cleared:!!meta.cleared
+        });
+      });
+    });
+    return records;
+  };
+
+  // Lazy rendering for borrowed books: initial batch, then append while scrolling.
+  const oldRender=window.renderBorrowings;
+  function installLazyBorrowedBooks(){
+    if(typeof oldRender!=='function' || window.__lazyBorrowedInstalled) return;
+    window.__lazyBorrowedInstalled=true;
+    const original=oldRender;
+    window.renderBorrowings=function(){
+      // Keep existing grouping/filtering logic, then progressively reveal borrower cards.
+      original.apply(this,arguments);
+      const container=window.returnsContainer||document.getElementById('returnsContainer');
+      if(!container) return;
+      const cards=[...container.children];
+      if(cards.length<=20) return;
+      let shown=20;
+      cards.forEach((c,i)=>{ if(i>=shown) c.style.display='none'; });
+      let sentinel=document.createElement('div');
+      sentinel.id='borrowingsLazySentinel'; sentinel.style.cssText='height:1px;width:100%;';
+      container.appendChild(sentinel);
+      const reveal=()=>{
+        const next=Math.min(shown+20,cards.length);
+        for(let i=shown;i<next;i++) cards[i].style.display='';
+        shown=next;
+        if(shown>=cards.length){ sentinel.remove(); window.removeEventListener('scroll',onScroll); }
+      };
+      const onScroll=()=>{ if(sentinel.getBoundingClientRect().top < window.innerHeight+300) reveal(); };
+      window.addEventListener('scroll',onScroll,{passive:true});
+      onScroll();
+    };
+  }
+  installLazyBorrowedBooks();
+})();
+</script>\n</body>
 </html>
 
 
@@ -115479,5 +115686,135 @@ window.getGrade1To6ReportLabel = function(level) {
       Swal.fire('Cleared Successfully',`${name} has been cleared by the Library Return Center.`,'success');
     }catch(e){closeSweetLoader();console.error(e);Swal.fire('Error',e.message,'error');}
   };
+})();
+</script>
+
+<!-- RETURN CENTER LOST/DAMAGED ACTION BUTTON BRIDGE -->
+<script>
+(function(){
+  window.markBorrowedReturnItem = async function(borrowingId, bookId, bookNumber, kind){
+    try{
+      const item=(window.allBorrowings||[]).find(x=>String(x.id)===String(borrowingId))||{};
+      const resolvedBookId=bookId||item.bookId||item.libraryBookId||item.bookKey||item.parentBookId;
+      const resolvedBookNumber=bookNumber||item.bookNumber||item.copyNumber||item.copyId;
+      if(!resolvedBookId || !resolvedBookNumber){
+        return Swal.fire('Cannot Mark Book', 'The borrowed-book record is missing the library Book ID or Book Number needed to update the exact copy.', 'error');
+      }
+      if(kind==='Lost') return window.markBookLost(String(resolvedBookId),String(resolvedBookNumber));
+      return window.markBookDamaged(String(resolvedBookId),String(resolvedBookNumber));
+    }catch(e){ console.error('Return-center lost/damaged action failed',e); Swal.fire('Error',e.message||'Could not update the borrowed book.','error'); }
+  };
+})();
+</script>
+
+<!-- FINAL BORROWER-LEVEL LOST/DAMAGED ACCOUNTABILITY FIX -->
+<script>
+(function(){
+  const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const learnerFromCopy=c=>({
+    id:c.borrowerId||c.borrowerAdm||c.studentId||c.admissionNo||c.admission||c.adm||'',
+    name:c.borrowerName||c.borrower||c.studentName||c.learnerName||''
+  });
+  async function mark(bookId,bookNumber,kind){
+    const prompt=kind==='Lost'?['Lost Book','Reason / Remarks','Describe what happened...']:['Damaged Book','Damage Description','Describe the damage...'];
+    const {value:reason}=await Swal.fire({title:prompt[0],input:'textarea',inputLabel:prompt[1],inputPlaceholder:prompt[2],showCancelButton:true,confirmButtonText:`Mark ${kind}`});
+    if(reason===undefined)return;
+    const schoolId=window.schoolId, bookRef=ref(db,`library/${schoolId}/${bookId}`), snap=await get(bookRef);
+    if(!snap.exists()) return Swal.fire('Error','Book not found.','error');
+    const book=snap.val()||{}, copies=book.copies||{}, copy=copies[bookNumber];
+    if(!copy) return Swal.fire('Error','Copy not found.','error');
+    const borrower=learnerFromCopy(copy), now=new Date(), date=now.toLocaleDateString();
+    copy.status=kind;
+    if(kind==='Lost'){copy.lostReason=reason||'No reason provided';copy.lostDate=date;}
+    else {copy.damageReason=reason||'No reason provided';copy.damagedDate=date;}
+    copy.lostAccountability={...(copy.lostAccountability||{}),bookId:String(bookId),bookNumber:String(bookNumber),bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',learnerId:String(borrower.id),learnerName:borrower.name||'Unknown Learner',reason:reason||'No reason provided',year:String(now.getFullYear()),grade:copy.grade||copy.class||copy.gradeName||'',status:kind.toLowerCase(),replaced:false,resolved:false,markedAt:Date.now(),lostDate:kind==='Lost'?date:(copy.lostAccountability?.lostDate||''),damagedDate:kind==='Damaged'?date:(copy.lostAccountability?.damagedDate||'')};
+    if(typeof addCopyHistory==='function') addCopyHistory(copy,`Marked ${kind}`,reason||'No reason provided');
+    await update(bookRef,{copies});
+    Swal.fire('Success',`${bookNumber} marked as ${kind.toLowerCase()}. This learner's library clearance is now blocked until replacement/resolution is recorded.`,'success');
+    viewBookCopies(bookId);
+  }
+  window.markBookLost=(bookId,bookNumber)=>mark(bookId,bookNumber,'Lost').catch(e=>{console.error(e);Swal.fire('Error',e.message,'error')});
+  window.markBookDamaged=(bookId,bookNumber)=>mark(bookId,bookNumber,'Damaged').catch(e=>{console.error(e);Swal.fire('Error',e.message,'error')});
+
+  async function replace(bookId,bookNumber,kind){
+    const {value:by}=await Swal.fire({title:`Replace ${kind} Book`,input:'text',inputLabel:`Who replaced/resolved the ${kind.toLowerCase()} book?`,inputPlaceholder:'Learner / Parent / Librarian',showCancelButton:true,confirmButtonText:'Record Replacement'});
+    if(by===undefined)return;
+    const schoolId=window.schoolId, bookRef=ref(db,`library/${schoolId}/${bookId}`), snap=await get(bookRef);
+    if(!snap.exists()) return Swal.fire('Error','Book not found.','error');
+    const book=snap.val()||{}, copies=book.copies||{}, copy=copies[bookNumber];
+    if(!copy)return Swal.fire('Error','Book copy not found.','error');
+    const borrower=learnerFromCopy(copy), date=new Date().toLocaleDateString();
+    copy.lostAccountability={...(copy.lostAccountability||{}),bookId:String(bookId),bookNumber:String(bookNumber),bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',learnerId:String(copy.lostAccountability?.learnerId||borrower.id),learnerName:copy.lostAccountability?.learnerName||borrower.name||'Unknown Learner',replaced:true,resolved:true,replacedAt:Date.now(),replacementDate:date,replacedBy:by||'Not specified'};
+    copy.replacementDate=date; copy.replacedAt=Date.now(); copy.replacedBy=by||'Not specified';
+    copy.status='Available'; copy.borrower=null; copy.borrowerName=null; copy.borrowerAdm=null; copy.borrowerId=null; copy.studentId=null; copy.borrowDate=null; copy.dueDate=null;
+    if(typeof addCopyHistory==='function') addCopyHistory(copy,`${kind} Book Replaced`,by||'Not specified');
+    await update(bookRef,{copies,available:Number(book.available||0)+1});
+    Swal.fire('Replacement Recorded',`${bookNumber} has been replaced/resolved. The learner's accountability record is now marked resolved.`,'success');
+    viewBookCopies(bookId);
+  }
+  window.replaceLostBook=(bookId,bookNumber)=>replace(bookId,bookNumber,'Lost').catch(e=>{console.error(e);Swal.fire('Error',e.message,'error')});
+  window.replaceDamagedBook=(bookId,bookNumber)=>replace(bookId,bookNumber,'Damaged').catch(e=>{console.error(e);Swal.fire('Error',e.message,'error')});
+})();
+</script>
+<script>
+/* V7 FINAL LIBRARY ACTIONS / REPLACEMENT / BADGE POSITION FIX */
+(async function(){
+  let api;
+  try{
+    api = await import('https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js');
+  }catch(e){ console.error('Firebase DB API load failed',e); return; }
+  const {get,ref,update}=api;
+  const db=window.db;
+  const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const findCopy=(copies,n)=>copies[n] || Object.entries(copies||{}).find(([k,c])=>String(c?.bookNumber||k)===String(n))?.[1];
+
+  async function replacement(bookId,bookNumber,kind){
+    const {value:by}=await Swal.fire({title:`Replace ${kind} Book`,input:'text',inputLabel:'Replacement made by',inputPlaceholder:'Learner / Parent / Librarian',showCancelButton:true,confirmButtonText:'Record Replacement'});
+    if(by===undefined)return;
+    const schoolId=window.schoolId;
+    if(!schoolId) throw new Error('School session is not available. Please reload and try again.');
+    const bookRef=ref(db,`library/${schoolId}/${bookId}`);
+    const snap=await get(bookRef);
+    if(!snap.exists()) return Swal.fire('Error','Book not found.','error');
+    const book=snap.val()||{}, copies=book.copies||{};
+    const copy=findCopy(copies,bookNumber);
+    if(!copy) return Swal.fire('Error','Book copy not found.','error');
+    const now=Date.now(), date=new Date().toLocaleDateString();
+    const borrowerId=copy.lostAccountability?.learnerId||copy.borrowerId||copy.borrowerAdm||copy.studentId||'';
+    const borrowerName=copy.lostAccountability?.learnerName||copy.borrowerName||copy.borrower||copy.studentName||'';
+    copy.lostAccountability={...(copy.lostAccountability||{}),bookId:String(bookId),bookNumber:String(copy.bookNumber||bookNumber),bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',learnerId:String(borrowerId),learnerName:borrowerName,replaced:true,resolved:true,replacedAt:now,replacementDate:date,replacedBy:by||'Not specified',status:'resolved'};
+    copy.replacementDate=date; copy.replacedAt=now; copy.replacedBy=by||'Not specified'; copy.status='Available';
+    copy.borrower=null; copy.borrowerName=null; copy.borrowerAdm=null; copy.borrowerId=null; copy.studentId=null; copy.borrowDate=null; copy.dueDate=null;
+    await update(bookRef,{copies,available:Number(book.available||0)+1});
+    await Swal.fire('Replacement Recorded',`${copy.bookNumber||bookNumber} has been replaced/resolved. The learner can now proceed with clearance if no other unresolved lost/damaged books remain.`,'success');
+    if(typeof window.viewBookCopies==='function') window.viewBookCopies(bookId);
+    if(typeof window.loadBorrowedBooks==='function') window.loadBorrowedBooks();
+  }
+  window.replaceLostBook=(id,no)=>replacement(id,no,'Lost').catch(e=>{console.error(e);Swal.fire('Error',e.message||'Could not record replacement.','error')});
+  window.replaceDamagedBook=(id,no)=>replacement(id,no,'Damaged').catch(e=>{console.error(e);Swal.fire('Error',e.message||'Could not record replacement.','error')});
+
+  function makeActionMenus(root=document){
+    root.querySelectorAll('button[onclick*="markBorrowedReturnItem"]').forEach(btn=>{
+      if(btn.dataset.actionGrouped)return;
+      const parent=btn.parentElement; if(!parent)return;
+      const pair=[...parent.querySelectorAll('button[onclick*="markBorrowedReturnItem"]')];
+      if(pair.length<2)return;
+      pair.forEach(b=>{b.style.display='none';b.dataset.actionGrouped='1';});
+      const menu=document.createElement('details'); menu.className='borrowed-book-actions'; menu.style.cssText='position:relative;display:inline-block;';
+      menu.innerHTML='<summary style="list-style:none;background:#475569;color:#fff;border:none;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:bold;">⚙️ Action</summary><div style="position:absolute;right:0;top:46px;z-index:1000;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:6px;min-width:170px;box-shadow:0 10px 25px rgba(0,0,0,.18)"><button type="button" style="width:100%;margin:2px 0;padding:9px;border:0;border-radius:7px;background:#fee2e2;color:#991b1b;font-weight:bold;cursor:pointer">❌ Mark Lost</button><button type="button" style="width:100%;margin:2px 0;padding:9px;border:0;border-radius:7px;background:#fef3c7;color:#92400e;font-weight:bold;cursor:pointer">⚠️ Mark Damaged</button></div>';
+      const [lost,damaged]=pair.sort((a,b)=>(a.textContent.includes('Lost')?-1:1));
+      const choices=menu.querySelectorAll('button'); choices[0].onclick=()=>lost.click(); choices[1].onclick=()=>damaged.click();
+      parent.insertBefore(menu,pair[0]);
+    });
+  }
+  makeActionMenus();
+  new MutationObserver(m=>m.forEach(x=>x.addedNodes.forEach(n=>{if(n.nodeType===1)makeActionMenus(n)}))).observe(document.body,{childList:true,subtree:true});
+
+  function swapBadges(){
+    const schools=document.getElementById('floatingSchoolsCounter'), login=document.getElementById('rasmLoggedInRoleBadge');
+    if(schools){schools.style.top='14px';schools.style.right='18px';schools.style.left='auto';schools.style.bottom='auto';schools.style.transform='none';}
+    if(login){login.style.top='auto';login.style.right='18px';login.style.bottom='18px';}
+  }
+  swapBadges(); setInterval(swapBadges,1500);
 })();
 </script>
