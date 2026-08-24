@@ -6372,20 +6372,6 @@ button.primary{
     }
 }
 
-
-
-/* =========================================================
-   ASSIGNMENTS: PUBLISH FORM IS CLOSED BY DEFAULT
-   Parents must never see publishing controls
-   ========================================================= */
-#assignmentPublisherPanel[hidden]{
-    display:none !important;
-}
-
-body.assignment-parent-user #publishAssignmentToggleBtn,
-body.assignment-parent-user #assignmentPublisherPanel{
-    display:none !important;
-}
 </style>
 </head>
 
@@ -88716,33 +88702,33 @@ window.getCurrentLearnerIdentity = function(){
 // =========================================================
 
 window.toggleAssignmentPublisher = function(){
-    const role = String(
-        window.currentUserRole || window.userRole || ""
-    ).trim().toLowerCase();
-
-    if (role === "parent") {
-        return;
-    }
 
     const panel = document.getElementById("assignmentPublisherPanel");
     const button = document.getElementById("publishAssignmentToggleBtn");
-    if (!panel || !button) return;
+    const role = String(window.currentUserRole || "").toLowerCase().trim();
 
-    const isOpen = panel.style.display === "block";
+    // Parents must never open or see the assignment publishing UI.
+    if (role === "parent") {
+        if (panel) panel.style.display = "none";
+        if (button) button.style.display = "none";
+        return;
+    }
 
-    if (isOpen) {
-        panel.style.display = "none";
-        panel.setAttribute("hidden", "hidden");
-        button.setAttribute("aria-expanded", "false");
-        button.innerHTML = "🚀 Publish Assignment";
-    } else {
-        panel.removeAttribute("hidden");
-        panel.style.display = "block";
-        button.setAttribute("aria-expanded", "true");
-        button.innerHTML = "✖️ Close Publishing Form";
+    if(!panel || !button) return;
+
+    const isOpen = window.getComputedStyle(panel).display !== "none";
+    panel.style.display = isOpen ? "none" : "block";
+
+    button.setAttribute("aria-expanded", String(!isOpen));
+    button.innerHTML = isOpen
+        ? "🚀 Publish Assignment"
+        : "✖️ Close Publishing Form";
+
+    if(!isOpen){
         panel.scrollIntoView({ behavior:"smooth", block:"start" });
     }
 };
+
 
 window.toggleAvailableAssignments = function(){
 
@@ -102398,9 +102384,22 @@ window.configureELearningPermissions = function () {
       "assignmentPublisherPanel"
     );
 
+  const publishAssignmentToggleBtn =
+    document.getElementById(
+      "publishAssignmentToggleBtn"
+    );
+
+  // The publisher must start CLOSED after login for every non-parent role.
+  // Parents must not see either the button or the publishing form.
   if (assignmentPublisher) {
     assignmentPublisher.style.display = "none";
-    assignmentPublisher.setAttribute("hidden", "hidden");
+  }
+
+  if (publishAssignmentToggleBtn) {
+    publishAssignmentToggleBtn.style.display =
+      isParent ? "none" : "inline-flex";
+    publishAssignmentToggleBtn.setAttribute("aria-expanded", "false");
+    publishAssignmentToggleBtn.innerHTML = "🚀 Publish Assignment";
   }
 
   // =====================================
