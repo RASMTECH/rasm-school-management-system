@@ -5735,7 +5735,66 @@ button.primary{
     font-size: 12px !important;
 }
 
+/* =========================================================
+   FIX PASSWORD EYE — KEEP IT INSIDE THE INPUT
+========================================================= */
 
+#authSection .rasm-password-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    height: 48px !important;
+    box-sizing: border-box !important;
+}
+
+#authSection .rasm-password-wrapper input {
+    width: 100% !important;
+    height: 48px !important;
+    padding-left: 52px !important;
+    padding-right: 52px !important;
+    box-sizing: border-box !important;
+}
+
+#authSection .rasm-password-wrapper .rasm-eye {
+    position: absolute !important;
+
+    right: 0 !important;
+    top: 50% !important;
+
+    transform: translateY(-50%) !important;
+
+    width: 48px !important;
+    height: 48px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+
+    box-sizing: border-box !important;
+
+    cursor: pointer !important;
+    z-index: 5 !important;
+}
+
+/* Keep the eye icon itself centered */
+#authSection .rasm-password-wrapper .rasm-eye i,
+#authSection .rasm-password-wrapper .rasm-eye svg,
+#authSection .rasm-password-wrapper .rasm-eye span {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+}
+
+/* Prevent the eye from affecting the password input layout */
+#authSection .rasm-password-wrapper {
+    overflow: hidden !important;
+}
 /* =========================================================
    TABLET
 ========================================================= */
@@ -6274,7 +6333,8 @@ button.primary{
 ========================================================= */
 
 .assignment-toggle-btn{
-    width:100%;
+    width:240px;
+    max-width:100%;
     min-height:58px;
     margin-top:20px;
     padding:14px 20px;
@@ -6283,7 +6343,7 @@ button.primary{
     background:linear-gradient(135deg,#16a34a,#15803d);
     color:#fff;
     font-size:17px;
-    font-weight:800;
+    font-weight:400;
     cursor:pointer;
     box-shadow:0 8px 22px rgba(22,163,74,.22);
     transition:transform .25s ease,box-shadow .25s ease,background .25s ease;
@@ -6306,6 +6366,10 @@ button.primary{
 #assignmentPublisherPanel{
     display:none;
 }
+
+/* Compact assignment action buttons */
+.assignment-toggle-btn{box-sizing:border-box;}
+
 
 #assignmentAvailablePanel{
     display:none;
@@ -6761,18 +6825,20 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
     </div>
 
 
-    <!-- =================================================
-         SUPPORT
-    ================================================== -->
-    <div class="rasm-support">
+   <!-- =================================================
+     SUPPORT
+================================================== -->
+<div
+  class="rasm-support"
+  onclick="window.open('https://wa.me/254792755676?text=Hello%20Support%2C%20I%20need%20help.', '_blank')"
+  style="cursor:pointer;"
+>
+  Need help?
 
-      Need help?
-
-      <strong>
-        Contact Support
-      </strong>
-
-    </div>
+  <strong>
+    Contact Support
+  </strong>
+</div>
 
   </div>
 
@@ -7212,6 +7278,10 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
 
             <button id="menuManageUsers" onclick="show('usersSection')">
                 👤 Manage Users
+            </button>
+
+            <button id="menuAuditTrail" onclick="show('auditTrailSection')">
+                🛡️ Audit Trail
             </button>
 
             <button id="passwordBtn" onclick="openPasswordModal()">
@@ -8131,8 +8201,9 @@ Answer: C</pre>
         border:none;
         border-radius:10px;
         cursor:pointer;
-        font-weight:600;
-        width:30%;
+        font-weight:400;
+        width:260px;
+        max-width:100%;
     "
 >
     🚀 Publish Assignment
@@ -14730,6 +14801,57 @@ Generate
 
 </div>
 
+<!-- =========================================================
+     🛡️ ADMIN AUDIT TRAIL / ACCOUNTABILITY SECTION
+========================================================= -->
+<section id="auditTrailSection" class="section" style="display:none; padding:20px;">
+  <div style="background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;border-radius:20px;padding:24px;box-shadow:0 12px 35px rgba(15,23,42,.22);">
+    <div style="display:flex;justify-content:space-between;gap:15px;align-items:center;flex-wrap:wrap;">
+      <div>
+        <h2 style="margin:0 0 6px;font-size:28px;">🛡️ System Audit Trail</h2>
+        <p style="margin:0;color:#cbd5e1;">Monitor who performed an action, what they did, and exactly when it happened.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" onclick="loadAuditTrail()" style="border:0;border-radius:10px;padding:10px 14px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer;">🔄 Refresh</button>
+        <button type="button" onclick="exportAuditTrailCSV()" style="border:0;border-radius:10px;padding:10px 14px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer;">📥 Export CSV</button>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;background:#fff;color:#0f172a;border-radius:14px;padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+      <input id="auditSearch" type="search" placeholder="🔎 Search user or action..." oninput="renderAuditTrail()" style="padding:11px;border:1px solid #cbd5e1;border-radius:9px;">
+      <select id="auditActionFilter" onchange="renderAuditTrail()" style="padding:11px;border:1px solid #cbd5e1;border-radius:9px;">
+        <option value="">All Actions</option>
+      </select>
+      <input id="auditDateFilter" type="date" onchange="renderAuditTrail()" style="padding:11px;border:1px solid #cbd5e1;border-radius:9px;">
+      <button type="button" onclick="clearAuditFilters()" style="padding:11px;border:0;border-radius:9px;background:#e2e8f0;color:#0f172a;font-weight:700;cursor:pointer;">✖ Clear Filters</button>
+    </div>
+
+    <div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px;"><div style="font-size:12px;color:#94a3b8;">TOTAL LOGS</div><div id="auditTotal" style="font-size:25px;font-weight:800;">0</div></div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px;"><div style="font-size:12px;color:#94a3b8;">TODAY</div><div id="auditToday" style="font-size:25px;font-weight:800;">0</div></div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px;"><div style="font-size:12px;color:#94a3b8;">USERS ACTIVE</div><div id="auditUsers" style="font-size:25px;font-weight:800;">0</div></div>
+    </div>
+
+    <div style="margin-top:15px;background:#fff;color:#0f172a;border-radius:14px;overflow:auto;">
+      <table style="width:100%;border-collapse:collapse;min-width:900px;">
+        <thead>
+          <tr style="background:#e2e8f0;">
+            <th style="padding:12px;text-align:left;">Time</th>
+            <th style="padding:12px;text-align:left;">Performed By</th>
+            <th style="padding:12px;text-align:left;">Role</th>
+            <th style="padding:12px;text-align:left;">Action</th>
+            <th style="padding:12px;text-align:left;">Details</th>
+            <th style="padding:12px;text-align:left;">Section</th>
+          </tr>
+        </thead>
+        <tbody id="auditTrailBody">
+          <tr><td colspan="6" style="padding:30px;text-align:center;color:#64748b;">No audit records loaded.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <!-- =========================================
      USERS LIST SECTION (UPDATED STYLE)
 ========================================= -->
@@ -15826,6 +15948,306 @@ function schoolRef(path = "") {
 }
 
 
+/* ============================================================
+   🛡️ SYSTEM AUDIT TRAIL / ACCOUNTABILITY
+   Logs UI actions to Firebase Realtime Database under the
+   currently selected school. Admins can review the records.
+============================================================ */
+
+window.__auditTrail = [];
+window.__auditListenerAttached = false;
+
+function auditEscape(value) {
+  return String(value ?? "")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+}
+
+function auditActor() {
+  const u = window.currentUser || {};
+  const authUser = auth?.currentUser || {};
+  const stored = (() => {
+    try { return JSON.parse(localStorage.getItem("currentUser") || "{}"); }
+    catch (_) { return {}; }
+  })();
+
+  const name =
+    u.fullName ||
+    u.name ||
+    u.displayName ||
+    u.username ||
+    stored.fullName ||
+    stored.name ||
+    stored.displayName ||
+    stored.username ||
+    authUser.displayName ||
+    "Unknown User";
+
+  return {
+    uid: u.uid || stored.uid || authUser.uid || "unknown",
+    name,
+    email: u.email || stored.email || authUser.email || "",
+    role: window.currentUserRole || u.role || stored.role || "unknown"
+  };
+}
+
+window.logAuditAction = async function(action, details = "", section = "") {
+  try {
+    const school = window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId");
+    if (!school) return;
+
+    let actor = auditActor();
+
+    // If an older/stale session contains only UID/email, resolve the
+    // registered name once from users/{uid} and cache it for future logs.
+    if (actor.uid && actor.uid !== "unknown" && actor.name === "Unknown User") {
+      try {
+        window.__auditActorCache = window.__auditActorCache || {};
+        const cached = window.__auditActorCache[actor.uid];
+        if (cached?.name) {
+          actor = { ...actor, ...cached };
+        } else {
+          const userSnap = await get(ref(db, `users/${actor.uid}`));
+          if (userSnap.exists()) {
+            const profile = userSnap.val() || {};
+            const resolvedName =
+              profile.fullName ||
+              profile.name ||
+              profile.displayName ||
+              profile.username ||
+              "Unknown User";
+            actor = {
+              ...actor,
+              name: resolvedName,
+              email: actor.email || profile.email || "",
+              role: actor.role || profile.role || "unknown"
+            };
+            window.__auditActorCache[actor.uid] = {
+              name: resolvedName,
+              email: actor.email,
+              role: actor.role
+            };
+
+            // Also repair the current session so the name is correct
+            // everywhere else in the application.
+            window.currentUser = {
+              ...(window.currentUser || {}),
+              ...profile,
+              uid: actor.uid,
+              fullName: resolvedName,
+              name: profile.name || resolvedName,
+              displayName: profile.displayName || resolvedName,
+              email: actor.email || profile.email || ""
+            };
+            localStorage.setItem("currentUser", JSON.stringify(window.currentUser));
+          }
+        }
+      } catch (profileErr) {
+        console.warn("Audit profile lookup failed:", profileErr);
+      }
+    }
+
+    const now = Date.now();
+    const date = new Date(now);
+
+    const record = {
+      action: String(action || "Unknown Action").slice(0,180),
+      details: String(details || "").slice(0,1000),
+      section: String(section || window.currentSection || window.__activeSection || "").slice(0,120),
+      uid: actor.uid,
+      performedBy: actor.name,
+      email: actor.email,
+      role: actor.role,
+      timestamp: now,
+      isoTime: date.toISOString(),
+      dateKey: date.toLocaleDateString("en-CA", {timeZone:"Africa/Nairobi"})
+    };
+
+    await push(schoolRef("auditLogs"), record);
+  } catch (err) {
+    console.warn("Audit log failed:", err);
+  }
+};
+
+window.loadAuditTrail = function() {
+  try {
+    if (String(window.currentUserRole || "").toLowerCase() !== "admin") {
+      return Swal.fire({icon:"error",title:"Access Denied",text:"Only administrators can view the System Audit Trail."});
+    }
+
+    const body = document.getElementById("auditTrailBody");
+    if (body) body.innerHTML = '<tr><td colspan="6" style="padding:30px;text-align:center;color:#64748b;">Loading audit records...</td></tr>';
+
+    const school = window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId");
+    if (!school) return;
+
+    if (window.__auditUnsubscribe) window.__auditUnsubscribe();
+
+    window.__auditUnsubscribe = onValue(schoolRef("auditLogs"), snap => {
+      const data = snap.val() || {};
+      window.__auditTrail = Object.entries(data).map(([id, item]) => ({id, ...(item || {})}))
+        .sort((a,b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
+        .slice(0, 2000);
+
+      // Repair historical records that were created before the user-name
+      // lookup was added. Resolve the registered name from users/{uid}
+      // and write it back to the audit record itself.
+      repairUnknownAuditActors(window.__auditTrail);
+
+      populateAuditActionFilter();
+      renderAuditTrail();
+    });
+  } catch (err) {
+    console.error("Audit trail load error:", err);
+    Swal.fire("Audit Trail Error", err.message || "Unable to load audit records.", "error");
+  }
+};
+
+async function repairUnknownAuditActors(logs) {
+  try {
+    const candidates = (logs || []).filter(log =>
+      (!log.performedBy || String(log.performedBy).trim().toLowerCase() === "unknown user") &&
+      log.uid && String(log.uid).trim() && String(log.uid) !== "unknown"
+    ).slice(0, 100);
+
+    for (const log of candidates) {
+      try {
+        const snap = await get(ref(db, `users/${log.uid}`));
+        if (!snap.exists()) continue;
+        const profile = snap.val() || {};
+        const resolvedName =
+          profile.fullName ||
+          profile.name ||
+          profile.displayName ||
+          profile.username ||
+          "";
+        if (!resolvedName) continue;
+
+        const updates = { performedBy: resolvedName };
+        if (!log.email && profile.email) updates.email = profile.email;
+        if ((!log.role || log.role === "unknown") && profile.role) updates.role = profile.role;
+
+        await update(ref(db, `schools/${window.schoolId}/auditLogs/${log.id}`), updates);
+
+        log.performedBy = resolvedName;
+        if (updates.email) log.email = updates.email;
+        if (updates.role) log.role = updates.role;
+      } catch (err) {
+        console.warn("Could not repair audit actor:", log.uid, err);
+      }
+    }
+    renderAuditTrail();
+  } catch (err) {
+    console.warn("Audit actor repair failed:", err);
+  }
+}
+
+function populateAuditActionFilter() {
+  const select = document.getElementById("auditActionFilter");
+  if (!select) return;
+  const current = select.value;
+  const actions = [...new Set((window.__auditTrail || []).map(x => String(x.action || "").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  select.innerHTML = '<option value="">All Actions</option>' + actions.map(a => `<option value="${auditEscape(a)}">${auditEscape(a)}</option>`).join("");
+  if (actions.includes(current)) select.value = current;
+}
+
+window.renderAuditTrail = function() {
+  const body = document.getElementById("auditTrailBody");
+  if (!body) return;
+
+  const search = String(document.getElementById("auditSearch")?.value || "").trim().toLowerCase();
+  const action = String(document.getElementById("auditActionFilter")?.value || "");
+  const date = String(document.getElementById("auditDateFilter")?.value || "");
+  const logs = window.__auditTrail || [];
+
+  const filtered = logs.filter(log => {
+    const hay = [log.action, log.details, log.performedBy, log.email, log.role, log.section].join(" ").toLowerCase();
+    if (search && !hay.includes(search)) return false;
+    if (action && String(log.action || "") !== action) return false;
+    if (date && String(log.dateKey || "") !== date) return false;
+    return true;
+  });
+
+  const today = new Date().toLocaleDateString("en-CA", {timeZone:"Africa/Nairobi"});
+  const todayCount = logs.filter(x => String(x.dateKey || "") === today).length;
+  const users = new Set(logs.map(x => x.uid).filter(Boolean));
+  const setText = (id,val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
+  setText("auditTotal", logs.length.toLocaleString());
+  setText("auditToday", todayCount.toLocaleString());
+  setText("auditUsers", users.size.toLocaleString());
+
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="6" style="padding:30px;text-align:center;color:#64748b;">No matching audit records.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = filtered.slice(0,500).map(log => {
+    const stamp = Number(log.timestamp || 0);
+    const time = stamp ? new Date(stamp).toLocaleString("en-KE", {timeZone:"Africa/Nairobi", dateStyle:"medium", timeStyle:"medium"}) : (log.isoTime || "-");
+    return `<tr style="border-bottom:1px solid #e2e8f0;">
+      <td style="padding:11px;white-space:nowrap;">${auditEscape(time)}</td>
+      <td style="padding:11px;"><b>${auditEscape(log.performedBy || "Unknown User")}</b><br><small style="color:#64748b;">${auditEscape(log.email || log.uid || "")}</small></td>
+      <td style="padding:11px;"><span style="padding:4px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;font-weight:700;">${auditEscape(log.role || "unknown")}</span></td>
+      <td style="padding:11px;font-weight:700;">${auditEscape(log.action || "-")}</td>
+      <td style="padding:11px;max-width:420px;white-space:normal;">${auditEscape(log.details || "-")}</td>
+      <td style="padding:11px;">${auditEscape(log.section || "-")}</td>
+    </tr>`;
+  }).join("");
+};
+
+window.clearAuditFilters = function() {
+  ["auditSearch","auditDateFilter"].forEach(id => { const el=document.getElementById(id); if(el) el.value=""; });
+  const action=document.getElementById("auditActionFilter"); if(action) action.value="";
+  renderAuditTrail();
+};
+
+window.exportAuditTrailCSV = function() {
+  if (String(window.currentUserRole || "").toLowerCase() !== "admin") return;
+  const rows = window.__auditTrail || [];
+  if (!rows.length) return Swal.fire("No Records", "There are no audit records to export.", "info");
+  const header = ["Time","Performed By","Email","Role","Action","Details","Section"];
+  const esc = v => '"' + String(v ?? "").replace(/"/g,'""') + '"';
+  const csv = [header.map(esc).join(","), ...rows.map(r => {
+    const time = r.timestamp ? new Date(Number(r.timestamp)).toLocaleString("en-KE", {timeZone:"Africa/Nairobi"}) : r.isoTime || "";
+    return [time,r.performedBy,r.email,r.role,r.action,r.details,r.section].map(esc).join(",");
+  })].join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `RASM360_Audit_Trail_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Capture meaningful user-triggered UI actions across the application.
+// Sensitive field values are deliberately NOT recorded.
+document.addEventListener("click", event => {
+  const btn = event.target.closest("button");
+  if (!btn || btn.dataset.audit === "false") return;
+  const label = (btn.innerText || btn.getAttribute("aria-label") || btn.id || "Button").replace(/\s+/g," ").trim().slice(0,180);
+  if (!label || label === "Refresh" || label === "Export CSV" || label === "Clear Filters") return;
+  const section = window.currentSection || window.__activeSection || btn.closest("section")?.id || "";
+  const onclick = btn.getAttribute("onclick") || "";
+  const action = label || onclick || "Button Click";
+  window.logAuditAction(action, onclick ? `UI action: ${onclick.slice(0,500)}` : "UI button clicked", section);
+}, true);
+
+document.addEventListener("submit", event => {
+  const form = event.target;
+  if (!form || form.dataset.audit === "false") return;
+  window.logAuditAction(`Submitted: ${form.id || form.getAttribute("name") || "Form"}`, "Form submitted", window.currentSection || "");
+}, true);
+
+document.addEventListener("change", event => {
+  const el = event.target;
+  if (!el || el.dataset.audit === "false") return;
+  if (!(el.matches("select") || el.matches("input[type=date]") || el.matches("input[type=checkbox]"))) return;
+  if (el.id && /^audit/i.test(el.id)) return;
+  window.logAuditAction(`Changed: ${el.getAttribute("aria-label") || el.name || el.id || el.tagName}`, "A system setting/filter/input was changed", window.currentSection || "");
+}, true);
+
 /* ===================================
    VERIFY LOGIN STATE
 =================================== */
@@ -15904,6 +16326,10 @@ if(menuUsers){
   /* ===============================
      LAZY LOAD: FEES
   =============================== */
+  if (id === "auditTrailSection" && typeof window.loadAuditTrail === "function") {
+    setTimeout(() => window.loadAuditTrail(), 50);
+  }
+
   if (id === "fees" && !window.__feesLoaded) {
     window.__feesLoaded = true;
 
@@ -17459,40 +17885,7 @@ function showRasmPackages(message = "") {
             </div>
 
 
-            <!-- RECEIPT -->
-
-            <button
-
-                onclick="
-                    document
-                    .getElementById('receiptModal')
-                    .style.display='block'
-                "
-
-                style="
-                    margin-top:18px;
-                    width:100%;
-                    max-width:500px;
-                    padding:14px;
-                    border:none;
-                    border-radius:12px;
-                    background:#2563eb;
-                    color:white;
-                    font-size:14px;
-                    font-weight:900;
-                    cursor:pointer;
-                    box-shadow:
-                        0 8px 20px
-                        rgba(37,99,235,.18);
-                "
-            >
-
-                🧾 Generate Payment Receipt
-
-            </button>
-
-        </div>
-
+          
         `
 
     });
@@ -21187,6 +21580,31 @@ window.login = async function () {
             window.setCurrentUser({
 
                 uid,
+
+                // Keep the user's registered identity in the session.
+                // This is important for the Audit Trail so it never
+                // falls back to "Unknown User" when only the UID/email
+                // is available after login.
+                fullName:
+                    userData.fullName ||
+                    userData.name ||
+                    userData.displayName ||
+                    userData.username ||
+                    "",
+
+                name:
+                    userData.name ||
+                    userData.fullName ||
+                    userData.displayName ||
+                    userData.username ||
+                    "",
+
+                displayName:
+                    userData.displayName ||
+                    userData.fullName ||
+                    userData.name ||
+                    userData.username ||
+                    "",
 
                 role:
                     userData.role ||
@@ -36160,6 +36578,12 @@ window.deleteAllLearnerFees = async function () {
 
         const { year, grade } = selection.value;
 
+        window.logAuditAction(
+            "Started Delete Fee Records",
+            `Admin selected Academic Year ${year} and Grade ${grade} for fee deletion.`,
+            "fees"
+        );
+
         /* ====================================================
            STEP 2 — CONFIRM EXACT SCOPE
            ==================================================== */
@@ -36276,6 +36700,12 @@ window.deleteAllLearnerFees = async function () {
         await update(
             schoolRef(""),
             updates
+        );
+
+        window.logAuditAction(
+            "Deleted Fee Records",
+            `${matchingFees.length} fee records for Academic Year ${year}, Grade ${grade} were moved to the Recycle Bin.`,
+            "fees"
         );
 
         closeSweetLoader();
@@ -88798,6 +89228,52 @@ window.loadAssignments = async function () {
 
 
         // =================================================
+        // ⚡ REAL-TIME ASSIGNMENT UPDATES
+        // No page refresh required. Any teacher/admin publish,
+        // edit/delete, or learner submission is detected and
+        // the visible assignment data is rebuilt immediately.
+        // =================================================
+        if (window.__rasmAssignmentLiveUnsubscribe) {
+            try {
+                window.__rasmAssignmentLiveUnsubscribe();
+            } catch(e) {}
+        }
+
+        let liveAssignmentTimer = null;
+        let liveAssignmentFirstEvent = true;
+        const scheduleLiveAssignmentReload = () => {
+            if (liveAssignmentTimer) clearTimeout(liveAssignmentTimer);
+            liveAssignmentTimer = setTimeout(async () => {
+                try {
+                    await window.loadAssignments();
+                } catch(e) {
+                    console.warn("⚡ Live assignment refresh failed:", e);
+                }
+            }, 120);
+        };
+
+        const assignmentListener = onValue(assignmentsRef, () => {
+            // Ignore the initial listener event because this load is already
+            // being performed below. All subsequent changes refresh instantly.
+            if (liveAssignmentFirstEvent) {
+                liveAssignmentFirstEvent = false;
+                return;
+            }
+            scheduleLiveAssignmentReload();
+        });
+
+        const submissionListener = onValue(submissionsRef, () => {
+            scheduleLiveAssignmentReload();
+        });
+
+        window.__rasmAssignmentLiveUnsubscribe = () => {
+            try { assignmentListener(); } catch(e) {}
+            try { submissionListener(); } catch(e) {}
+            if (liveAssignmentTimer) clearTimeout(liveAssignmentTimer);
+        };
+
+
+        // =================================================
         // LOAD BOTH AT THE SAME TIME
         // Faster than waiting for each request separately
         // =================================================
@@ -102415,6 +102891,7 @@ const ROLE_PERMISSIONS = {
 
     // FIXED NAME (match DOM section)
     "usersSection",
+    "auditTrailSection",
 
     "examManagement",
     "eLearningSection",
@@ -111688,6 +112165,14 @@ class="swal2-confirm swal2-styled"
 onclick="show('usersSection');Swal.close();">
 
 👤 Manage Users
+
+</button>
+
+<button
+class="swal2-confirm swal2-styled"
+onclick="show('auditTrailSection');Swal.close();">
+
+🛡️ Audit Trail
 
 </button>
 
