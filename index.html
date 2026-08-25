@@ -9582,7 +9582,7 @@ font-weight:bold;
     position:relative;
     overflow:hidden;
 
-    background-image:url('https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1800&q=80');
+    background-image:url('https://i.imgur.com/FIsJigH.jpeg');
 
     background-size:cover;
     background-position:center;
@@ -10036,201 +10036,1011 @@ border-radius:6px;
 </div>
 
 
-<!-- ================= TOP ACTIONS + FILTERS ================= -->
+<!-- =========================================================
+     TOP ACTIONS + FILTERS
+========================================================= -->
 
-<div style="
-  display:flex;
-  gap:15px;
-  flex-wrap:wrap;
-  margin-top:15px;
-  margin-bottom:25px;
-">
+<div class="fee-top-controls">
 
-  <!-- Left Side -->
-  <div>
-    <button onclick="showDefaulters()"
-      style="
-        background:#dc2626;
-        color:white;
-        padding:8px 12px;
-        border:none;
-        border-radius:6px;
-        cursor:pointer;
-        font-weight:600;
-      ">
-      🚨 Defaulters
+  <!-- =======================================================
+       ACTIONS DROPDOWN
+  ======================================================== -->
+
+  <div class="fee-actions-wrapper">
+
+    <button
+      type="button"
+      class="fee-actions-main"
+      onclick="toggleFeeActions(event)"
+      aria-expanded="false"
+      aria-haspopup="true"
+    >
+      <span class="fee-actions-icon">⚡</span>
+      <span>Fee Actions</span>
+      <span class="fee-actions-arrow">▾</span>
     </button>
 
 
-<button
-onclick="deleteAllLearnerFees()"
-style="
-background:#dc2626;
-color:white;
-border:none;
-padding:10px 18px;
-border-radius:8px;
-cursor:pointer;
-font-weight:bold;
-margin-bottom:15px;
-">
+    <!-- =====================================================
+         ACTIONS MENU
+    ====================================================== -->
 
-🗑 Delete All Fee Records
+    <div
+      class="fee-actions-menu"
+      id="feeActionsMenu"
+      role="menu"
+    >
 
-</button>
+      <!-- Defaulters -->
+      <button
+        type="button"
+        class="fee-action-btn defaulters"
+        onclick="showDefaulters(); closeFeeActions();"
+        role="menuitem"
+      >
+        <span class="action-icon">🚨</span>
+        <span>Defaulters</span>
+      </button>
 
-<button
-onclick="openFeeTypeReport()"
-style="
-    display:inline-flex;
-    align-items:center;
-    gap:10px;
-    padding:14px 24px;
-    background:linear-gradient(135deg,#2563eb,#1d4ed8);
-    color:#fff;
-    border:none;
-    border-radius:12px;
-    font-size:15px;
-    font-weight:700;
-    cursor:pointer;
-    box-shadow:0 8px 20px rgba(37,99,235,.35);
-    transition:all .3s ease;
-"
-onmouseover="
-    this.style.transform='translateY(-2px)';
-    this.style.boxShadow='0 12px 28px rgba(37,99,235,.45)';
-"
-onmouseout="
-    this.style.transform='translateY(0)';
-    this.style.boxShadow='0 8px 20px rgba(37,99,235,.35)';
-">
 
-    📋
-<span style="background:#facc15; color:#000; padding:4px 8px; border-radius:5px; font-weight:700;">
-  Fee Collection Report
-</span>
+      <!-- Delete All Fees -->
+      <button
+        type="button"
+        class="fee-action-btn delete"
+        onclick="deleteAllLearnerFees(); closeFeeActions();"
+        role="menuitem"
+      >
+        <span class="action-icon">🗑️</span>
+        <span>Delete All Fee Records</span>
+      </button>
 
-</button>
 
-<button
-  type="button"
-  onclick="generateBulkReceiptsByGrade()"
-  style="
-    background:#2563eb;
-    color:white;
-    border:none;
-    padding:10px 16px;
-    border-radius:8px;
-    cursor:pointer;
-    font-weight:600;
-  "
->
-🧾
-<span style="background:#facc15; color:#000; padding:4px 8px; border-radius:5px; font-weight:700;">
-  Bulk Receipts by Grade
-</span>
-</button>
+      <!-- Fee Collection Report -->
+      <button
+        type="button"
+        class="fee-action-btn report"
+        onclick="openFeeTypeReport(); closeFeeActions();"
+        role="menuitem"
+      >
+        <span class="action-icon">📋</span>
+        <span>Fee Collection Report</span>
+      </button>
 
-<button
-    type="button"
-    class="restore-all-fees-btn"
-    onclick="restoreAllLearnerFees()"
-    title="Restore all learner fees">
 
-    <span class="restore-icon">♻️</span>
-    <span>Restore All Fees</span>
+      <!-- Bulk Receipts -->
+      <button
+        type="button"
+        class="fee-action-btn receipts"
+        onclick="generateBulkReceiptsByGrade(); closeFeeActions();"
+        role="menuitem"
+      >
+        <span class="action-icon">🧾</span>
+        <span>Bulk Receipts by Grade</span>
+      </button>
 
-</button>
 
-<button
-    type="button"
-    onclick="generateFeeBalanceNotices()"
-    style="
-        display:inline-flex;
-        align-items:center;
-        gap:8px;
-        background:linear-gradient(135deg,#b45309,#f59e0b);
-        color:#fff;
-        border:none;
-        padding:10px 16px;
-        border-radius:8px;
-        cursor:pointer;
-        font-weight:700;
-        box-shadow:0 4px 12px rgba(245,158,11,.25);
-        transition:.2s;
-    "
-    onmouseover="
-        this.style.transform='translateY(-2px)';
-        this.style.boxShadow='0 7px 16px rgba(245,158,11,.35)';
-    "
-    onmouseout="
-        this.style.transform='translateY(0)';
-        this.style.boxShadow='0 4px 12px rgba(245,158,11,.25)';
-    "
->
-    💰 Fee Balance Notices
-</button>
+      <!-- Restore All Fees -->
+      <button
+        type="button"
+        class="fee-action-btn restore"
+        onclick="restoreAllLearnerFees(); closeFeeActions();"
+        role="menuitem"
+      >
+        <span class="action-icon">♻️</span>
+        <span>Restore All Fees</span>
+      </button>
+
+
+      <!-- Fee Balance Notices -->
+      <button
+        type="button"
+        class="fee-action-btn balance"
+        onclick="generateFeeBalanceNotices(); closeFeeActions();"
+        role="menuitem"
+      >
+        <span class="action-icon">💰</span>
+        <span>Fee Balance Notices</span>
+      </button>
+
+    </div>
+
   </div>
 
-  <!-- Right Side Filters -->
-  <div style="
-    display:flex;
-    gap:12px;
-    flex-wrap:wrap;
-    align-items:end;
-  ">
 
-    <!-- Academic Year Filter -->
-    <div style="display:flex; flex-direction:column;">
-      <label for="filterFeeYear"
-        style="
-          font-size:13px;
-          font-weight:600;
-          margin-bottom:4px;
-          color:#333;
-        ">
+  <!-- =======================================================
+       ACADEMIC YEAR + GRADE FILTERS
+  ======================================================== -->
+
+  <div class="fee-filters">
+
+    <!-- Academic Year -->
+    <div class="fee-filter-group">
+
+      <label for="filterFeeYear">
         Academic Year
       </label>
 
-      <select id="filterFeeYear"
+      <select
+        id="filterFeeYear"
         onchange="loadFees();loadFinanceSummary();"
-        style="
-          padding:8px;
-          border:1px solid #ccc;
-          border-radius:6px;
-          min-width:140px;
-        ">
+      >
         <option value="">Select Year</option>
       </select>
+
     </div>
 
-    <!-- Grade Filter -->
-    <div style="display:flex; flex-direction:column;">
-      <label for="filterFeeGrade"
-        style="
-          font-size:13px;
-          font-weight:600;
-          margin-bottom:4px;
-          color:#333;
-        ">
+
+    <!-- Grade -->
+    <div class="fee-filter-group">
+
+      <label for="filterFeeGrade">
         Grade
       </label>
 
-      <select id="filterFeeGrade"
+      <select
+        id="filterFeeGrade"
         onchange="loadFees();loadFinanceSummary();"
-        style="
-          padding:8px;
-          border:1px solid #ccc;
-          border-radius:6px;
-          min-width:140px;
-        ">
+      >
         <option value="">All Grades</option>
       </select>
+
     </div>
 
   </div>
 
 </div>
+
+
+<!-- =========================================================
+     FEE ACTIONS + FILTERS CSS
+========================================================= -->
+
+<style>
+
+/* =========================================================
+   TOP CONTROLS
+========================================================= */
+
+.fee-top-controls {
+
+  display:flex;
+
+  justify-content:space-between;
+
+  align-items:flex-end;
+
+  gap:15px;
+
+  flex-wrap:wrap;
+
+  margin-top:15px;
+
+  margin-bottom:25px;
+
+}
+
+
+/* =========================================================
+   ACTIONS WRAPPER
+========================================================= */
+
+.fee-actions-wrapper {
+
+  position:relative;
+
+  display:inline-block;
+
+  z-index:1000;
+
+}
+
+
+/* =========================================================
+   MAIN ACTIONS BUTTON
+========================================================= */
+
+.fee-actions-main {
+
+  display:inline-flex;
+
+  align-items:center;
+
+  justify-content:center;
+
+  gap:8px;
+
+  min-width:145px;
+
+  padding:11px 17px;
+
+  border:none;
+
+  border-radius:9px;
+
+  background:linear-gradient(
+    135deg,
+    #166534,
+    #15803d
+  );
+
+  color:#fff;
+
+  font-size:15px;
+
+  font-weight:700;
+
+  cursor:pointer;
+
+  box-shadow:
+    0 5px 14px rgba(22,101,52,.25);
+
+  transition:
+    transform .2s ease,
+    box-shadow .2s ease,
+    background .2s ease;
+
+}
+
+
+/* Main button hover */
+
+.fee-actions-main:hover {
+
+  transform:translateY(-1px);
+
+  background:linear-gradient(
+    135deg,
+    #15803d,
+    #16a34a
+  );
+
+  box-shadow:
+    0 7px 18px rgba(22,101,52,.32);
+
+}
+
+
+/* Lightning icon */
+
+.fee-actions-icon {
+
+  font-size:16px;
+
+}
+
+
+/* Arrow */
+
+.fee-actions-arrow {
+
+  font-size:12px;
+
+  transition:
+    transform .2s ease;
+
+}
+
+
+/* =========================================================
+   DROPDOWN MENU
+========================================================= */
+
+.fee-actions-menu {
+
+  position:absolute;
+
+  top:calc(100% + 7px);
+
+  left:0;
+
+  width:275px;
+
+  padding:7px;
+
+  background:#fff;
+
+  border:1px solid #e5e7eb;
+
+  border-radius:12px;
+
+  box-shadow:
+    0 14px 35px rgba(0,0,0,.15);
+
+  opacity:0;
+
+  visibility:hidden;
+
+  pointer-events:none;
+
+  transform:
+    translateY(-7px)
+    scale(.98);
+
+  transform-origin:top left;
+
+  transition:
+    opacity .18s ease,
+    transform .18s ease,
+    visibility .18s ease;
+
+}
+
+
+/* =========================================================
+   OPEN ON HOVER
+========================================================= */
+
+.fee-actions-wrapper:hover
+.fee-actions-menu {
+
+  opacity:1;
+
+  visibility:visible;
+
+  pointer-events:auto;
+
+  transform:
+    translateY(0)
+    scale(1);
+
+}
+
+
+/* Arrow on hover */
+
+.fee-actions-wrapper:hover
+.fee-actions-arrow {
+
+  transform:rotate(180deg);
+
+}
+
+
+/* =========================================================
+   OPEN ON CLICK
+========================================================= */
+
+.fee-actions-wrapper.fee-actions-open
+.fee-actions-menu {
+
+  opacity:1;
+
+  visibility:visible;
+
+  pointer-events:auto;
+
+  transform:
+    translateY(0)
+    scale(1);
+
+}
+
+
+.fee-actions-wrapper.fee-actions-open
+.fee-actions-arrow {
+
+  transform:rotate(180deg);
+
+}
+
+
+/* =========================================================
+   INDIVIDUAL ACTION BUTTON
+========================================================= */
+
+.fee-action-btn {
+
+  width:100%;
+
+  display:flex;
+
+  align-items:center;
+
+  gap:10px;
+
+  padding:10px 11px;
+
+  margin:2px 0;
+
+  border:none;
+
+  border-radius:8px;
+
+  background:#fff;
+
+  color:#1f2937;
+
+  font-size:14px;
+
+  font-weight:600;
+
+  text-align:left;
+
+  cursor:pointer;
+
+  transition:
+    background .16s ease,
+    color .16s ease,
+    transform .16s ease;
+
+}
+
+
+.fee-action-btn:hover {
+
+  transform:translateX(3px);
+
+}
+
+
+/* =========================================================
+   ACTION ICON
+========================================================= */
+
+.action-icon {
+
+  width:33px;
+
+  height:33px;
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:center;
+
+  flex-shrink:0;
+
+  border-radius:8px;
+
+  background:#f3f4f6;
+
+  font-size:17px;
+
+}
+
+
+/* =========================================================
+   DEFAULTERS
+========================================================= */
+
+.fee-action-btn.defaulters:hover {
+
+  background:#fef2f2;
+
+  color:#dc2626;
+
+}
+
+.fee-action-btn.defaulters:hover
+.action-icon {
+
+  background:#fee2e2;
+
+}
+
+
+/* =========================================================
+   DELETE
+========================================================= */
+
+.fee-action-btn.delete:hover {
+
+  background:#fef2f2;
+
+  color:#b91c1c;
+
+}
+
+.fee-action-btn.delete:hover
+.action-icon {
+
+  background:#fee2e2;
+
+}
+
+
+/* =========================================================
+   REPORT
+========================================================= */
+
+.fee-action-btn.report:hover {
+
+  background:#eff6ff;
+
+  color:#2563eb;
+
+}
+
+.fee-action-btn.report:hover
+.action-icon {
+
+  background:#dbeafe;
+
+}
+
+
+/* =========================================================
+   RECEIPTS
+========================================================= */
+
+.fee-action-btn.receipts:hover {
+
+  background:#eff6ff;
+
+  color:#1d4ed8;
+
+}
+
+.fee-action-btn.receipts:hover
+.action-icon {
+
+  background:#dbeafe;
+
+}
+
+
+/* =========================================================
+   RESTORE
+========================================================= */
+
+.fee-action-btn.restore:hover {
+
+  background:#f0fdf4;
+
+  color:#15803d;
+
+}
+
+.fee-action-btn.restore:hover
+.action-icon {
+
+  background:#dcfce7;
+
+}
+
+
+/* =========================================================
+   BALANCE NOTICES
+========================================================= */
+
+.fee-action-btn.balance:hover {
+
+  background:#fffbeb;
+
+  color:#b45309;
+
+}
+
+.fee-action-btn.balance:hover
+.action-icon {
+
+  background:#fef3c7;
+
+}
+
+
+/* =========================================================
+   FILTERS
+========================================================= */
+
+.fee-filters {
+
+  display:flex;
+
+  gap:12px;
+
+  flex-wrap:wrap;
+
+  align-items:flex-end;
+
+}
+
+
+/* Individual filter */
+
+.fee-filter-group {
+
+  display:flex;
+
+  flex-direction:column;
+
+}
+
+
+/* Filter label */
+
+.fee-filter-group label {
+
+  font-size:13px;
+
+  font-weight:600;
+
+  margin-bottom:4px;
+
+  color:#333;
+
+}
+
+
+/* Filter select */
+
+.fee-filter-group select {
+
+  padding:8px 10px;
+
+  min-width:140px;
+
+  border:1px solid #ccc;
+
+  border-radius:6px;
+
+  background:#fff;
+
+  color:#333;
+
+  font-size:14px;
+
+  outline:none;
+
+}
+
+
+/* Select focus */
+
+.fee-filter-group select:focus {
+
+  border-color:#15803d;
+
+  box-shadow:
+    0 0 0 2px rgba(21,128,61,.12);
+
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width:600px) {
+
+  .fee-top-controls {
+
+    flex-direction:column;
+
+    align-items:stretch;
+
+  }
+
+
+  .fee-actions-wrapper {
+
+    width:100%;
+
+  }
+
+
+  .fee-actions-main {
+
+    width:100%;
+
+  }
+
+
+  .fee-actions-menu {
+
+    width:100%;
+
+    box-sizing:border-box;
+
+  }
+
+
+  .fee-filters {
+
+    width:100%;
+
+    display:grid;
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+    gap:10px;
+
+  }
+
+
+  .fee-filter-group select {
+
+    width:100%;
+
+    min-width:0;
+
+    box-sizing:border-box;
+
+  }
+
+}
+
+
+@media (max-width:420px) {
+
+  .fee-filters {
+
+    grid-template-columns:1fr;
+
+  }
+
+}
+
+</style>
+
+
+<!-- =========================================================
+     🚀 FEE ACTIONS — SINGLE MASTER BUTTON OVERRIDES
+     All fee-management actions live inside ONE button.
+========================================================= -->
+<style>
+.fee-actions-wrapper{
+  position:relative !important;
+  display:inline-block !important;
+  z-index:10000 !important;
+}
+.fee-actions-main{
+  min-width:165px !important;
+  min-height:46px !important;
+  padding:12px 18px !important;
+  border-radius:10px !important;
+  border:0 !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:9px !important;
+  background:linear-gradient(135deg,#166534,#16a34a) !important;
+  color:#fff !important;
+  font-size:15px !important;
+  font-weight:800 !important;
+  cursor:pointer !important;
+  box-shadow:0 7px 18px rgba(22,101,52,.28) !important;
+  transition:transform .2s ease,box-shadow .2s ease,filter .2s ease !important;
+}
+.fee-actions-main:hover,
+.fee-actions-main:focus-visible{
+  transform:translateY(-2px) !important;
+  filter:brightness(1.05) !important;
+  box-shadow:0 10px 24px rgba(22,101,52,.35) !important;
+  outline:none !important;
+}
+.fee-actions-menu{
+  position:absolute !important;
+  top:calc(100% + 9px) !important;
+  left:0 !important;
+  width:300px !important;
+  max-width:min(300px,calc(100vw - 24px)) !important;
+  padding:8px !important;
+  margin:0 !important;
+  display:block !important;
+  background:#fff !important;
+  border:1px solid #dbe4ea !important;
+  border-radius:14px !important;
+  box-shadow:0 18px 45px rgba(15,23,42,.20) !important;
+  opacity:0 !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+  transform:translateY(-8px) scale(.98) !important;
+  transform-origin:top left !important;
+  transition:opacity .18s ease,transform .18s ease,visibility .18s ease !important;
+}
+.fee-actions-wrapper:hover .fee-actions-menu,
+.fee-actions-wrapper.fee-actions-open .fee-actions-menu,
+.fee-actions-wrapper:focus-within .fee-actions-menu{
+  opacity:1 !important;
+  visibility:visible !important;
+  pointer-events:auto !important;
+  transform:translateY(0) scale(1) !important;
+}
+.fee-actions-menu::before{
+  content:"";
+  position:absolute;
+  top:-7px;
+  left:30px;
+  width:13px;
+  height:13px;
+  background:#fff;
+  border-left:1px solid #dbe4ea;
+  border-top:1px solid #dbe4ea;
+  transform:rotate(45deg);
+}
+.fee-action-btn{
+  position:relative !important;
+  width:100% !important;
+  min-height:46px !important;
+  margin:3px 0 !important;
+  padding:8px 11px !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:10px !important;
+  border:0 !important;
+  border-radius:10px !important;
+  background:#fff !important;
+  color:#1f2937 !important;
+  font-size:14px !important;
+  font-weight:700 !important;
+  text-align:left !important;
+  cursor:pointer !important;
+  transition:background .16s ease,color .16s ease,transform .16s ease !important;
+}
+.fee-action-btn:hover,
+.fee-action-btn:focus-visible{
+  transform:translateX(4px) !important;
+  outline:none !important;
+}
+.fee-action-btn .action-icon{
+  width:34px !important;
+  height:34px !important;
+  min-width:34px !important;
+  margin:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  border-radius:9px !important;
+  font-size:17px !important;
+}
+.fee-action-btn.defaulters:hover{background:#fef2f2 !important;color:#dc2626 !important;}
+.fee-action-btn.delete:hover{background:#fff1f2 !important;color:#b91c1c !important;}
+.fee-action-btn.report:hover{background:#eff6ff !important;color:#2563eb !important;}
+.fee-action-btn.receipts:hover{background:#f5f3ff !important;color:#7c3aed !important;}
+.fee-action-btn.restore:hover{background:#ecfdf5 !important;color:#15803d !important;}
+.fee-action-btn.balance:hover{background:#fffbeb !important;color:#b45309 !important;}
+@media (max-width:768px){
+  .fee-actions-wrapper{width:100% !important;}
+  .fee-actions-main{width:100% !important;}
+  .fee-actions-menu{
+    left:0 !important;
+    right:0 !important;
+    width:100% !important;
+    max-width:none !important;
+  }
+}
+</style>
+
+<!-- =========================================================
+     FEE ACTIONS JAVASCRIPT
+========================================================= -->
+
+<script>
+
+/* =========================================================
+   TOGGLE ACTIONS MENU
+========================================================= */
+
+function toggleFeeActions(event) {
+
+  event.stopPropagation();
+
+  const wrapper =
+    event.currentTarget.closest(
+      '.fee-actions-wrapper'
+    );
+
+  if (!wrapper) return;
+
+
+  const isOpen =
+    wrapper.classList.contains(
+      'fee-actions-open'
+    );
+
+
+  /* Close every other actions menu */
+
+  document
+    .querySelectorAll(
+      '.fee-actions-wrapper.fee-actions-open'
+    )
+    .forEach(function(otherWrapper) {
+
+      if (otherWrapper !== wrapper) {
+
+        otherWrapper.classList.remove(
+          'fee-actions-open'
+        );
+
+        const otherButton =
+          otherWrapper.querySelector(
+            '.fee-actions-main'
+          );
+
+        if (otherButton) {
+
+          otherButton.setAttribute(
+            'aria-expanded',
+            'false'
+          );
+
+        }
+
+      }
+
+    });
+
+
+  /* Toggle current menu */
+
+  wrapper.classList.toggle(
+    'fee-actions-open',
+    !isOpen
+  );
+
+
+  event.currentTarget.setAttribute(
+    'aria-expanded',
+    String(!isOpen)
+  );
+
+}
+
+
+/* =========================================================
+   CLOSE ACTIONS MENU
+========================================================= */
+
+function closeFeeActions() {
+
+  document
+    .querySelectorAll(
+      '.fee-actions-wrapper'
+    )
+    .forEach(function(wrapper) {
+
+      wrapper.classList.remove(
+        'fee-actions-open'
+      );
+
+
+      const button =
+        wrapper.querySelector(
+          '.fee-actions-main'
+        );
+
+
+      if (button) {
+
+        button.setAttribute(
+          'aria-expanded',
+          'false'
+        );
+
+      }
+
+    });
+
+}
+
+
+/* =========================================================
+   CLOSE WHEN CLICKING OUTSIDE
+========================================================= */
+
+document.addEventListener(
+  'click',
+  function(event) {
+
+    if (
+      !event.target.closest(
+        '.fee-actions-wrapper'
+      )
+    ) {
+
+      closeFeeActions();
+
+    }
+
+  }
+);
+
+</script>
+
 
 <hr>
 
@@ -10316,7 +11126,7 @@ width:100%;
 <!-- ================= LANGUAGES ================= -->
 <optgroup label="📖 Languages">
   <option value="English">English</option>
-  <option value="Kisw">Kisw</option>
+  <option value="Kiswahili">Kiswahili</option>
   <option value="Kenya Sign Language">Kenya Sign Language</option>
   <option value="French">French</option>
   <option value="German">German</option>
@@ -10326,17 +11136,14 @@ width:100%;
 
 <!-- ================= MATHEMATICS ================= -->
 <optgroup label="➗ Mathematics">
-  <option value="Math">Math</option>
+  <option value="Maths">Maths</option>
 </optgroup>
 
 <!-- ================= PRIMARY / JUNIOR CBC ================= -->
 <optgroup label="🌱 Primary & Junior School CBC">
-  <option value="Scien"> Scie</option>
-  
-  <option value="Social">Social </option>
-
-
-  <option value="Agric">Agric</option>
+  <option value="Science"> Science</option>
+  <option value="Social Studies">Social Studies </option>
+  <option value="Agriculture">Agriculture</option>
   <option value="Creative Arts">Creative Arts</option>
   <option value="Art & Craft">Art & Craft</option>
   <option value="Music">Music</option>
@@ -13296,20 +14103,6 @@ margin-bottom:15px;
     class="libraryTab"
     style="display:none;">
 
- <h2 style="
-    display:inline-block;
-    margin-bottom:20px;
-    padding:12px 22px;
-    background:#facc15;
-    color:#111827;
-    border:2px solid #eab308;
-    border-radius:12px;
-    font-size:28px;
-    font-weight:800;
-    box-shadow:0 6px 16px rgba(0,0,0,.15);
-">
-    📦 LIBRARY RETURNS CENTER
-</h2>
 
     <!-- DASHBOARD -->
 
@@ -26930,7 +27723,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadFees();
 
   loadFinanceSummary();
-
+initializeFeeFilters();
   loadStudents();
 
 
@@ -35266,368 +36059,263 @@ window.restoreAllLearnerFees = async function () {
 };
 
 /* ============================================================
-   🗑 DELETE ALL FEE RECORDS
+   🗑 DELETE ALL FEE RECORDS — YEAR + GRADE REQUIRED
    ============================================================ */
 
 window.deleteAllLearnerFees = async function () {
-
     try {
+        /* ====================================================
+           STEP 1 — ASK FOR ACADEMIC YEAR + GRADE
+           ==================================================== */
+        const existingYear =
+            document.getElementById("filterFeeYear")?.value || "";
 
-        const year =
-            document.getElementById(
-                "filterFeeYear"
-            )?.value;
+        const gradeSelect =
+            document.getElementById("filterFeeGrade");
 
+        let gradeOptions = "<option value=''>Select Grade</option>";
 
-        if (!year) {
+        if (gradeSelect) {
+            Array.from(gradeSelect.options).forEach(option => {
+                const value = String(option.value || "").trim();
+                const text = String(option.textContent || value).trim();
 
-            return Swal.fire({
+                // Do not offer the "All Grades" option for deletion.
+                if (!value) return;
 
-                icon:
-                    "warning",
-
-                title:
-                    "Select Year",
-
-                text:
-                    "Please select the academic year first."
-
+                gradeOptions += `
+                    <option value="${escapeHTMLSafe(value)}">
+                        ${escapeHTMLSafe(text)}
+                    </option>`;
             });
-
         }
 
+        const selection = await Swal.fire({
+            title: "🗑 Delete Fee Records",
+            html: `
+                <div style="text-align:left;margin-top:8px;">
+                    <label style="display:block;font-weight:700;margin-bottom:6px;">
+                        Academic Year
+                    </label>
+                    <select id="deleteFeeYear"
+                        class="swal2-select"
+                        style="width:100%;margin:0 0 15px 0;">
+                        <option value="">Select Academic Year</option>
+                        ${(() => {
+                            const yearSelect = document.getElementById("filterFeeYear");
+                            if (!yearSelect) return "";
+                            return Array.from(yearSelect.options).map(option => {
+                                const value = String(option.value || "").trim();
+                                const text = String(option.textContent || value).trim();
+                                if (!value) return "";
+                                return `<option value="${escapeHTMLSafe(value)}">${escapeHTMLSafe(text)}</option>`;
+                            }).join("");
+                        })()}
+                    </select>
+
+                    <label style="display:block;font-weight:700;margin-bottom:6px;">
+                        Grade
+                    </label>
+                    <select id="deleteFeeGrade"
+                        class="swal2-select"
+                        style="width:100%;margin:0;">
+                        ${gradeOptions}
+                    </select>
+
+                    <div style="margin-top:12px;padding:10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:13px;color:#9a3412;">
+                        ⚠️ Only fee records matching <b>both</b> the selected academic year and grade will be moved to the Recycle Bin.
+                    </div>
+                </div>
+            `,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#dc2626",
+            cancelButtonColor: "#64748b",
+            confirmButtonText: "Continue",
+            cancelButtonText: "Cancel",
+            focusConfirm: false,
+            didOpen: () => {
+                const yearInput = document.getElementById("deleteFeeYear");
+                if (yearInput && existingYear) yearInput.value = existingYear;
+            },
+            preConfirm: () => {
+                const year = document.getElementById("deleteFeeYear")?.value || "";
+                const grade = document.getElementById("deleteFeeGrade")?.value || "";
+
+                if (!year) {
+                    Swal.showValidationMessage("Please select the academic year.");
+                    return false;
+                }
+
+                if (!grade) {
+                    Swal.showValidationMessage("Please select a grade. You cannot delete all grades at once.");
+                    return false;
+                }
+
+                return { year, grade };
+            }
+        });
+
+        if (!selection.isConfirmed || !selection.value) return;
+
+        const { year, grade } = selection.value;
 
         /* ====================================================
-           FIRST CONFIRMATION
+           STEP 2 — CONFIRM EXACT SCOPE
            ==================================================== */
-
-        const firstConfirm =
-            await Swal.fire({
-
-                title:
-                    `Move ALL ${year} Fee Records?`,
-
-                html: `
-
-                    <b style="
-                        color:#dc2626;
-                    ">
-
-                        All active fee records for
-                        ${escapeHTMLSafe(year)}
-                        will be moved to the Recycle Bin.
-
-                    </b>
-
+        const firstConfirm = await Swal.fire({
+            title: "Move Fee Records to Recycle Bin?",
+            html: `
+                <div style="font-size:15px;line-height:1.7;">
+                    <b style="color:#dc2626;">Only these records will be affected:</b>
                     <br><br>
+                    📅 Academic Year: <b>${escapeHTMLSafe(year)}</b><br>
+                    🏫 Grade: <b>${escapeHTMLSafe(grade)}</b>
+                    <br><br>
+                    Other grades and other academic years will <b>NOT</b> be touched.
+                    <br><br>
+                    The records will be moved to the Recycle Bin and can be restored later.
+                </div>
+            `,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#dc2626",
+            cancelButtonColor: "#64748b",
+            confirmButtonText: "Continue",
+            cancelButtonText: "Cancel"
+        });
 
-                    They can still be restored later.
-
-                `,
-
-                icon:
-                    "warning",
-
-                showCancelButton:
-                    true,
-
-                confirmButtonColor:
-                    "#dc2626",
-
-                cancelButtonColor:
-                    "#64748b",
-
-                confirmButtonText:
-                    "Continue",
-
-                cancelButtonText:
-                    "Cancel"
-
-            });
-
-
-        if (
-            !firstConfirm.isConfirmed
-        ) {
-
-            return;
-
-        }
-
+        if (!firstConfirm.isConfirmed) return;
 
         /* ====================================================
-           SECOND CONFIRMATION
+           STEP 3 — FINAL CONFIRMATION
            ==================================================== */
+        const secondConfirm = await Swal.fire({
+            title: "Are you absolutely sure?",
+            html: `
+                <b style="color:#991b1b;font-size:18px;">
+                    MOVE MATCHING FEES TO RECYCLE BIN
+                </b>
+                <br><br>
+                Year: <b>${escapeHTMLSafe(year)}</b><br>
+                Grade: <b>${escapeHTMLSafe(grade)}</b>
+                <br><br>
+                Only fee records for this exact year + grade will be moved.
+                <br><br>
+                ♻️ They can be restored later.
+            `,
+            icon: "error",
+            showCancelButton: true,
+            confirmButtonColor: "#991b1b",
+            cancelButtonColor: "#64748b",
+            confirmButtonText: "🗑 YES, MOVE THESE FEES",
+            cancelButtonText: "Cancel"
+        });
 
-        const secondConfirm =
-            await Swal.fire({
-
-                title:
-                    "Are you absolutely sure?",
-
-                html: `
-
-                    <b style="
-                        color:#dc2626;
-                        font-size:18px;
-                    ">
-                        MOVE ALL FEES TO RECYCLE BIN
-                    </b>
-
-                    <br><br>
-
-                    Year:
-
-                    <b>
-                        ${escapeHTMLSafe(year)}
-                    </b>
-
-                    <br><br>
-
-                    You can restore them later.
-
-                `,
-
-                icon:
-                    "error",
-
-                showCancelButton:
-                    true,
-
-                confirmButtonColor:
-                    "#991b1b",
-
-                cancelButtonColor:
-                    "#64748b",
-
-                confirmButtonText:
-                    "🗑 YES, MOVE ALL",
-
-                cancelButtonText:
-                    "Cancel"
-
-            });
-
-
-        if (
-            !secondConfirm.isConfirmed
-        ) {
-
-            return;
-
-        }
-
+        if (!secondConfirm.isConfirmed) return;
 
         /* ====================================================
-           READ CURRENT FEES
+           READ CURRENT FEES FOR THE SELECTED YEAR
            ==================================================== */
+        openSweetLoader("Preparing fee records...");
 
-        openSweetLoader(
-            "Preparing fee records..."
+        const snap = await get(
+            schoolRef(`fees/${year}`)
         );
 
-
-        const snap =
-            await get(
-
-                schoolRef(
-                    `fees/${year}`
-                )
-
-            );
-
-
-        if (
-            !snap.exists()
-        ) {
-
+        if (!snap.exists()) {
             closeSweetLoader();
-
-
             return Swal.fire({
-
-                icon:
-                    "info",
-
-                title:
-                    "No Fee Records",
-
-                text:
-                    `There are no active fee records for ${year}.`
-
+                icon: "info",
+                title: "No Fee Records",
+                text: `There are no active fee records for ${year}.`
             });
-
         }
 
-
-        const fees =
-            snap.val() || {};
-
-
-        const feeIds =
-            Object.keys(
-                fees
-            );
-
-
-        const now =
-            feeActionTime();
-
-
-        const deletedBy =
-            getFeeDeletedBy();
-
-
-        const updates = {};
-
+        const fees = snap.val() || {};
 
         /* ====================================================
-           MOVE EVERYTHING TO RECYCLE BIN
+           FILTER BY THE SELECTED GRADE
            ==================================================== */
+        const matchingFees = Object.entries(fees).filter(([feeId, fee]) => {
+            if (!fee) return false;
+            return String(fee.grade || "").trim() === String(grade).trim();
+        });
 
-        for (
-            const feeId
-            of feeIds
-        ) {
-
-            const fee =
-                fees[
-                    feeId
-                ];
-
-
-            if (!fee)
-                continue;
-
-
-            updates[
-                `deletedFees/${year}/${feeId}`
-            ] = {
-
-                ...fee,
-
-                originalFeeId:
-                    feeId,
-
-                originalYear:
-                    String(year),
-
-                deletedAt:
-                    now,
-
-                deletedBy:
-                    deletedBy
-
-            };
-
-
-            updates[
-                `fees/${year}/${feeId}`
-            ] =
-                null;
-
+        if (!matchingFees.length) {
+            closeSweetLoader();
+            return Swal.fire({
+                icon: "info",
+                title: "No Matching Fee Records",
+                html: `No active fee records were found for <b>${escapeHTMLSafe(grade)}</b> in academic year <b>${escapeHTMLSafe(year)}</b>.`
+            });
         }
 
+        const now = feeActionTime();
+        const deletedBy = getFeeDeletedBy();
+        const updates = {};
+
+        /* ====================================================
+           MOVE ONLY MATCHING GRADE RECORDS TO RECYCLE BIN
+           ==================================================== */
+        for (const [feeId, fee] of matchingFees) {
+            updates[`deletedFees/${year}/${feeId}`] = {
+                ...fee,
+                originalFeeId: feeId,
+                originalYear: String(year),
+                deletedAt: now,
+                deletedBy: deletedBy
+            };
+
+            updates[`fees/${year}/${feeId}`] = null;
+        }
 
         /* ====================================================
            ONE ATOMIC FIREBASE UPDATE
            ==================================================== */
-
         await update(
-
             schoolRef(""),
-
             updates
-
         );
-
 
         closeSweetLoader();
 
-
-        requestAnimationFrame(
-            () => {
-
-                try {
-
-                    loadFees?.();
-
-                    loadFinanceSummary?.();
-
-                }
-                catch (_) {}
-
-            }
-        );
-
+        requestAnimationFrame(() => {
+            try {
+                loadFees?.();
+                loadFinanceSummary?.();
+            } catch (_) {}
+        });
 
         Swal.fire({
-
-            icon:
-                "success",
-
-            title:
-                "Fees Moved to Recycle Bin",
-
+            icon: "success",
+            title: "Fees Moved to Recycle Bin",
             html: `
-
-                <b>
-                    ${feeIds.length.toLocaleString()}
-                </b>
-
-                fee records for
-
-                <b>
-                    ${escapeHTMLSafe(year)}
-                </b>
-
+                <b>${matchingFees.length.toLocaleString()}</b>
+                fee record(s) for
+                <b>${escapeHTMLSafe(grade)}</b>
+                in
+                <b>${escapeHTMLSafe(year)}</b>
                 were moved safely to the Recycle Bin.
-
                 <br><br>
-
                 ♻️ They can be restored later.
-
             `,
-
-            timer:
-                2500,
-
-            showConfirmButton:
-                false
-
+            timer: 3000,
+            showConfirmButton: false
         });
 
-    }
-
-    catch (error) {
-
-        console.error(
-            "❌ Delete all fees error:",
-            error
-        );
-
+    } catch (error) {
+        console.error("❌ Delete selected grade fees error:", error);
 
         closeSweetLoader();
 
-
         Swal.fire({
-
-            icon:
-                "error",
-
-            title:
-                "Operation Failed",
-
-            text:
-                error?.message ||
-                "Unable to move fee records to the Recycle Bin."
-
+            icon: "error",
+            title: "Operation Failed",
+            text: error?.message || "Unable to move the selected fee records to the Recycle Bin."
         });
-
     }
-
 };
-
 
 /* ============================================================
    🧹 REMOVE FEE ROW FROM UI
@@ -38619,80 +39307,256 @@ window.generateBulkReceiptsByGrade = async function () {
 
 };
 
-   window.loadFeeYears = async function () {
+ // =====================================================
+// LOAD FEE ACADEMIC YEARS
+// =====================================================
 
-  const select =
-    document.getElementById("filterFeeYear");
+window.loadFeeYears = async function () {
 
-  if (!select) return;
+    const select =
+        document.getElementById("filterFeeYear");
 
-  // Prevent schoolRef from throwing during startup before login restores schoolId.
-  const activeSchoolId =
-    window.schoolId ||
-    sessionStorage.getItem("schoolId") ||
-    localStorage.getItem("schoolId");
+    if (!select) {
 
-  if (!activeSchoolId) return;
+        console.warn(
+            "filterFeeYear dropdown not found."
+        );
 
-  try {
+        return;
+    }
 
-    // ================= FETCH FEES ROOT =================
-    const snap = await get(
-      schoolRef("fees")
-    );
 
-    const data = snap.val() || {};
+    // ============================================
+    // GET ACTIVE SCHOOL ID
+    // ============================================
 
-    // ================= DYNAMIC YEARS =================
-    const currentYear =
-      new Date().getFullYear();
+    const activeSchoolId =
+        window.schoolId ||
+        sessionStorage.getItem("schoolId") ||
+        localStorage.getItem("schoolId");
 
-    const years = [
 
-      ...new Set([
+    if (!activeSchoolId) {
 
-        ...Object.keys(data),
+        console.warn(
+            "Cannot load fee years: schoolId not ready."
+        );
 
-        currentYear.toString(),
+        // Try again after startup finishes
+        setTimeout(() => {
 
-        (currentYear + 1).toString()
+            if (
+                typeof window.loadFeeYears ===
+                "function"
+            ) {
 
-      ])
+                window.loadFeeYears();
 
-    ];
+            }
 
-    // ================= SORT DESC =================
-    years.sort((a, b) => b - a);
+        }, 1000);
 
-    // ================= BUILD OPTIONS =================
-    select.innerHTML = "";
+        return;
+    }
 
-    years.forEach(year => {
 
-      select.innerHTML += `
-        <option value="${year}">
-          ${year}
-        </option>
-      `;
-    });
+    try {
 
-    // ================= DEFAULT =================
-    select.value = currentYear.toString();
+        // Keep the currently selected year
+        const previousValue =
+            select.value;
 
-    console.log(
-      "✅ Dynamic fee years loaded:",
-      years
-    );
 
-  } catch (err) {
+        // ============================================
+        // LOAD FEES ROOT
+        // ============================================
 
-    console.error(
-      "Failed to load fee years:",
-      err
-    );
-  }
+        const snap =
+            await get(
+                schoolRef("fees")
+            );
+
+
+        const data =
+            snap.val() || {};
+
+
+        // ============================================
+        // BUILD YEAR LIST
+        // ============================================
+
+        const currentYear =
+            new Date()
+                .getFullYear();
+
+
+        const years =
+            new Set();
+
+
+        // Add all years that actually exist in Firebase
+        Object.keys(data)
+            .forEach(year => {
+
+                if (
+                    year &&
+                    /^\d{4}$/.test(
+                        String(year)
+                    )
+                ) {
+
+                    years.add(
+                        String(year)
+                    );
+
+                }
+
+            });
+
+
+        // Always include current year
+        years.add(
+            String(currentYear)
+        );
+
+
+        // Optional: include next academic year
+        years.add(
+            String(currentYear + 1)
+        );
+
+
+        // ============================================
+        // SORT YEARS DESCENDING
+        // ============================================
+
+        const sortedYears =
+            [...years]
+            .sort(
+                (a, b) =>
+                    Number(b) -
+                    Number(a)
+            );
+
+
+        // ============================================
+        // BUILD DROPDOWN
+        // ============================================
+
+        select.innerHTML =
+            `<option value="">
+                Select Academic Year
+            </option>`;
+
+
+        sortedYears.forEach(
+            year => {
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+
+                option.value =
+                    year;
+
+
+                option.textContent =
+                    year;
+
+
+                select.appendChild(
+                    option
+                );
+
+            }
+        );
+
+
+        // ============================================
+        // RESTORE PREVIOUS SELECTION
+        // ============================================
+
+        if (
+            previousValue &&
+            sortedYears.includes(
+                previousValue
+            )
+        ) {
+
+            select.value =
+                previousValue;
+
+        }
+
+        else {
+
+            select.value =
+                String(currentYear);
+
+        }
+
+
+        console.log(
+            "✅ Fee Academic Years loaded:",
+            sortedYears
+        );
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "❌ Failed to load fee years:",
+            error
+        );
+
+
+        select.innerHTML =
+            `<option value="">
+                Unable to load years
+            </option>`;
+
+    }
+
 };
+// =====================================================
+// LOAD RECORDED FEE FILTERS
+// =====================================================
 
+async function initializeFeeFilters() {
+
+    try {
+
+        // Wait briefly for schoolId and Firebase context
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Load Academic Years first
+        if (typeof window.loadFeeYears === "function") {
+            await window.loadFeeYears();
+        }
+
+        // Then load Grades and Fee Records
+        if (typeof window.loadFees === "function") {
+            await window.loadFees();
+        }
+
+        if (typeof window.loadFinanceSummary === "function") {
+            await window.loadFinanceSummary();
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Failed to initialize fee filters:",
+            error
+        );
+
+    }
+
+}
 // ========================================
 // GET GRADE RANGE KEY
 // ========================================
@@ -115169,7 +116033,9 @@ window.getGrade1To6ReportLabel = function(level) {
     return {1:"BE(1)",2:"AE(2)",3:"ME(3)",4:"EE(4)"}[Number(level)] || "";
 };
 </script>
-\n<script id="final-library-subject-fixes-v4">
+
+<script id="final-library-subject-fixes-v4">
+
 /* Final fixes: lost-book clearance, metadata subjects, lazy borrowed-book rendering */
 (function(){
   const META = new Set(['updatedat','createdat','timestamp','id','key','schoolid','school_id','school','admissionno','admissionnumber','studentid','learnerid','name','gender','grade','class','year','term','exam','examperiod','period']);
@@ -115254,7 +116120,7 @@ window.getGrade1To6ReportLabel = function(level) {
   }
   installLazyBorrowedBooks();
 })();
-</script>\n</body>
+</script>
 </html>
 
 
