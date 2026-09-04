@@ -2197,6 +2197,12 @@ button.primary{
 
 }
 
+/* 📊 Learner Results Progress Animation */
+@keyframes learnerResultsProgressGlow {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
 /*=========================================================
   📋 TABLE CONTAINERS
 =========================================================*/
@@ -9705,10 +9711,7 @@ function toggleStudentRegistrationForm(){
 
   <!-- ================= TABLE ================= -->
 
-  <div class="teacher-table-scroll" style="width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:auto;overscroll-behavior-x:contain;border:1px solid #e5e7eb;border-radius:10px;background:#fff;">
-
-    <table class="learners-table teacher-management-table" style="width:max-content;min-width:1300px;table-layout:auto;">
-
+  <table class="learners-table">
 
     <thead>
 
@@ -9737,9 +9740,6 @@ function toggleStudentRegistrationForm(){
     <tbody id="teacherList"></tbody>
 
   </table>
-    </div>
-
-    <div class="teacher-table-scroll-hint" style="display:flex;justify-content:center;align-items:center;gap:7px;padding:7px 0 2px;color:#64748b;font-size:12px;font-weight:700;user-select:none;">↔️ Drag/scroll horizontally to view all teacher information</div>
 
 </div><!-- ================= ATTENDANCE STATS ================= -->
 <div id="attendanceStats" style="margin:10px 0; font-weight:bold;"></div>
@@ -15435,65 +15435,40 @@ Generate
 
 
 <!-- ===================================================== -->
+
 <!-- SEARCH CARD -->
+
 <!-- ===================================================== -->
 
 <div
     style="
-        max-width:550px;
+        width:100%;
         margin:0 auto 30px;
         padding:30px;
         border-radius:22px;
         overflow:hidden;
         position:relative;
+    background-image:
+        linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),
+        url('https://i.imgur.com/Iuvl1g2.jpeg');
 
-        background-image:
-            linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),
-            url('https://i.imgur.com/Iuvl1g2.jpeg');
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
 
-        background-size:cover;
-        background-position:center;
-        background-repeat:no-repeat;
+    border:1px solid rgba(255,255,255,.15);
+    box-shadow:0 20px 45px rgba(0,0,0,.25);
 
-        border:1px solid rgba(255,255,255,.15);
-        box-shadow:0 20px 45px rgba(0,0,0,.25);
-    "
+    box-sizing:border-box;
+"
+
+
 >
 
-    <!-- Parent Phone -->
 
-    <div id="checkResultsPhoneContainer">
+<!-- Parent Phone -->
 
-        <label style="
-            display:block;
-            margin-bottom:8px;
-            font-weight:700;
-            color:#fff;
-            text-shadow:0 2px 5px rgba(0,0,0,.4);
-        ">
-            📱 Parent Phone Number
-        </label>
-
-        <input
-            id="checkResultsParentPhone"
-            type="tel"
-            placeholder="Enter Parent Phone Number (07XXXXXXXX)"
-            autocomplete="off"
-            style="
-                width:100%;
-                padding:14px;
-                border:1px solid rgba(255,255,255,.35);
-                border-radius:12px;
-                margin-bottom:18px;
-                background:rgba(255,255,255,.92);
-                font-size:15px;
-                outline:none;
-            "
-        >
-
-    </div>
-
-    <!-- Grade -->
+<div id="checkResultsPhoneContainer">
 
     <label style="
         display:block;
@@ -15502,115 +15477,158 @@ Generate
         color:#fff;
         text-shadow:0 2px 5px rgba(0,0,0,.4);
     ">
-        🎓 Select Grade
+        📱 Parent Phone Number
     </label>
 
-    <select
-        id="checkResultsGrade"
+    <input
+        id="checkResultsParentPhone"
+        type="tel"
+        placeholder="Enter Parent Phone Number (07XXXXXXXX)"
+        autocomplete="off"
         style="
             width:100%;
+            max-width:none;
+            margin:0 0 18px 0;
             padding:14px;
             border:1px solid rgba(255,255,255,.35);
             border-radius:12px;
-            margin-bottom:18px;
             background:rgba(255,255,255,.92);
             font-size:15px;
             outline:none;
-        ">
-        <option value="">Select Grade</option>
-    </select>
-
-    <!-- Exam -->
-
-    <label style="
-        display:block;
-        margin-bottom:8px;
-        font-weight:700;
-        color:#fff;
-        text-shadow:0 2px 5px rgba(0,0,0,.4);
-    ">
-        📅 Select Exam Period
-    </label>
-
-    <select
-        id="checkResultsExamPeriod"
-        style="
-            width:100%;
-            padding:14px;
-            border:1px solid rgba(255,255,255,.35);
-            border-radius:12px;
-            margin-bottom:18px;
-            background:rgba(255,255,255,.92);
-            font-size:15px;
-            outline:none;
-        ">
-        <option value="">Select Exam Period</option>
-    </select>
-
-    <!-- Learner -->
-
-    <div id="checkResultsStudentContainer">
-
-        <label style="
-            display:block;
-            margin-bottom:8px;
-            font-weight:700;
-            color:#fff;
-            text-shadow:0 2px 5px rgba(0,0,0,.4);
-        ">
-            👨‍🎓 Select Learner
-        </label>
-
-        <select
-            id="checkResultsStudent"
-            style="
-                width:100%;
-                padding:14px;
-                border:1px solid rgba(255,255,255,.35);
-                border-radius:12px;
-                margin-bottom:20px;
-                background:rgba(255,255,255,.92);
-                font-size:15px;
-                outline:none;
-            ">
-            <option value="">Select Learner</option>
-        </select>
-
-    </div>
-
-    <!-- Button -->
-
-    <button
-        id="checkResultsButton"
-        onclick="handleCheckResults()"
-        style="
-            width:100%;
-            background:linear-gradient(135deg,#2563eb,#1d4ed8);
-            color:#fff;
-            border:none;
-            padding:15px;
-            border-radius:12px;
-            cursor:pointer;
-            font-size:16px;
-            font-weight:700;
-            box-shadow:0 8px 20px rgba(37,99,235,.45);
-            transition:.3s;
-        "
-        onmouseover="
-            this.style.transform='translateY(-2px)';
-            this.style.boxShadow='0 12px 28px rgba(37,99,235,.55)';
-        "
-        onmouseout="
-            this.style.transform='translateY(0)';
-            this.style.boxShadow='0 8px 20px rgba(37,99,235,.45)';
+            box-sizing:border-box;
         "
     >
-        📊 View Results
-    </button>
 
 </div>
+
+<!-- Grade -->
+
+<label style="
+    display:block;
+    margin-bottom:8px;
+    font-weight:700;
+    color:#fff;
+    text-shadow:0 2px 5px rgba(0,0,0,.4);
+">
+    🎓 Select Grade
+</label>
+
+<select
+    id="checkResultsGrade"
+    style="
+        width:100%;
+        max-width:none;
+        margin:0 0 18px 0;
+        padding:14px;
+        border:1px solid rgba(255,255,255,.35);
+        border-radius:12px;
+        background:rgba(255,255,255,.92);
+        font-size:15px;
+        outline:none;
+        box-sizing:border-box;
+    ">
+    <option value="">Select Grade</option>
+</select>
+
+<!-- Exam -->
+
+<label style="
+    display:block;
+    margin-bottom:8px;
+    font-weight:700;
+    color:#fff;
+    text-shadow:0 2px 5px rgba(0,0,0,.4);
+">
+    📅 Select Exam Period
+</label>
+
+<select
+    id="checkResultsExamPeriod"
+    style="
+        width:100%;
+        max-width:none;
+        margin:0 0 18px 0;
+        padding:14px;
+        border:1px solid rgba(255,255,255,.35);
+        border-radius:12px;
+        background:rgba(255,255,255,.92);
+        font-size:15px;
+        outline:none;
+        box-sizing:border-box;
+    ">
+    <option value="">Select Exam Period</option>
+</select>
+
+<!-- Learner -->
+
+<div id="checkResultsStudentContainer">
+
+    <label style="
+        display:block;
+        margin-bottom:8px;
+        font-weight:700;
+        color:#fff;
+        text-shadow:0 2px 5px rgba(0,0,0,.4);
+    ">
+        👨‍🎓 Select Learner
+    </label>
+
+    <select
+        id="checkResultsStudent"
+        style="
+            width:100%;
+            max-width:none;
+            margin:0 0 20px 0;
+            padding:14px;
+            border:1px solid rgba(255,255,255,.35);
+            border-radius:12px;
+            background:rgba(255,255,255,.92);
+            font-size:15px;
+            outline:none;
+            box-sizing:border-box;
+        ">
+        <option value="">Select Learner</option>
+    </select>
+
+</div>
+
+<!-- Button -->
+
+<button
+    id="checkResultsButton"
+    onclick="handleCheckResults()"
+    style="
+        width:100%;
+        background:linear-gradient(135deg,#2563eb,#1d4ed8);
+        color:#fff;
+        border:none;
+        padding:15px;
+        border-radius:12px;
+        cursor:pointer;
+        font-size:16px;
+        font-weight:700;
+        box-shadow:0 8px 20px rgba(37,99,235,.45);
+        transition:.3s;
+    "
+    onmouseover="
+        this.style.transform='translateY(-2px)';
+        this.style.boxShadow='0 12px 28px rgba(37,99,235,.55)';
+    "
+    onmouseout="
+        this.style.transform='translateY(0)';
+        this.style.boxShadow='0 8px 20px rgba(37,99,235,.45)';
+    "
+>
+    📊 View Results
+</button>
+
+
+</div>
+
 <!-- ===================================================== -->
-<!-- RESULTS SECTION (OUTSIDE SEARCH CARD) -->
+
+<!-- RESULTS SECTION -->
+
 <!-- ===================================================== -->
 
 <div
@@ -15620,20 +15638,21 @@ Generate
         margin:35px auto 0;
         padding:30px;
         min-height:250px;
+    background:rgba(255,255,255,.10);
+    backdrop-filter:blur(10px);
 
-        background:rgba(255,255,255,.10);
-        backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.15);
+    border-radius:22px;
 
-        border:1px solid rgba(255,255,255,.15);
-        border-radius:22px;
+    box-shadow:0 20px 45px rgba(0,0,0,.20);
 
-        box-shadow:0 20px 45px rgba(0,0,0,.20);
+    overflow-x:auto;
+    box-sizing:border-box;
+"
 
-        overflow-x:auto;
-    "
+
 >
-
-    <!-- Results are inserted here -->
+<!-- Results are inserted here -->
 
 </div>
 </div>
@@ -90448,6 +90467,22 @@ window.toggleAvailableAssignments = function(){
 // Learner name is collected ONLY by startAssignment().
 // =====================================================
 
+
+// =====================================================
+// 📚 TOGGLE INDIVIDUAL AVAILABLE ASSIGNMENT
+// =====================================================
+window.toggleAvailableAssignment = function(assignmentId){
+    const id = String(assignmentId || "");
+    const details = document.getElementById("assignmentDetails-" + id);
+    const icon = document.getElementById("assignmentToggleIcon-" + id);
+    const button = document.getElementById("assignmentToggleBtn-" + id);
+    if(!details) return;
+    const open = details.style.display !== "none";
+    details.style.display = open ? "none" : "block";
+    if(icon) icon.textContent = open ? "▼" : "▲";
+    if(button) button.setAttribute("aria-expanded", String(!open));
+};
+
 window.renderAssignments = function () {
 
     const container =
@@ -92604,6 +92639,18 @@ html += `
     >
 
 
+        <button
+            type="button"
+            id="assignmentToggleBtn-${safeEscape(assignmentCardId)}"
+            onclick="window.toggleAvailableAssignment('${safeEscape(assignmentCardId)}')"
+            style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border:none;border-radius:12px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;cursor:pointer;font-size:16px;font-weight:800;text-align:left;box-shadow:0 6px 16px rgba(37,99,235,.22);"
+        >
+            <span>📚 ${safeEscape(a.title || "Assignment")}</span>
+            <span id="assignmentToggleIcon-${safeEscape(assignmentCardId)}">▼</span>
+        </button>
+
+        <div id="assignmentDetails-${safeEscape(assignmentCardId)}" style="display:none;margin-top:18px;">
+
         <!-- =============================================
              HEADER
         ============================================== -->
@@ -93011,6 +93058,8 @@ html += `
 
         ${teacherSubmissionsHTML}
 
+
+        </div>
 
     </div>
 
@@ -105863,14 +105912,71 @@ const learners = allStudents.filter(student =>
     }
 
     // ==========================================
+    // 📊 LIVE RESULTS LOADING BAR
+    // ==========================================
+    let resultsProgress = 8;
+    let resultsLoaderTimer = null;
+
+    const updateResultsProgress = (value, message) => {
+        resultsProgress = Math.max(0, Math.min(100, value));
+        const bar = document.getElementById("learnerResultsProgressBar");
+        const percent = document.getElementById("learnerResultsProgressPercent");
+        const status = document.getElementById("learnerResultsProgressStatus");
+        if (bar) bar.style.width = resultsProgress + "%";
+        if (percent) percent.textContent = Math.round(resultsProgress) + "%";
+        if (status) status.textContent = message || "Loading learner results...";
+    };
+
+    Swal.fire({
+        title: "📊 Loading Learner Results",
+        html: `
+            <div style="font-size:14px;color:#475569;margin-bottom:14px;">
+                Please wait while we securely retrieve and prepare the results.
+            </div>
+            <div id="learnerResultsProgressStatus" style="font-weight:700;color:#2563eb;margin-bottom:10px;">
+                Connecting to results...
+            </div>
+            <div style="width:100%;height:18px;background:#e5e7eb;border-radius:999px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.12);">
+                <div id="learnerResultsProgressBar" style="width:8%;height:100%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#4f46e5,#7c3aed);background-size:200% 100%;animation:learnerResultsProgressGlow 1.4s linear infinite;transition:width .35s ease;"></div>
+            </div>
+            <div id="learnerResultsProgressPercent" style="margin-top:9px;font-weight:800;color:#1e293b;">8%</div>
+        `,
+        allowOutsideClick:false,
+        allowEscapeKey:false,
+        showConfirmButton:false,
+        didOpen: () => {
+            updateResultsProgress(18, "🔐 Verifying learner access...");
+            resultsLoaderTimer = setInterval(() => {
+                if (resultsProgress < 88) {
+                    const next = resultsProgress < 35 ? resultsProgress + 7 : resultsProgress + 3;
+                    const message = next < 40 ? "📡 Retrieving learner results..." : next < 65 ? "📚 Loading marks and examination data..." : next < 82 ? "🧮 Preparing performance details..." : "✨ Finalising your results...";
+                    updateResultsProgress(next, message);
+                }
+            }, 450);
+        },
+        willClose: () => {
+            if (resultsLoaderTimer) {
+                clearInterval(resultsLoaderTimer);
+                resultsLoaderTimer = null;
+            }
+        }
+    });
+
+    // ==========================================
     // LOAD RESULTS
     // ==========================================
-
-    await window.loadStudentResults(
-        studentId,
-        examPeriod,
-        grade
-    );
+    try {
+        updateResultsProgress(42, "📡 Retrieving learner results...");
+        await window.loadStudentResults(studentId, examPeriod, grade);
+        updateResultsProgress(100, "✅ Results loaded successfully!");
+        await new Promise(resolve => setTimeout(resolve, 350));
+    } catch (error) {
+        updateResultsProgress(100, "⚠️ Unable to load results.");
+        await new Promise(resolve => setTimeout(resolve, 250));
+        throw error;
+    } finally {
+        if (Swal.isVisible()) Swal.close();
+    }
 
 };
 window.loadResultsFilters = async function () {
@@ -117286,8 +117392,6 @@ window.getGrade1To6ReportLabel = function(level) {
     const wantedNames=learnerNameCandidates(learner);
     const copyIds=[copy.borrowerAdm,copy.borrowerId,copy.studentId,copy.lostLearnerId,copy.admissionNo,copy.admission,copy.adm,copy.lostAccountability?.learnerId].map(v=>String(v??'').trim()).filter(Boolean);
     if(copyIds.some(id=>wantedIds.has(id))) return true;
-    const wantedDigits=[...wantedIds].map(v=>String(v).replace(/\D/g,'')).filter(Boolean);
-    if(copyIds.some(id=>{const d=String(id).replace(/\D/g,''); return d && wantedDigits.includes(d);})) return true;
     const copyNames=[copy.borrower,copy.borrowerName,copy.studentName,copy.learnerName,copy.lostAccountability?.learnerName].map(norm).filter(Boolean);
     if(copyNames.some(n=>wantedNames.has(n))) return true;
     // Last safe fallback: compare normalized learner names from Book Copies with selected learner name.
@@ -117298,52 +117402,29 @@ window.getGrade1To6ReportLabel = function(level) {
     });
   }
 
-  async function readExactBookCopies(learner, selectedGrade='', selectedYear=''){
+  async function readExactBookCopies(learner){
     const schoolId=window.schoolId;
     if(!schoolId) throw new Error('School session missing. Please login again.');
     const snap=await get(ref(db,`library/${schoolId}`));
     const rows=[];
     if(!snap.exists()) return rows;
-    const wantedYear=String(selectedYear||'').trim();
-    const wantedGrade=norm(selectedGrade);
-    const yearFromDate=value=>{
-      const m=String(value||'').match(/(?:^|[^0-9])(20\d{2})(?:[^0-9]|$)/);
-      return m?m[1]:'';
-    };
     snap.forEach(bookChild=>{
       const book=bookChild.val()||{};
       Object.entries(book.copies||{}).forEach(([copyKey,raw])=>{
         const copy=raw||{};
-        const meta=copy.lostAccountability||{};
         const status=norm(copy.status);
-        const metaStatus=norm(meta.status||'');
-        // A lost record can remain in lostAccountability even if another operation
-        // changed the visible copy status. Never lose an unresolved accountability record.
-        const isAccountability =
-          status==='lost' || status==='damaged' || status==='under repair' ||
-          metaStatus==='lost' || metaStatus==='damaged' || metaStatus==='under repair' ||
-          meta.resolved===false || meta.replaced===false ||
-          !!meta.lostDate || !!meta.lostTimestamp || !!meta.damagedDate;
-        if(!isAccountability) return;
-        if(!belongsToLearner({...copy, lostAccountability:meta},learner)) return;
-
-        const recordDate=meta.lostDate||meta.damagedDate||copy.lostDate||copy.damagedDate||copy.repairDate||'';
-        const recordYear=String(meta.year||copy.lostYear||copy.year||yearFromDate(recordDate)||'').trim();
-        if(wantedYear && recordYear && recordYear!==wantedYear) return;
-
-        const recordGrade=norm(meta.grade||copy.grade||copy.class||copy.gradeName||'');
-        if(wantedGrade && recordGrade && recordGrade!==wantedGrade) return;
-
-        const resolved=!!meta.replaced || !!meta.resolved || !!copy.replacementDate || !!copy.replacedAt || !!copy.damageResolved || !!copy.repairCompletedDate;
+        if(status!=='lost' && status!=='damaged') return;
+        if(!belongsToLearner(copy,learner)) return;
+        const resolved=!!copy.replacementDate||!!copy.replacedAt||!!copy.damageResolved||!!copy.repairCompletedDate||!!copy.lostAccountability?.replaced;
         rows.push({
           bookId:bookChild.key,
-          bookTitle:meta.bookTitle||book.title||book.bookTitle||book.name||'Unknown Book',
+          bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',
           bookNumber:copy.bookNumber||copyKey,
-          status:(metaStatus && metaStatus!=='available') ? metaStatus : status,
-          lostDate:recordDate||'-',
-          reason:meta.reason||copy.lostReason||copy.damageReason||'-',
+          status,
+          lostDate:copy.lostDate||copy.damagedDate||copy.lostAccountability?.lostDate||'-',
+          reason:copy.lostReason||copy.damageReason||copy.lostAccountability?.reason||'-',
           resolved,
-          borrower:meta.learnerName||copy.borrower||copy.borrowerName||''
+          borrower:copy.borrower||copy.borrowerName||''
         });
       });
     });
@@ -117367,7 +117448,7 @@ window.getGrade1To6ReportLabel = function(level) {
     if(ctx.error) return Swal.fire('Missing Selection',ctx.error,'warning');
     openSweetLoader('Reading Lost and Damaged Books from Book Copies...');
     try{
-      const records=await readExactBookCopies(ctx.learner,ctx.grade,ctx.year);
+      const records=await readExactBookCopies(ctx.learner);
       closeSweetLoader();
       const name=ctx.learner.name||ctx.learner.fullName||ctx.learner.studentName||'Learner';
       if(!records.length){
@@ -117382,32 +117463,21 @@ window.getGrade1To6ReportLabel = function(level) {
   window.runLearnerLibraryClearance=async function(){
     const ctx=await getContext();
     if(ctx.error) return Swal.fire('Missing Selection',ctx.error,'warning');
-    openSweetLoader('Checking ALL unresolved library accountability...');
+    openSweetLoader('Checking exact Book Copies records...');
     try{
-      // FINAL SAFETY RULE: year/grade are reporting filters only. They must
-      // never hide an unresolved accountability record from clearance.
-      const records=await readExactBookCopies(ctx.learner,'','');
-      const unresolved=records.filter(r=>r.resolved!==true);
+      const records=await readExactBookCopies(ctx.learner);
+      const unresolved=records.filter(r=>!r.resolved);
       closeSweetLoader();
       const name=ctx.learner.name||ctx.learner.fullName||ctx.learner.studentName||'Learner';
       if(unresolved.length){
-        const list=unresolved.map(r=>{
-          const icon=r.status==='damaged'?'⚠️ Damaged':r.status==='under repair'?'🛠️ Under Repair':'❌ Lost';
-          return `• <b>${esc(r.bookTitle)}</b> — ${esc(r.bookNumber)} (${icon})`;
-        }).join('<br>');
-        return Swal.fire({icon:'error',title:'⛔ CLEARANCE BLOCKED',html:`<b>${esc(name)}</b> still has <b>${unresolved.length} unresolved library book(s)</b>:<br><br><div style="text-align:left;background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;line-height:1.8;">${list}</div><br><b>The learner cannot be cleared until every lost/damaged/under-repair book is replaced, repaired, or explicitly resolved.</b>`,confirmButtonText:'Understood'});
+        const list=unresolved.map(r=>`• <b>${esc(r.bookTitle)}</b> — ${esc(r.bookNumber)} (${r.status==='lost'?'❌ Lost':'⚠️ Damaged'})`).join('<br>');
+        return Swal.fire({icon:'error',title:'⛔ Clearance Blocked',html:`<b>${esc(name)}</b> has unresolved records found directly in <b>📚 Book Copies</b>:<br><br><div style="text-align:left;background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;line-height:1.8;">${list}</div><br>These records must be replaced, repaired or resolved before clearance.`,confirmButtonText:'Understood'});
       }
-      const ok=await Swal.fire({icon:'success',title:'✅ Eligible for Clearance',html:`<b>${esc(name)}</b> has no unresolved Lost, Damaged or Under Repair library accountability records. Proceed with library clearance?`,showCancelButton:true,confirmButtonText:'⏻ Clear Learner',confirmButtonColor:'#16a34a'});
+      const ok=await Swal.fire({icon:'success',title:'✅ Eligible for Clearance',html:`<b>${esc(name)}</b> has no unresolved Lost or Damaged books in the Book Copies panel. Proceed with clearance?`,showCancelButton:true,confirmButtonText:'⏻ Clear Learner',confirmButtonColor:'#16a34a'});
       if(!ok.isConfirmed) return;
-      const finalRecords=await readExactBookCopies(ctx.learner,'','');
-      const finalUnresolved=finalRecords.filter(r=>r.resolved!==true);
-      if(finalUnresolved.length){
-        const list=finalUnresolved.map(r=>`• <b>${esc(r.bookTitle)}</b> — ${esc(r.bookNumber)}`).join('<br>');
-        return Swal.fire({icon:'error',title:'⛔ CLEARANCE BLOCKED',html:`<b>${esc(name)}</b> still has unresolved library accountability:<br><br>${list}`,confirmButtonText:'Understood'});
-      }
       localStorage.setItem(`libraryClearance_${window.schoolId}_${ctx.learnerId}_${ctx.year}`,JSON.stringify({learnerId:ctx.learnerId,learnerName:name,grade:ctx.grade,year:ctx.year,cleared:true,clearedAt:Date.now(),clearanceDate:new Date().toLocaleString()}));
       Swal.fire('Cleared Successfully',`${name} has been cleared by the Library Return Center.`,'success');
-    }catch(e){closeSweetLoader();console.error('FINAL LIBRARY CLEARANCE CHECK FAILED:',e);Swal.fire('Error',e.message||'Could not verify library accountability.','error');}
+    }catch(e){closeSweetLoader();console.error(e);Swal.fire('Error',e.message,'error');}
   };
 })();
 </script>
@@ -117587,48 +117657,6 @@ window.getGrade1To6ReportLabel = function(level) {
     padding-top:0 !important;
     padding-bottom:0 !important;
     pointer-events:none;
-}
-
-/* =========================================================
-   👨‍🏫 TEACHERS MANAGEMENT TABLE — HORIZONTAL SCROLL FIX
-   ========================================================= */
-.teacher-table-scroll{
-    display:block !important;
-    width:100% !important;
-    max-width:100% !important;
-    overflow-x:auto !important;
-    overflow-y:visible !important;
-    -webkit-overflow-scrolling:touch !important;
-    overscroll-behavior-x:contain;
-    scrollbar-width:auto;
-    touch-action:pan-x pan-y;
-}
-.teacher-table-scroll::-webkit-scrollbar{
-    height:12px;
-}
-.teacher-table-scroll::-webkit-scrollbar-track{
-    background:#e5e7eb;
-    border-radius:20px;
-}
-.teacher-table-scroll::-webkit-scrollbar-thumb{
-    background:#64748b;
-    border-radius:20px;
-    border:2px solid #e5e7eb;
-}
-.teacher-management-table{
-    width:max-content !important;
-    min-width:1300px !important;
-    table-layout:auto !important;
-}
-@media(max-width:768px){
-    .teacher-table-scroll{
-        max-width:100vw !important;
-        margin-left:0 !important;
-        margin-right:0 !important;
-    }
-    .teacher-management-table{
-        min-width:1300px !important;
-    }
 }
 </style>
 
