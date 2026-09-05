@@ -3272,8 +3272,22 @@ button.primary{
 
 #supportAttendanceOutput{
     width:100%;
-    overflow-x:auto;
+    max-width:100%;
+    max-height:70vh;
+    overflow:auto;
     -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    box-sizing:border-box;
+    margin-top:16px;
+    padding:12px;
+    background:#fff;
+    border:1px solid #e2e8f0;
+    border-radius:12px;
+    position:relative;
+}
+
+#supportAttendanceOutput table{
+    min-width:900px;
 }
 
 #supportAttendanceOutput table{
@@ -6439,6 +6453,11 @@ button.primary{
 }
 
 </style>
+
+<meta name="theme-color" content="#2563eb">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 </head>
 
 <body>
@@ -13197,10 +13216,12 @@ border-collapse:collapse;
   onmouseout="this.style.background='#16a34a'">
   👥 View Today Attendance
 </button>
-<div id="supportAttendanceOutput"></div>
     </div>
 
   </div>
+
+  <!-- 📊 Attendance reports live in their own scrollable panel -->
+  <div id="supportAttendanceOutput" aria-live="polite"></div>
 
   <!-- =========================================================
        🔍 SEARCH + FILTERS
@@ -16214,13 +16235,13 @@ import {
 
   getDatabase,
   ref,
-  set,
-  push,
-  onValue,
-  get,
+  set as firebaseSet,
+  push as firebasePush,
+  onValue as firebaseOnValue,
+  get as firebaseGet,
 runTransaction,
-  remove,
-  update
+  remove as firebaseRemove,
+  update as firebaseUpdate
 
 } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js";
 
@@ -16246,7 +16267,315 @@ const db = getDatabase(app);
 
 window.db = db;
 window.ref = ref;
-window.set = set;
+window.set = firebaseSet;
+
+/* ============================================================
+   🚀 RASM 360 — SLOW-NETWORK / OFFLINE-FIRST DATA BRIDGE
+   ------------------------------------------------------------
+   Shows the last known Firebase data immediately when available.
+   Live Firebase listeners continue in the background and refresh
+   the cache. This keeps the application usable on weak networks.
+============================================================ */
+(function installFastDataBridge(){
+  const CACHE_PREFIX = "rasm360_cache_v1:";
+  const MAX_ITEM_BYTES = 850000;
+  const MAX_TOTAL_BYTES = 4200000;
+
+  function cacheKey(firebaseRef){
+    try { return CACHE_PREFIX + String(firebaseRef?.toString?.() || firebaseRef?.path || ""); }
+    catch (_) { return CACHE_PREFIX + "unknown"; }
+  }
+
+  function makeSnapshot(value, key = null, path = ""){
+    const has = value !== null && value !== undefined;
+    return {
+      exists: () => has,
+      val: () => value,
+      key,
+      size: has && value && typeof value === "object" ? Object.keys(value).length : 0,
+      numChildren: () => has && value && typeof value === "object" ? Object.keys(value).length : 0,
+      hasChildren: () => has && value && typeof value === "object" && Object.keys(value).length > 0,
+      child: childPath => {
+        const parts = String(childPath || "").split("/").filter(Boolean);
+        let cur = value;
+        for (const part of parts) cur = cur == null ? undefined : cur[part];
+        return makeSnapshot(cur, parts.length ? parts[parts.length - 1] : key, path + "/" + parts.join("/"));
+      },
+      forEach: callback => {
+        if (!has || !value || typeof value !== "object") return false;
+        for (const [childKey, childValue] of Object.entries(value)) {
+          if (callback(makeSnapshot(childValue, childKey, path + "/" + childKey)) === true) return true;
+        }
+        return false;
+      }
+    };
+  }
+
+  function readCache(firebaseRef){
+    try {
+      const raw = localStorage.getItem(cacheKey(firebaseRef));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && Object.prototype.hasOwnProperty.call(parsed, "value")
+        ? makeSnapshot(parsed.value, parsed.key, parsed.path || "")
+        : null;
+    } catch (_) { return null; }
+  }
+
+  function writeCache(firebaseRef, snapshot){
+    try {
+      const value = snapshot?.val?.();
+      const payload = JSON.stringify({ value, key: snapshot?.key ?? null, path: String(firebaseRef?.path || ""), savedAt: Date.now() });
+      if (payload.length > MAX_ITEM_BYTES) return;
+      localStorage.setItem(cacheKey(firebaseRef), payload);
+      let total = 0, entries = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(CACHE_PREFIX)) continue;
+        const v = localStorage.getItem(k) || "";
+        total += v.length;
+        try { entries.push({ k, t: JSON.parse(v).savedAt || 0, n: v.length }); } catch (_) {}
+      }
+      entries.sort((a,b) => a.t - b.t);
+      while (total > MAX_TOTAL_BYTES && entries.length) {
+        const e = entries.shift(); localStorage.removeItem(e.k); total -= e.n;
+      }
+    } catch (_) {}
+  }
+
+  window.__rasmFastCache = { readCache, writeCache };
+
+
+  /* ============================================================
+     💾 OFFLINE WRITE QUEUE
+     ------------------------------------------------------------
+     Queues Firebase writes in IndexedDB when the device is offline
+     or Firebase is temporarily unreachable, then synchronizes them
+     automatically when the connection returns.
+     ============================================================ */
+  const WRITE_DB = "rasm360_offline_sync_v1";
+  const WRITE_STORE = "writes";
+  let writeDbPromise = null;
+
+  function openWriteDB(){
+    if (writeDbPromise) return writeDbPromise;
+    writeDbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) return reject(new Error("IndexedDB unavailable"));
+      const req = indexedDB.open(WRITE_DB, 1);
+      req.onupgradeneeded = () => {
+        const dbx = req.result;
+        if (!dbx.objectStoreNames.contains(WRITE_STORE)) {
+          const store = dbx.createObjectStore(WRITE_STORE, { keyPath: "id", autoIncrement: true });
+          store.createIndex("createdAt", "createdAt", { unique:false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
+    });
+    return writeDbPromise;
+  }
+
+  async function queueWrite(op, firebaseRef, value){
+    const payload = {
+      op,
+      path: String(firebaseRef?.path || ""),
+      value: value === undefined ? null : value,
+      schoolId: String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || ""),
+      uid: String(window.currentUser?.uid || auth?.currentUser?.uid || sessionStorage.getItem("userUid") || ""),
+      createdAt: Date.now()
+    };
+    try {
+      const idb = await openWriteDB();
+      await new Promise((resolve, reject) => {
+        const tx = idb.transaction(WRITE_STORE, "readwrite");
+        tx.objectStore(WRITE_STORE).add(payload);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error || new Error("Queue write failed"));
+      });
+      console.info("📥 Offline write queued:", op, payload.path);
+      return true;
+    } catch (err) {
+      console.warn("Offline queue unavailable; write not queued:", err);
+      return false;
+    }
+  }
+
+  async function getQueuedWrites(){
+    try {
+      const idb = await openWriteDB();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction(WRITE_STORE, "readonly");
+        const req = tx.objectStore(WRITE_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (_) { return []; }
+  }
+
+  async function deleteQueuedWrite(id){
+    try {
+      const idb = await openWriteDB();
+      await new Promise((resolve, reject) => {
+        const tx = idb.transaction(WRITE_STORE, "readwrite");
+        tx.objectStore(WRITE_STORE).delete(id);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (_) {}
+  }
+
+  function isTransientNetworkError(error){
+    const code = String(error?.code || "").toLowerCase();
+    const msg = String(error?.message || error || "").toLowerCase();
+    return navigator.onLine === false ||
+      code.includes("network") || code.includes("unavailable") ||
+      msg.includes("network") || msg.includes("offline") ||
+      msg.includes("failed to fetch") || msg.includes("connection") ||
+      msg.includes("timeout") || msg.includes("unavailable");
+  }
+
+  let syncInProgress = false;
+  window.flushOfflineWrites = async function(){
+    if (syncInProgress || navigator.onLine === false) return;
+    const currentUid = String(auth?.currentUser?.uid || window.currentUser?.uid || "");
+    const currentSchool = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "");
+    if (!currentUid || !currentSchool) return;
+
+    syncInProgress = true;
+    try {
+      const queued = await getQueuedWrites();
+      for (const item of queued) {
+        if (String(item.uid || "") !== currentUid || String(item.schoolId || "") !== currentSchool) continue;
+        try {
+          const target = ref(db, item.path);
+          if (item.op === "set") await firebaseSet(target, item.value);
+          else if (item.op === "update") await firebaseUpdate(target, item.value || {});
+          else if (item.op === "remove") await firebaseRemove(target);
+          await deleteQueuedWrite(item.id);
+          console.info("☁️ Offline write synchronized:", item.op, item.path);
+        } catch (err) {
+          if (isTransientNetworkError(err)) break;
+          console.warn("⚠️ Queued write retained after sync error:", err);
+          break;
+        }
+      }
+    } finally {
+      syncInProgress = false;
+    }
+  };
+
+  window.addEventListener("online", () => {
+    setTimeout(() => window.flushOfflineWrites?.(), 250);
+  });
+
+  async function queuedSet(firebaseRef, value){
+    try { return await firebaseSet(firebaseRef, value); }
+    catch (err) {
+      if (isTransientNetworkError(err) && await queueWrite("set", firebaseRef, value)) return undefined;
+      throw err;
+    }
+  }
+
+  async function queuedUpdate(firebaseRef, value){
+    try { return await firebaseUpdate(firebaseRef, value); }
+    catch (err) {
+      if (isTransientNetworkError(err) && await queueWrite("update", firebaseRef, value)) return undefined;
+      throw err;
+    }
+  }
+
+  async function queuedRemove(firebaseRef){
+    try { return await firebaseRemove(firebaseRef); }
+    catch (err) {
+      if (isTransientNetworkError(err) && await queueWrite("remove", firebaseRef, null)) return undefined;
+      throw err;
+    }
+  }
+
+  async function queuedPush(firebaseRef, value){
+    // Generate a Firebase-compatible child key locally first. This lets
+    // push() remain usable offline; the actual child write is queued.
+    const newRef = firebasePush(firebaseRef);
+    if (arguments.length >= 2) await queuedSet(newRef, value);
+    return newRef;
+  }
+
+  // Expose the safe write functions to the rest of RASM 360.
+  window.set = queuedSet;
+  window.update = queuedUpdate;
+  window.remove = queuedRemove;
+  window.push = queuedPush;
+  const set = queuedSet;
+  const update = queuedUpdate;
+  const remove = queuedRemove;
+  const push = queuedPush;
+
+  // ============================================================
+  // ⚡ RASM 360 INSTANT WRITE LAYER
+  // UI never waits for secondary/background refreshes.
+  // The actual Firebase write still runs and errors are surfaced
+  // through the returned Promise. Offline queue support is kept.
+  // ============================================================
+  window.rasmBackgroundSet = function(firebaseRef, value){
+    const promise = queuedSet(firebaseRef, value);
+    promise.catch(err => console.error("❌ Background SET failed:", err));
+    return promise;
+  };
+
+  window.rasmBackgroundUpdate = function(firebaseRef, value){
+    const promise = queuedUpdate(firebaseRef, value);
+    promise.catch(err => console.error("❌ Background UPDATE failed:", err));
+    return promise;
+  };
+
+  window.rasmBackgroundRemove = function(firebaseRef){
+    const promise = queuedRemove(firebaseRef);
+    promise.catch(err => console.error("❌ Background REMOVE failed:", err));
+    return promise;
+  };
+
+  window.rasmBackgroundPush = function(firebaseRef, value){
+    const newRef = firebasePush(firebaseRef);
+    const promise = queuedSet(newRef, value);
+    promise.catch(err => console.error("❌ Background PUSH failed:", err));
+    return { ref: newRef, promise };
+  };
+
+  window.rasmNextPaint = function(fn){
+    if (typeof fn !== "function") return;
+    requestAnimationFrame(() => requestAnimationFrame(fn));
+  };
+
+  window.rasmInstantSuccess = function(title, text){
+    try {
+      Swal.fire({ icon:"success", title, text, timer:900, showConfirmButton:false, allowOutsideClick:true });
+    } catch (_) {}
+  };
+
+  window.fastGet = async function(firebaseRef){
+    const cached = readCache(firebaseRef);
+    if (cached) {
+      firebaseGet(firebaseRef).then(fresh => writeCache(firebaseRef, fresh)).catch(() => {});
+      return cached;
+    }
+    const fresh = await firebaseGet(firebaseRef);
+    writeCache(firebaseRef, fresh);
+    return fresh;
+  };
+
+  window.fastOnValue = function(firebaseRef, callback, ...rest){
+    const cached = readCache(firebaseRef);
+    if (cached) {
+      setTimeout(() => {
+        try { callback(cached); } catch (error) { console.error("Cached listener error:", error); }
+      }, 0);
+    }
+    return firebaseOnValue(firebaseRef, snapshot => {
+      writeCache(firebaseRef, snapshot);
+      callback(snapshot);
+    }, ...rest);
+  };
+})();
 
 /* ================= SECONDARY APP =================
    Used for creating Teacher/Parent accounts
@@ -16359,7 +16688,7 @@ window.logAuditAction = async function(action, details = "", section = "") {
         if (cached?.name) {
           actor = { ...actor, ...cached };
         } else {
-          const userSnap = await get(ref(db, `users/${actor.uid}`));
+          const userSnap = await fastGet(ref(db, `users/${actor.uid}`));
           if (userSnap.exists()) {
             const profile = userSnap.val() || {};
             const resolvedName =
@@ -16435,7 +16764,7 @@ window.loadAuditTrail = function() {
 
     if (window.__auditUnsubscribe) window.__auditUnsubscribe();
 
-    window.__auditUnsubscribe = onValue(schoolRef("auditLogs"), snap => {
+    window.__auditUnsubscribe = fastOnValue(schoolRef("auditLogs"), snap => {
       const data = snap.val() || {};
       window.__auditTrail = Object.entries(data).map(([id, item]) => ({id, ...(item || {})}))
         .sort((a,b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
@@ -16464,7 +16793,7 @@ async function repairUnknownAuditActors(logs) {
 
     for (const log of candidates) {
       try {
-        const snap = await get(ref(db, `users/${log.uid}`));
+        const snap = await fastGet(ref(db, `users/${log.uid}`));
         if (!snap.exists()) continue;
         const profile = snap.val() || {};
         const resolvedName =
@@ -17303,6 +17632,22 @@ window.__subscriptionAccessCache =
     window.__subscriptionAccessCache || new Map();
 
 
+function readPersistentSubscriptionAccess(schoolId) {
+    try {
+        const raw = localStorage.getItem("rasm360_subscription_access_" + schoolId);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        return data && data.allowed === true ? data : null;
+    } catch (_) { return null; }
+}
+
+function savePersistentSubscriptionAccess(schoolId, record) {
+    try {
+        localStorage.setItem("rasm360_subscription_access_" + schoolId, JSON.stringify(record));
+    } catch (_) {}
+}
+
+
 window.checkSubscriptionAccess = async function () {
 
     /* ========================================================
@@ -17341,10 +17686,10 @@ window.checkSubscriptionAccess = async function () {
         5 * 60 * 1000;
 
 
-    const cached =
+    let cached =
         window.__subscriptionAccessCache.get(
             schoolId
-        );
+        ) || readPersistentSubscriptionAccess(schoolId);
 
 
     if (
@@ -17449,13 +17794,13 @@ window.checkSubscriptionAccess = async function () {
 
 
                 /*
-                 * Use Firebase's native get().
+                 * Use Firebase's native fastGet().
                  *
                  * Do not aggressively fail at 10 seconds.
                  */
 
                 const snapshot =
-                    await get(
+                    await fastGet(
                         schoolRef
                     );
 
@@ -17607,6 +17952,7 @@ window.checkSubscriptionAccess = async function () {
                             school
                         }
                     );
+                    savePersistentSubscriptionAccess(schoolId, { allowed: true, checkedAt: now, school });
 
 
                     console.log(
@@ -17644,6 +17990,7 @@ window.checkSubscriptionAccess = async function () {
                             school
                         }
                     );
+                    savePersistentSubscriptionAccess(schoolId, { allowed: true, checkedAt: now, school });
 
 
                     console.log(
@@ -17676,6 +18023,7 @@ window.checkSubscriptionAccess = async function () {
                             school
                         }
                     );
+                    savePersistentSubscriptionAccess(schoolId, { allowed: true, checkedAt: now, school });
 
 
                     console.warn(
@@ -17705,6 +18053,7 @@ window.checkSubscriptionAccess = async function () {
                             school
                         }
                     );
+                    savePersistentSubscriptionAccess(schoolId, { allowed: true, checkedAt: now, school });
 
 
                     console.warn(
@@ -17795,7 +18144,7 @@ window.checkSubscriptionAccess = async function () {
                     const recent =
                         window.__subscriptionAccessCache.get(
                             schoolId
-                        );
+                        ) || readPersistentSubscriptionAccess(schoolId);
 
 
                     if (
@@ -20578,7 +20927,7 @@ function startSubscriptionWatcher() {
       // =====================================
       if (!cachedSchool || now - lastFetch > 60000) {
 
-        const snap = await get(ref(db, `schools/${schoolId}`));
+        const snap = await fastGet(ref(db, `schools/${schoolId}`));
 
         if (!snap.exists()) {
           clearInterval(trialTimer);
@@ -20882,7 +21231,7 @@ async function fetchSubscriptionData(force = false) {
 
   try {
 
-    const snapshot = await get(
+    const snapshot = await fastGet(
       ref(db, `schools/${schoolId}`)
     );
 
@@ -21595,6 +21944,66 @@ async function retryRequest(
 
 
 /* ============================================================
+   📡 OFFLINE SESSION RESUME
+   ------------------------------------------------------------
+   A previously authenticated device can reopen RASM 360 without
+   contacting Firebase. This is intentionally limited to a session
+   that Firebase Auth has already restored locally.
+   ============================================================ */
+window.resumeOfflineSession = async function(){
+    if (navigator.onLine !== false) return false;
+    const firebaseUser = auth?.currentUser;
+    if (!firebaseUser?.uid) return false;
+
+    let cachedProfile = null;
+    try { cachedProfile = JSON.parse(localStorage.getItem("rasm360_cached_user_profile") || "null"); } catch (_) {}
+    if (!cachedProfile?.userData || String(cachedProfile.uid) !== String(firebaseUser.uid)) return false;
+
+    const userData = cachedProfile.userData || {};
+    const schoolId = String(userData.schoolId || localStorage.getItem("schoolId") || "").trim();
+    if (!schoolId) return false;
+
+    let cachedSchool = null;
+    try { cachedSchool = JSON.parse(localStorage.getItem("rasm360_cached_school_" + schoolId) || "null"); } catch (_) {}
+    const schoolData = cachedSchool?.schoolData || {};
+
+    window.schoolId = schoolId;
+    window.schoolName = schoolData.name || schoolData.schoolName || userData.schoolName || localStorage.getItem("schoolName") || "My School";
+    window.userUid = firebaseUser.uid;
+    window.currentUser = {
+        ...userData,
+        uid: firebaseUser.uid,
+        email: userData.email || firebaseUser.email || ""
+    };
+    window.currentUserRole = userData.role || "";
+
+    try {
+        localStorage.setItem("schoolId", schoolId);
+        localStorage.setItem("schoolName", window.schoolName);
+        localStorage.setItem("currentUser", JSON.stringify(window.currentUser));
+        sessionStorage.setItem("schoolId", schoolId);
+        sessionStorage.setItem("userUid", firebaseUser.uid);
+    } catch (_) {}
+
+    const authSection = document.getElementById("authSection");
+    const app = document.getElementById("app");
+    if (authSection) authSection.style.display = "none";
+    if (app) {
+        app.style.display = "block";
+        app.style.opacity = "1";
+    }
+    const schoolDisplay = document.getElementById("schoolNameDisplay");
+    if (schoolDisplay) schoolDisplay.textContent = window.schoolName;
+
+    console.info("📡 RASM 360 resumed from local offline session.");
+    setTimeout(() => {
+        try { window.flushOfflineWrites?.(); } catch (_) {}
+        try { if (typeof loadAll === "function") loadAll(); } catch (err) { console.warn("Offline loadAll warning:", err); }
+    }, 0);
+    return true;
+};
+
+/* ============================================================
    🔐 MAIN LOGIN
    ============================================================ */
 
@@ -21706,6 +22115,16 @@ window.login = async function () {
     if (
         !navigator.onLine
     ) {
+
+        if (await window.resumeOfflineSession()) {
+            return Swal.fire({
+                icon: "info",
+                title: "📡 Offline Mode",
+                text: "RASM 360 opened using your saved session and cached data. Changes will synchronize automatically when internet returns.",
+                confirmButtonText: "Continue",
+                confirmButtonColor: "#2563eb"
+            });
+        }
 
         const cachedUser =
             auth?.currentUser ||
@@ -21861,7 +22280,7 @@ window.login = async function () {
 
                 () => withTimeout(
 
-                    get(
+                    fastGet(
                         ref(
                             db,
                             `users/${uid}`
@@ -21895,6 +22314,14 @@ window.login = async function () {
         const userData =
             userSnapshot.val() ||
             {};
+
+        try {
+            localStorage.setItem("rasm360_cached_user_profile", JSON.stringify({
+                uid,
+                userData,
+                savedAt: Date.now()
+            }));
+        } catch (_) {}
 
 
         /* ====================================================
@@ -22050,7 +22477,7 @@ window.login = async function () {
 
                     () => withTimeout(
 
-                        get(
+                        fastGet(
                             ref(
                                 db,
                                 `schools/${schoolId}`
@@ -22084,6 +22511,14 @@ window.login = async function () {
             schoolData =
                 schoolSnapshot.val() ||
                 {};
+
+            try {
+                localStorage.setItem("rasm360_cached_school_" + schoolId, JSON.stringify({
+                    schoolId,
+                    schoolData,
+                    savedAt: Date.now()
+                }));
+            } catch (_) {}
 
 
         }
@@ -23304,7 +23739,7 @@ function getAdmissionCounterRef(year = getAdmissionYear()) {
 /* =========================================================
    🚀 SINGLE ADMISSION NUMBER
    ---------------------------------------------------------
-   Uses Firebase TRANSACTION instead of get() + set().
+   Uses Firebase TRANSACTION instead of fastGet() + set().
    This prevents duplicate numbers when multiple users
    register learners simultaneously.
    ========================================================= */
@@ -23764,10 +24199,8 @@ window.addStudent = async function () {
                     studentData;
 
 
-                await update(
-                    studentsRef,
-                    updates
-                );
+                const studentWrite = rasmBackgroundUpdate(studentsRef, updates);
+                studentWrite.catch(err => console.error("Learner save failed:", err));
 
 
                 Swal.close();
@@ -24031,10 +24464,8 @@ if (!adm) {
         });
 
 
-        await update(
-            studentsRef,
-            updates
-        );
+        const studentWrite = rasmBackgroundUpdate(studentsRef, updates);
+        studentWrite.catch(err => console.error("Bulk learner save failed:", err));
 
 
         /* =====================================================
@@ -24729,7 +25160,7 @@ window.addTeacher = async function () {
              */
 
             const currentSnap =
-                await get(
+                await fastGet(
                     teacherRef
                 );
 
@@ -24750,14 +25181,12 @@ window.addTeacher = async function () {
                UPDATE ONLY THE TEACHER RECORD
             ================================================= */
 
-            await update(
-                teacherRef,
-                teacherData
-            );
+            const teacherWrite = rasmBackgroundUpdate(teacherRef, teacherData);
+            teacherWrite.catch(err => console.error("Teacher update failed:", err));
 
 
 
-            await Swal.fire({
+            Swal.fire({
 
                 icon:
                     "success",
@@ -24817,15 +25246,11 @@ window.addTeacher = async function () {
                12. CREATE TEACHER
             ================================================= */
 
-            await set(
-
-                schoolRef(
-                    `teachers/${teacherKey}`
-                ),
-
+            const teacherWrite = rasmBackgroundSet(
+                schoolRef(`teachers/${teacherKey}`),
                 teacherData
-
             );
+            teacherWrite.catch(err => console.error("Teacher create failed:", err));
 
 
 
@@ -24833,7 +25258,7 @@ window.addTeacher = async function () {
                13. SUCCESS
             ================================================= */
 
-            await Swal.fire({
+            Swal.fire({
 
                 icon:
                     "success",
@@ -24880,36 +25305,9 @@ window.addTeacher = async function () {
            Do not download the whole teacher database here.
         ==================================================== */
 
-        requestAnimationFrame(
-            () => {
+        // No forced module reload: the existing live teacher listener
+        // will receive the committed record and update the table.
 
-                try {
-
-                    /*
-                     * If your teacher table has a dedicated
-                     * lightweight refresh function, use it.
-                     */
-
-                    if (
-                        typeof loadTeachers ===
-                        "function"
-                    ) {
-
-                        loadTeachers();
-
-                    }
-
-                } catch (uiError) {
-
-                    console.warn(
-                        "Teacher UI refresh warning:",
-                        uiError
-                    );
-
-                }
-
-            }
-        );
 
 
 
@@ -25024,7 +25422,7 @@ function clearTeacherForm() {
 
 window.viewTeacherProfile = async function(id){
 
-const snap = await get(
+const snap = await fastGet(
     schoolRef("teachers/" + id)
 );
 
@@ -25253,13 +25651,13 @@ window.loadTeachers = async function () {
            GET TEACHERS ONCE
            
            IMPORTANT:
-           get() instead of onValue()
+           fastGet() instead of fastOnValue()
            
            This prevents a permanent Firebase listener.
         ==================================================== */
 
         const teacherSnap =
-            await get(
+            await fastGet(
                 schoolRef("teachers")
             );
 
@@ -25282,7 +25680,7 @@ window.loadTeachers = async function () {
         try {
 
             const attendanceSnap =
-                await get(
+                await fastGet(
                     schoolRef(
                         `teacherAttendance/${today}`
                     )
@@ -26725,7 +27123,7 @@ window.deleteTeacher = async function (id) {
         try {
 
             const snap =
-                await get(
+                await fastGet(
                     schoolRef(
                         `teachers/${id}`
                     )
@@ -26962,7 +27360,7 @@ window.deleteTeacher = async function (id) {
         };
 
 
-        await update(
+        rasmBackgroundUpdate(
             schoolRef(""),
             updates
         );
@@ -27254,7 +27652,7 @@ window.deleteAllTeachers = async function () {
 
 
         const snap =
-            await get(
+            await fastGet(
                 teachersRef
             );
 
@@ -27487,7 +27885,7 @@ window.deleteAllTeachers = async function () {
            ONE FIREBASE WRITE
         ==================================================== */
 
-        await update(
+        rasmBackgroundUpdate(
             schoolRef(""),
             updates
         );
@@ -27613,7 +28011,7 @@ window.restoreAllTeachers = async function () {
 
 
         const snap =
-            await get(
+            await fastGet(
                 trashRef
             );
 
@@ -27764,7 +28162,7 @@ window.restoreAllTeachers = async function () {
            ONE FIREBASE WRITE
         ==================================================== */
 
-        await update(
+        rasmBackgroundUpdate(
             schoolRef(""),
             updates
         );
@@ -27874,7 +28272,7 @@ window.restoreTeacher = async function (
 
 
         const snap =
-            await get(
+            await fastGet(
                 trashTeacherRef
             );
 
@@ -27929,7 +28327,7 @@ window.restoreTeacher = async function (
         };
 
 
-        await update(
+        rasmBackgroundUpdate(
             schoolRef(""),
             updates
         );
@@ -28012,13 +28410,14 @@ window.markTeacherAttendance = async function (teacherId, status) {
 
   try {
 
-    await set(
+    const teacherAttendanceWrite = rasmBackgroundSet(
       schoolRef(`teacherAttendance/${today}/${teacherId}`),
-      {
-        status,
-        timestamp: Date.now()
-      }
+      { status, timestamp: Date.now() }
     );
+    teacherAttendanceWrite.catch(error => {
+      console.error("Teacher attendance save failed:", error);
+      Swal.fire("Save Failed", error.message || "Attendance could not be saved.", "error");
+    });
 
     Swal.fire("Success", "Attendance marked", "success");
 
@@ -28050,8 +28449,8 @@ window.viewTeacherAttendance = async function (date) {
 
         // Load everything only once
         const [attendanceSnap, teachersSnap] = await Promise.all([
-            get(schoolRef(`teacherAttendance/${targetDate}`)),
-            get(schoolRef("teachers"))
+            fastGet(schoolRef(`teacherAttendance/${targetDate}`)),
+            fastGet(schoolRef("teachers"))
         ]);
 
         const attendance =
@@ -28278,8 +28677,8 @@ window.viewTeacherMonthlyAttendance = async function () {
     try {
 
         const [attendanceSnap, teacherSnap] = await Promise.all([
-            get(schoolRef("teacherAttendance")),
-            get(schoolRef("teachers"))
+            fastGet(schoolRef("teacherAttendance")),
+            fastGet(schoolRef("teachers"))
         ]);
 
         const attendance =
@@ -28508,7 +28907,7 @@ function loadStudents() {
 
   if (!tbody) return;
 
-  onValue(schoolRef("students"), snap => {
+  fastOnValue(schoolRef("students"), snap => {
 
     allStudents = [];
 
@@ -28863,7 +29262,7 @@ window.addFee = async function () {
             try {
 
                 const learnerSnap =
-                    await get(
+                    await fastGet(
                         schoolRef(
                             `students/${studentId}`
                         )
@@ -28969,7 +29368,7 @@ window.addFee = async function () {
            ==================================================== */
 
         const feeSettingSnap =
-            await get(
+            await fastGet(
                 schoolRef(
                     `settings/schoolFee/${year}/${gradeRange}`
                 )
@@ -29629,7 +30028,7 @@ window.loadFinanceSummary = async function () {
 
 
         const snapshot =
-            await get(
+            await fastGet(
                 feesRef
             );
 
@@ -30635,7 +31034,7 @@ window.loadFees = async function () {
            ==================================================== */
 
         const snapshot =
-            await get(
+            await fastGet(
                 schoolRef(
                     `fees/${selectedYear}`
                 )
@@ -32417,7 +32816,7 @@ window.sendSingleSMS = async function (
 
 
         const snap =
-            await get(
+            await fastGet(
                 feeRef
             );
 
@@ -32960,7 +33359,7 @@ window.showDefaulters = async function () {
         ===================================================== */
 
         const snap =
-            await get(
+            await fastGet(
                 schoolRef(
                     `fees/${selectedYear}`
                 )
@@ -34011,7 +34410,7 @@ window.sendDefaulterSMS = async function () {
            ==================================================== */
 
         const snap =
-            await get(
+            await fastGet(
                 schoolRef(
                     `fees/${selectedYear}`
                 )
@@ -34754,7 +35153,7 @@ window.printDefaulters = async function () {
             document.getElementById("defGrade")?.value || "";
 
         const snap =
-            await get(
+            await fastGet(
                 schoolRef(`fees/${year}`)
             );
 
@@ -35097,6 +35496,10 @@ Printed on ${generated}
 
 </div>
 
+<script>
+(function(){
+  if (location.protocol === 'http:' || location.protocol === 'https:') {
+<\/script>
 </body>
 
 </html>
@@ -35999,7 +36402,7 @@ window.deleteLearnerFee = async function (
 
 
         const snap =
-            await get(
+            await fastGet(
                 feeRef
             );
 
@@ -36212,7 +36615,7 @@ window.restoreLearnerFee = async function (year, feeId) {
             `deletedFees/${year}/${feeId}`
         );
 
-        const snap = await get(deletedRef);
+        const snap = await fastGet(deletedRef);
 
         if (!snap.exists()) {
 
@@ -36486,7 +36889,7 @@ window.restoreAllLearnerFees = async function () {
            2. FETCH RECYCLE BIN
            ===================================================== */
 
-        const snap = await get(
+        const snap = await fastGet(
 
             schoolRef(
                 `deletedFees/${year}`
@@ -36992,7 +37395,7 @@ window.deleteAllLearnerFees = async function () {
            ==================================================== */
         openSweetLoader("Preparing fee records...");
 
-        const snap = await get(
+        const snap = await fastGet(
             schoolRef(`fees/${year}`)
         );
 
@@ -37270,7 +37673,7 @@ window.openEditFeeModal = async (year, feeId) => {
   try {
 
     // ================= FETCH RECORD =================
-    const snap = await get(
+    const snap = await fastGet(
       schoolRef(`fees/${year}/${feeId}`)
     );
 
@@ -37463,7 +37866,7 @@ window.openEditFeeModal = async (year, feeId) => {
 
    const gradeRange = getGradeRange(fee.grade);
 
-const feeSnap = await get(
+const feeSnap = await fastGet(
     schoolRef(
         `settings/schoolFee/${year}/${gradeRange}`
     )
@@ -37566,7 +37969,7 @@ const year=document.getElementById("schoolFeeYear").value;
 
 if(!year)return;
 
-const snap=await get(
+const snap=await fastGet(
 
 schoolRef(`settings/schoolFee/${year}`)
 
@@ -37681,7 +38084,7 @@ window.openRefundModal = async (year, feeId) => {
   try {
 
     // ================= FETCH RECORD =================
-    const snap = await get(
+    const snap = await fastGet(
       schoolRef(`fees/${year}/${feeId}`)
     );
 
@@ -37918,7 +38321,7 @@ window.openRefundModal = async (year, feeId) => {
 
  const gradeRange = getGradeRange(fee.grade);
 
-const feeSnap = await get(
+const feeSnap = await fastGet(
     schoolRef(
         `settings/schoolFee/${year}/${gradeRange}`
     )
@@ -38021,7 +38424,7 @@ window.saveEditedFee = async () => {
     let expectedTotal = 0;
 
     // New structure
-    const newSnap = await get(
+    const newSnap = await fastGet(
       schoolRef(
         `settings/schoolFee/${currentEditData.year}/${gradeRange}`
       )
@@ -38168,7 +38571,7 @@ window.loadFeeTypeOptions = async function(){
 const year=
 document.getElementById("reportFeeYear").value;
 
-const snap=await get(
+const snap=await fastGet(
 schoolRef(`fees/${year}`)
 );
 
@@ -38272,7 +38675,7 @@ window.generateFeeTypeReport = async function () {
         }
 
         const snap =
-            await get(
+            await fastGet(
                 schoolRef(`fees/${year}`)
             );
 
@@ -39091,7 +39494,7 @@ window.generateBulkReceiptsByGrade = async function () {
            3. FETCH FEES
            ===================================================== */
 
-        const feeSnap = await get(
+        const feeSnap = await fastGet(
             schoolRef(`fees/${selectedYear}`)
         );
 
@@ -40151,7 +40554,7 @@ window.loadFeeYears = async function () {
         // ============================================
 
         const snap =
-            await get(
+            await fastGet(
                 schoolRef("fees")
             );
 
@@ -40363,7 +40766,7 @@ function getGradeRange(grade) {
 
 window.sendNotifications = async () => {
 
-  const feesSnap = await get(schoolRef("fees"));
+  const feesSnap = await fastGet(schoolRef("fees"));
   const fees = feesSnap.val() || {};
 
   const messages = [];
@@ -40508,7 +40911,7 @@ window.loadFeeGrades = async function () {
 
   try {
 
-    const snap = await get(schoolRef("students"));
+    const snap = await fastGet(schoolRef("students"));
 
     if (!snap.exists()) return;
 
@@ -40558,7 +40961,7 @@ window.loadFeeLearners = async function () {
 
   try {
 
-    const snap = await get(schoolRef("students"));
+    const snap = await fastGet(schoolRef("students"));
 
     if (!snap.exists()) return;
 
@@ -40616,7 +41019,7 @@ async function loadLearnersFromStudents() {
 
     if (!schoolId) return;
 
-    const snapshot = await get(ref(db, `schools/${schoolId}/students`));
+    const snapshot = await fastGet(ref(db, `schools/${schoolId}/students`));
 const recordedMap = {};
 
 const selectedSubject =
@@ -41464,12 +41867,20 @@ document.getElementById("saveMarksButton")
 
         };
 
-        await saveMarksToFirebase(
+        // ⚡ INSTANT SUBMISSION: start Firebase write but do not block
+        // the teacher from moving to the next learner.
+        const marksWrite = saveMarksToFirebase(
             schoolId,
             learner.key,
             examPeriod,
             data
         );
+        marksWrite.catch(error => {
+            console.error("❌ Marks background write failed:", error);
+            // Keep the entry visible as pending instead of interrupting
+            // the teacher's rapid entry workflow.
+            window.__marksPendingWrites = (window.__marksPendingWrites || 0) + 1;
+        });
 
         // ===========================================
         // Mark learner as recorded
@@ -41484,21 +41895,23 @@ document.getElementById("saveMarksButton")
         // last learner is completed.
         autoSelectNextLearner();
 
+        // 🎯 Keep the keyboard cursor in the score field for rapid entry.
+        // A double RAF lets the learner selector/render finish first.
+        rasmNextPaint(() => {
+          const scoreField = document.getElementById("subjectMark");
+          if (scoreField) {
+            scoreField.focus({ preventScroll: true });
+            try { scoreField.select(); } catch (_) {}
+          }
+        });
+
         // Clear mark input
-        setTimeout(() => {
-
-            const mark =
-                document.getElementById("subjectMark");
-
-            if (mark) {
-
-                mark.value = "";
-                mark.style.border = "";
-                mark.focus();
-
-            }
-
-        }, 100);
+        const mark = document.getElementById("subjectMark");
+        if (mark) {
+            mark.value = "";
+            mark.style.border = "";
+            mark.focus();
+        }
 
     } finally {
 
@@ -41764,7 +42177,7 @@ async function loadMarksUnifiedClean() {
 
     try {
 
-        snapshot = await get(
+        snapshot = await fastGet(
             ref(
                 db,
                 `schools/${schoolId}/students`
@@ -51318,7 +51731,7 @@ window.updateStudentField = async function(studentId, field, value) {
 
     try {
 
-        await update(
+        rasmBackgroundUpdate(
             schoolRef(`students/${studentId}`),
             {
                 [field]: value.trim(),
@@ -52372,7 +52785,7 @@ const getSafeValue = (value)=>{
 if (!selectedGrade) {
 
     // Load registered learners
-    const studentsSnap = await get(
+    const studentsSnap = await fastGet(
         schoolRef("students")
     );
 
@@ -52587,7 +53000,7 @@ const learners = [];
 try {
 
   const snapshot =
-    await get(schoolRef("students"));
+    await fastGet(schoolRef("students"));
 
   snapshot.forEach(childSnapshot => {
 
@@ -59504,7 +59917,7 @@ window.promoteSelected = async () => {
         // ==========================================
         // LOAD STUDENTS
         // ==========================================
-        const snapshot = await get(schoolRef("students"));
+        const snapshot = await fastGet(schoolRef("students"));
         const students = snapshot.val() || {};
 
         const updates = {};
@@ -59719,7 +60132,7 @@ window.undoPromotion = async () => {
 
   try {
 
-    const snapshot = await get(schoolRef("students"));
+    const snapshot = await fastGet(schoolRef("students"));
     const students = snapshot.val();
 
     const updates = {};
@@ -59972,7 +60385,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 /* COUNT HELPERS */
 function bindCount(path, elementId) {
-  onValue(ref(db, `schools/${schoolId}/${path}`), snap => {
+  fastOnValue(ref(db, `schools/${schoolId}/${path}`), snap => {
     document.getElementById(elementId).innerText = snap.size || 0;
   });
 }
@@ -59989,7 +60402,7 @@ function loadDashboard() {
 
 function updateTeachersCount() {
 
-  onValue(schoolRef("teachers"), snap => {
+  fastOnValue(schoolRef("teachers"), snap => {
 
     let total = 0;
 
@@ -60459,7 +60872,7 @@ window.generateClassList = async function () {
 
         await new Promise(r => setTimeout(r, 300));
 
-        const snapshot = await get(schoolRef("students"));
+        const snapshot = await fastGet(schoolRef("students"));
 
         Swal.update({ html: "Processing student records..." });
         await new Promise(r => setTimeout(r, 300));
@@ -62937,7 +63350,7 @@ window.loadAttendance = async function () {
     try {
 
         const snapshot =
-            await get(schoolRef("students"));
+            await fastGet(schoolRef("students"));
 
         attendanceCache = [];
         attendanceMap = {};
@@ -63005,7 +63418,7 @@ window.loadAttendanceGrades = async function () {
     try {
 
         const snap =
-            await get(schoolRef("students"));
+            await fastGet(schoolRef("students"));
 
         if (!snap.exists()) return;
 
@@ -63639,11 +64052,12 @@ window.saveAttendance = async function () {
             percent: attendanceMap[s.id]?.percent || 100
         }));
 
-        await push(schoolRef("attendance"), {
-            grade,
-            date,
-            records,
-            createdAt: Date.now()
+        const attendanceWrite = rasmBackgroundPush(schoolRef("attendance"), {
+            grade, date, records, createdAt: Date.now()
+        });
+        attendanceWrite.promise.catch(err => {
+            console.error("Attendance save failed:", err);
+            Swal.fire("Save Failed", err.message || "Attendance could not be saved.", "error");
         });
 
         // ================= SUCCESS =================
@@ -63776,13 +64190,13 @@ window.viewAttendanceReport = async function () {
         // ====================================================
 
         const attendanceSnap =
-            await get(
+            await fastGet(
                 schoolRef("attendance")
             );
 
 
         const studentSnap =
-            await get(
+            await fastGet(
                 schoolRef("students")
             );
 
@@ -65211,7 +65625,7 @@ window.updateAttendanceSummary = async function () {
 
     try {
 
-        const snapshot = await get(child(schoolRef("attendance")));
+        const snapshot = await fastGet(child(schoolRef("attendance")));
 
         if (!snapshot.exists()) {
             summary.innerHTML = "No attendance data";
@@ -65234,7 +65648,7 @@ window.updateAttendanceSummary = async function () {
 // ================= INTELLIGENCE ENGINE =================
 window.calculateAttendanceIntelligence = async function (grade) {
 
-    const snapshot = await get(child(schoolRef("attendance")));
+    const snapshot = await fastGet(child(schoolRef("attendance")));
 
     if (!snapshot.exists()) return null;
 
@@ -65342,7 +65756,7 @@ window.showAttendanceRanking = async function () {
 // ================= MONTHLY ANALYTICS =================
 window.getMonthlyAttendance = async function () {
 
-    const snapshot = await get(child(schoolRef("attendance")));
+    const snapshot = await fastGet(child(schoolRef("attendance")));
 
     const monthData = {};
 
@@ -66024,13 +66438,13 @@ window.addSupportStaff = async function () {
     /* ================= UPDATE ================= */
     if (editingSupportStaffId) {
 
-      await update(
-        schoolRef(`supportStaff/${editingSupportStaffId}`),
-        {
-          ...payload,
-          updatedAt: Date.now()
-        }
+      const staffId = editingSupportStaffId;
+      const updatedPayload = { ...payload, updatedAt: Date.now() };
+      const staffWrite = rasmBackgroundUpdate(
+        schoolRef(`supportStaff/${staffId}`),
+        updatedPayload
       );
+      staffWrite.catch(error => console.error("Support staff update failed:", error));
 
       Swal.fire(
         "Updated",
@@ -66043,10 +66457,12 @@ window.addSupportStaff = async function () {
     } else {
 
       /* ================= CREATE ================= */
-      const newRef =
-        push(schoolRef("supportStaff"));
-
-      await set(newRef, payload);
+      const staffWrite = rasmBackgroundPush(
+        schoolRef("supportStaff"),
+        payload
+      );
+      const newRef = staffWrite.ref;
+      staffWrite.promise.catch(error => console.error("Support staff create failed:", error));
 
       Swal.fire(
         "Success",
@@ -66056,7 +66472,9 @@ window.addSupportStaff = async function () {
     }
 
     clearSupportStaffForm();
-    loadSupportStaff();
+    // The existing live listener will receive the committed record.
+    // No second read is triggered here.
+
 
   } catch (error) {
 
@@ -66102,7 +66520,7 @@ window.loadSupportStaff = function () {
   // ===============================
   // START LIVE LISTENER
   // ===============================
-  window.__supportStaffListener = onValue(
+  window.__supportStaffListener = fastOnValue(
 
     schoolRef("supportStaff"),
 
@@ -66457,7 +66875,7 @@ async function updateSupportSummary(list = []) {
   try {
 
     const payrollSnap =
-      await get(
+      await fastGet(
         schoolRef(`supportPayroll/${year}/${month}`)
       );
 
@@ -66597,25 +67015,39 @@ document.addEventListener("click", function(e) {
 ========================================================= */
 window.paySupportSalary = async function (staffId) {
 
+  // ⚡ Show the dialog immediately; Firebase reads happen after the UI responds.
+  Swal.fire({
+    title: "Loading Salary Payment…",
+    text: "Preparing salary details",
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false,
+    didOpen: () => Swal.showLoading()
+  });
+
   try {
 
     // ===============================
     // 📌 GET STAFF
     // ===============================
-    const staffSnap = await get(
-      schoolRef(`supportStaff/${staffId}`)
-    );
+    // ⚡ Prefer the live Support Staff cache so the payment form opens immediately.
+    const cachedStaff = Array.isArray(window.__supportStaffData)
+      ? window.__supportStaffData.find(s => s.id === staffId)
+      : null;
 
-    if (!staffSnap.exists()) {
+    let staff = cachedStaff ? { ...cachedStaff } : null;
 
-      return Swal.fire(
-        "Error",
-        "Staff not found",
-        "error"
-      );
+    if (!staff) {
+      const staffSnap = await Promise.race([
+        fastGet(schoolRef(`supportStaff/${staffId}`)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Staff details took too long to load. Please check your connection and try again.")), 10000))
+      ]);
+
+      if (!staffSnap.exists()) {
+        return Swal.fire("Error", "Staff not found", "error");
+      }
+      staff = staffSnap.val();
     }
-
-    const staff = staffSnap.val();
 
     // ===============================
     // 📅 CURRENT MONTH
@@ -66628,7 +67060,7 @@ window.paySupportSalary = async function (staffId) {
     // ===============================
     // 📌 CHECK IF ALREADY PAID
     // ===============================
-    const paySnap = await get(
+    const paySnap = await fastGet(
       schoolRef(`supportSalaryPayments/${staffId}`)
     );
 
@@ -66660,7 +67092,7 @@ window.paySupportSalary = async function (staffId) {
     // ===============================
     // 📌 GET ADVANCES
     // ===============================
-    const advSnap = await get(
+    const advSnap = await fastGet(
       schoolRef(`supportAdvances/${staffId}`)
     );
 
@@ -66685,6 +67117,7 @@ window.paySupportSalary = async function (staffId) {
     // 🧾 ASK EMPLOYER FOR DEDUCTIONS
     // =====================================================
 
+    Swal.close();
     const deductionPrompt = await Swal.fire({
 
       title: "Salary Deductions",
@@ -67319,259 +67752,58 @@ window.paySupportSalary = async function (staffId) {
 
 
     // =====================================================
-    // 💾 SAVE PAYMENT
+    // ⚡ ONE ATOMIC DATABASE COMMIT
+    // Payment + staff status + monthly payroll are written together.
+    // This removes three sequential network waits.
     // =====================================================
-
-    const paymentRef =
-      push(
-        schoolRef(
-          `supportSalaryPayments/${staffId}`
-        )
-      );
-
-
-    // ===============================
-    // 📅 PAYMENT DETAILS
-    // ===============================
-
-    const paymentYear =
-      now.getFullYear().toString();
-
-    const paymentMonth =
-      now.toLocaleString(
-        "default",
-        {
-          month: "long"
-        }
-      );
-
-    const paymentDate =
-      now.toLocaleDateString();
-
-    const paymentTime =
-      now.toLocaleTimeString();
-
-    const paymentMethod =
-      "Cash";
-
-    const transactionNo =
-      "SAL-" + Date.now();
-
-    const paymentId =
-      paymentRef.key;
-
-
-    // =====================================================
-    // 💾 SAVE PAYMENT RECORD
-    // =====================================================
-
-    await set(paymentRef, {
-
-      paymentId,
-
-      staffId,
-
-      staffName:
-        staff.name || "",
-
-      staffNumber:
-        staff.staffNumber || "",
-
-      role:
-        staff.role || "",
-
-      department:
-        staff.department || "",
-
-      month:
-        paymentMonth,
-
-      monthKey,
-
-      year:
-        paymentYear,
-
-      paymentDate,
-
-      paymentTime,
-
-      paymentMethod,
-
-      transactionNo,
-
-      basicSalary,
-
-      grossSalary:
-        basicSalary,
-
-      allowances: 0,
-
-      overtime: 0,
-
-      bonus: 0,
-
-      // ===============================
-      // DEDUCTIONS
-      // ===============================
-
-      nhif,
-
-      nssf,
-
-      paye,
-
-      salaryAdvance,
-
-      otherDeductions,
-
-      otherDeductionDescription,
-
-      totalDeductions:
-        deductions,
-
-      netSalary,
-
-      paidBy:
-        currentUser?.displayName ||
-        "Administrator",
-
-      remarks:
-        "Salary Paid",
-
-      status:
-        "Paid",
-
-      paidAt:
-        Date.now()
-
-    });
-
-
-    // =====================================================
-    // 🔄 UPDATE STAFF STATUS
-    // =====================================================
-
-    await update(
-      schoolRef(
-        `supportStaff/${staffId}`
-      ),
-      {
-
-        lastPaidMonth:
-          paymentMonth,
-
-        lastPaidYear:
-          paymentYear,
-
-        lastPaymentDate:
-          paymentDate,
-
-        lastNetSalary:
-          netSalary,
-
-        paymentStatus:
-          "Paid"
-
-      }
+    const payrollRef = push(
+      schoolRef(`supportPayroll/${paymentYear}/${paymentMonth}`)
     );
 
+    const payrollId = payrollRef.key;
 
-    // =====================================================
-    // 📊 SAVE TO MONTHLY PAYROLL REGISTER
-    // =====================================================
+    const paymentRecord = {
+      paymentId, staffId,
+      staffName: staff.name || "",
+      staffNumber: staff.staffNumber || "",
+      role: staff.role || "",
+      department: staff.department || "",
+      month: paymentMonth, monthKey, year: paymentYear,
+      paymentDate, paymentTime, paymentMethod, transactionNo,
+      basicSalary, grossSalary: basicSalary, allowances: 0, overtime: 0, bonus: 0,
+      nhif, nssf, paye, salaryAdvance, otherDeductions,
+      otherDeductionDescription, totalDeductions: deductions, netSalary,
+      paidBy: currentUser?.displayName || "Administrator",
+      remarks: "Salary Paid", status: "Paid", paidAt: Date.now()
+    };
 
-    const payrollRef =
-      push(
-        schoolRef(
-          `supportPayroll/${paymentYear}/${paymentMonth}`
-        )
-      );
+    const payrollRecord = {
+      payrollId, paymentId, staffId,
+      staffName: staff.name || "",
+      staffNumber: staff.staffNumber || "",
+      department: staff.department || "", role: staff.role || "",
+      month: paymentMonth, monthKey, year: paymentYear,
+      paymentDate, paymentTime, paymentMethod, transactionNo,
+      basicSalary, grossSalary: basicSalary, allowances: 0, overtime: 0, bonus: 0,
+      nhif, nssf, paye, salaryAdvance, otherDeductions,
+      otherDeductionDescription, totalDeductions: deductions, netSalary,
+      paidBy: currentUser?.displayName || "Administrator",
+      remarks: "Salary Paid", status: "Paid", createdAt: Date.now()
+    };
 
+    const paymentPath = `schools/${window.schoolId}/supportSalaryPayments/${staffId}/${paymentId}`;
+    const staffPath = `schools/${window.schoolId}/supportStaff/${staffId}`;
+    const payrollPath = `schools/${window.schoolId}/supportPayroll/${paymentYear}/${paymentMonth}/${payrollId}`;
 
-    await set(payrollRef, {
+    const atomicUpdates = {};
+    atomicUpdates[paymentPath] = paymentRecord;
+    atomicUpdates[staffPath] = {
+      lastPaidMonth: paymentMonth, lastPaidYear: paymentYear,
+      lastPaymentDate: paymentDate, lastNetSalary: netSalary, paymentStatus: "Paid"
+    };
+    atomicUpdates[payrollPath] = payrollRecord;
 
-      payrollId:
-        payrollRef.key,
-
-      paymentId,
-
-      staffId,
-
-      staffName:
-        staff.name || "",
-
-      staffNumber:
-        staff.staffNumber || "",
-
-      department:
-        staff.department || "",
-
-      role:
-        staff.role || "",
-
-      month:
-        paymentMonth,
-
-      monthKey,
-
-      year:
-        paymentYear,
-
-      paymentDate,
-
-      paymentTime,
-
-      paymentMethod,
-
-      transactionNo,
-
-      basicSalary,
-
-      grossSalary:
-        basicSalary,
-
-      allowances: 0,
-
-      overtime: 0,
-
-      bonus: 0,
-
-      // ===============================
-      // DEDUCTIONS
-      // ===============================
-
-      nhif,
-
-      nssf,
-
-      paye,
-
-      salaryAdvance,
-
-      otherDeductions,
-
-      otherDeductionDescription,
-
-      totalDeductions:
-        deductions,
-
-      netSalary,
-
-      paidBy:
-        currentUser?.displayName ||
-        "Administrator",
-
-      remarks:
-        "Salary Paid",
-
-      status:
-        "Paid",
-
-      createdAt:
-        Date.now()
-
-    });
-
+    await update(ref(db), atomicUpdates);
 
     // =====================================================
     // ✅ SUCCESS
@@ -67592,7 +67824,9 @@ window.paySupportSalary = async function (staffId) {
 
       if (typeof loadPayrollDashboard === "function") {
 
-        await loadPayrollDashboard();
+        Promise.resolve(loadPayrollDashboard()).catch(refreshError =>
+          console.warn("⚠️ Payroll dashboard background refresh failed:", refreshError)
+        );
 
       } else {
 
@@ -67668,7 +67902,7 @@ window.loadPayrollDashboard = async function () {
     // 📥 LOAD CURRENT MONTH PAYROLL
     // =====================================================
 
-    const payrollSnap = await get(
+    const payrollSnap = await fastGet(
       schoolRef(
         `supportPayroll/${year}/${month}`
       )
@@ -68131,6 +68365,16 @@ window.loadPayrollDashboard = async function () {
 
 window.bulkPaySupportSalaries = async function () {
 
+  // ⚡ Show the dialog immediately; Firebase reads happen after the UI responds.
+  Swal.fire({
+    title: "Loading Bulk Salary Payment…",
+    text: "Preparing support staff payroll",
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false,
+    didOpen: () => Swal.showLoading()
+  });
+
   try {
 
     // =====================================================
@@ -68163,7 +68407,7 @@ window.bulkPaySupportSalaries = async function () {
     // 👥 GET SUPPORT STAFF
     // =====================================================
 
-    const staffSnap = await get(
+    const staffSnap = await fastGet(
       schoolRef("supportStaff")
     );
 
@@ -68186,7 +68430,7 @@ window.bulkPaySupportSalaries = async function () {
     // 💳 GET ALL SALARY PAYMENTS
     // =====================================================
 
-    const paymentsSnap = await get(
+    const paymentsSnap = await fastGet(
       schoolRef("supportSalaryPayments")
     );
 
@@ -68271,65 +68515,28 @@ window.bulkPaySupportSalaries = async function () {
 
     const advanceData = {};
 
+    // ⚡ ONE read for all staff advances instead of one network read per employee.
+    try {
+      const allAdvancesSnap = await Promise.race([
+        fastGet(schoolRef("supportAdvances")),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Salary advances took too long to load.")), 10000))
+      ]);
+      const allAdvances = allAdvancesSnap.val() || {};
 
-    for (const staff of staffList) {
-
-      try {
-
-        const advSnap =
-          await get(
-            schoolRef(
-              `supportAdvances/${staff.staffId}`
-            )
-          );
-
+      staffList.forEach(staff => {
         let totalAdvance = 0;
-
-
-        if (advSnap.exists()) {
-
-          const advances =
-            advSnap.val();
-
-          Object.values(advances).forEach(
-            advance => {
-
-              if (
-                advance &&
-                advance.month === monthKey
-              ) {
-
-                totalAdvance +=
-                  Number(
-                    advance.amount || 0
-                  );
-
-              }
-
-            }
-          );
-
-        }
-
-
-        advanceData[staff.staffId] =
-          totalAdvance;
-
-
-      } catch (error) {
-
-        console.error(
-          "Advance error:",
-          staff.staffId,
-          error
-        );
-
-        advanceData[staff.staffId] = 0;
-
-      }
-
+        const records = allAdvances[staff.staffId] || {};
+        Object.values(records).forEach(advance => {
+          if (advance && advance.month === monthKey) {
+            totalAdvance += Number(advance.amount || 0);
+          }
+        });
+        advanceData[staff.staffId] = totalAdvance;
+      });
+    } catch (error) {
+      console.warn("⚠️ Bulk advances read failed; defaulting advances to 0:", error);
+      staffList.forEach(staff => { advanceData[staff.staffId] = 0; });
     }
-
 
     // =====================================================
     // 🧾 STAFF SELECTION SCREEN
@@ -68414,6 +68621,8 @@ window.bulkPaySupportSalaries = async function () {
         }
       ).join("");
 
+
+    Swal.close();
 
     const staffSelection =
       await Swal.fire({
@@ -69640,351 +69849,73 @@ window.bulkPaySupportSalaries = async function () {
 
 
     // =====================================================
-    // 💾 PROCESS EACH EMPLOYEE
+    // ⚡ PROCESS ALL EMPLOYEES WITH ONE ATOMIC MULTI-PATH COMMIT
     // =====================================================
-
-    let successfulPayments = 0;
-
-    let failedPayments = [];
-
-
-    for (const item of payrollData) {
+    const atomicUpdates = {};
+    const finalChecks = await Promise.all(payrollData.map(async item => {
+      const staff = selectedStaff.find(s => s.staffId === item.staffId);
+      if (!staff) return { item, staff: null, alreadyPaid: true };
 
       try {
-
-        const staff =
-          selectedStaff.find(
-            s =>
-              s.staffId === item.staffId
-          );
-
-
-        if (!staff) continue;
-
-
-        // =================================================
-        // 🔐 FINAL DUPLICATE CHECK
-        // =================================================
-
-        const existingSnap =
-          await get(
-            schoolRef(
-              `supportSalaryPayments/${staff.staffId}`
-            )
-          );
-
-
+        const existingSnap = await fastGet(
+          schoolRef(`supportSalaryPayments/${staff.staffId}`)
+        );
         let alreadyPaid = false;
-
-
         if (existingSnap.exists()) {
-
-          const payments =
-            existingSnap.val();
-
-
-          alreadyPaid =
-            Object.values(payments).some(
-              payment =>
-                payment.monthKey === monthKey
-            );
-
+          alreadyPaid = Object.values(existingSnap.val() || {}).some(
+            payment => payment && payment.monthKey === monthKey
+          );
         }
-
-
-        if (alreadyPaid) {
-
-          failedPayments.push(
-            `${staff.name} — already paid`
-          );
-
-          continue;
-
-        }
-
-
-        // =================================================
-        // PAYMENT ID
-        // =================================================
-
-        const paymentRef =
-          push(
-            schoolRef(
-              `supportSalaryPayments/${staff.staffId}`
-            )
-          );
-
-
-        const paymentId =
-          paymentRef.key;
-
-
-        const transactionNo =
-          "SAL-" + Date.now();
-
-
-        // =================================================
-        // SAVE PAYMENT
-        // =================================================
-
-        await set(
-          paymentRef,
-          {
-
-            paymentId,
-
-            staffId:
-              staff.staffId,
-
-            staffName:
-              staff.name || "",
-
-            staffNumber:
-              staff.staffNumber || "",
-
-            role:
-              staff.role || "",
-
-            department:
-              staff.department || "",
-
-            month:
-              paymentMonth,
-
-            monthKey,
-
-            year:
-              paymentYear,
-
-            paymentDate,
-
-            paymentTime,
-
-            paymentMethod,
-
-            transactionNo,
-
-            basicSalary:
-              staff.salary,
-
-            grossSalary:
-              staff.salary,
-
-            allowances: 0,
-
-            overtime: 0,
-
-            bonus: 0,
-
-            // =============================
-            // DEDUCTIONS
-            // =============================
-
-            nhif:
-              item.nhif,
-
-            nssf:
-              item.nssf,
-
-            paye:
-              item.paye,
-
-            salaryAdvance:
-              item.salaryAdvance,
-
-            otherDeductions:
-              item.otherDeductions,
-
-            otherDeductionDescription:
-              item.otherDeductionDescription,
-
-            totalDeductions:
-              item.totalDeductions,
-
-            netSalary:
-              item.netSalary,
-
-            paidBy:
-              currentUser?.displayName ||
-              "Administrator",
-
-            remarks:
-              "Bulk Salary Payment",
-
-            status:
-              "Paid",
-
-            paidAt:
-              Date.now()
-
-          }
-        );
-
-
-        // =================================================
-        // UPDATE STAFF
-        // =================================================
-
-        await update(
-          schoolRef(
-            `supportStaff/${staff.staffId}`
-          ),
-          {
-
-            lastPaidMonth:
-              paymentMonth,
-
-            lastPaidYear:
-              paymentYear,
-
-            lastPaymentDate:
-              paymentDate,
-
-            lastNetSalary:
-              item.netSalary,
-
-            paymentStatus:
-              "Paid"
-
-          }
-        );
-
-
-        // =================================================
-        // SAVE MONTHLY PAYROLL
-        // =================================================
-
-        const payrollRef =
-          push(
-            schoolRef(
-              `supportPayroll/${paymentYear}/${paymentMonth}`
-            )
-          );
-
-
-        await set(
-          payrollRef,
-          {
-
-            payrollId:
-              payrollRef.key,
-
-            paymentId,
-
-            staffId:
-              staff.staffId,
-
-            staffName:
-              staff.name || "",
-
-            staffNumber:
-              staff.staffNumber || "",
-
-            department:
-              staff.department || "",
-
-            role:
-              staff.role || "",
-
-            month:
-              paymentMonth,
-
-            monthKey,
-
-            year:
-              paymentYear,
-
-            paymentDate,
-
-            paymentTime,
-
-            paymentMethod,
-
-            transactionNo,
-
-            basicSalary:
-              staff.salary,
-
-            grossSalary:
-              staff.salary,
-
-            allowances: 0,
-
-            overtime: 0,
-
-            bonus: 0,
-
-            // =============================
-            // DEDUCTIONS
-            // =============================
-
-            nhif:
-              item.nhif,
-
-            nssf:
-              item.nssf,
-
-            paye:
-              item.paye,
-
-            salaryAdvance:
-              item.salaryAdvance,
-
-            otherDeductions:
-              item.otherDeductions,
-
-            otherDeductionDescription:
-              item.otherDeductionDescription,
-
-            totalDeductions:
-              item.totalDeductions,
-
-            netSalary:
-              item.netSalary,
-
-            paidBy:
-              currentUser?.displayName ||
-              "Administrator",
-
-            remarks:
-              "Bulk Salary Payment",
-
-            status:
-              "Paid",
-
-            createdAt:
-              Date.now()
-
-          }
-        );
-
-
-        successfulPayments++;
-
-
+        return { item, staff, alreadyPaid };
       } catch (error) {
+        return { item, staff, alreadyPaid: false, checkError: error };
+      }
+    }));
 
-        console.error(
-          `Failed to pay ${item.staffId}`,
-          error
-        );
+    let successfulPayments = 0;
+    let failedPayments = [];
 
-
-        const staff =
-          selectedStaff.find(
-            s =>
-              s.staffId === item.staffId
-          );
-
-
-        failedPayments.push(
-          `${staff?.name || item.staffId} — ${error.message}`
-        );
-
+    finalChecks.forEach(({ item, staff, alreadyPaid, checkError }) => {
+      if (!staff) return;
+      if (checkError) {
+        failedPayments.push(`${staff.name} — could not verify existing payment`);
+        return;
+      }
+      if (alreadyPaid) {
+        failedPayments.push(`${staff.name} — already paid`);
+        return;
       }
 
-    }
+      const paymentRef = push(schoolRef(`supportSalaryPayments/${staff.staffId}`));
+      const payrollRef = push(schoolRef(`supportPayroll/${paymentYear}/${paymentMonth}`));
+      const paymentId = paymentRef.key;
+      const payrollId = payrollRef.key;
+      const transactionNo = "SAL-" + Date.now() + "-" + String(successfulPayments + 1).padStart(2, "0");
+      const common = {
+        paymentId, staffId: staff.staffId, staffName: staff.name || "",
+        staffNumber: staff.staffNumber || "", role: staff.role || "", department: staff.department || "",
+        month: paymentMonth, monthKey, year: paymentYear, paymentDate, paymentTime, paymentMethod, transactionNo,
+        basicSalary: staff.salary, grossSalary: staff.salary, allowances: 0, overtime: 0, bonus: 0,
+        nhif: item.nhif, nssf: item.nssf, paye: item.paye, salaryAdvance: item.salaryAdvance,
+        otherDeductions: item.otherDeductions, otherDeductionDescription: item.otherDeductionDescription,
+        totalDeductions: item.totalDeductions, netSalary: item.netSalary,
+        paidBy: currentUser?.displayName || "Administrator", status: "Paid"
+      };
 
+      atomicUpdates[`schools/${window.schoolId}/supportSalaryPayments/${staff.staffId}/${paymentId}`] = { ...common, remarks: "Bulk Salary Payment", paidAt: Date.now() };
+      atomicUpdates[`schools/${window.schoolId}/supportStaff/${staff.staffId}`] = {
+        lastPaidMonth: paymentMonth, lastPaidYear: paymentYear, lastPaymentDate: paymentDate,
+        lastNetSalary: item.netSalary, paymentStatus: "Paid"
+      };
+      atomicUpdates[`schools/${window.schoolId}/supportPayroll/${paymentYear}/${paymentMonth}/${payrollId}`] = {
+        ...common, payrollId, remarks: "Bulk Salary Payment", createdAt: Date.now()
+      };
+      successfulPayments++;
+    });
+
+    if (Object.keys(atomicUpdates).length) {
+      await update(ref(db), atomicUpdates);
+    }
 
     // =====================================================
     // 📊 REFRESH DASHBOARD
@@ -69995,7 +69926,9 @@ window.bulkPaySupportSalaries = async function () {
       "function"
     ) {
 
-      loadPayrollDashboard();
+      Promise.resolve(loadPayrollDashboard()).catch(refreshError =>
+        console.warn("⚠️ Bulk payroll dashboard background refresh failed:", refreshError)
+      );
 
     }
 
@@ -70122,7 +70055,7 @@ window.bulkPaySupportSalaries = async function () {
 window.editSupportStaff = async function (id) {
 
   const snap =
-    await get(
+    await fastGet(
       schoolRef(`supportStaff/${id}`)
     );
 
@@ -70200,7 +70133,7 @@ window.deleteSupportStaff = async function (id) {
 
   try {
 
-    await remove(
+    rasmBackgroundRemove(
       schoolRef(`supportStaff/${id}`)
     );
 
@@ -70249,7 +70182,7 @@ window.deleteAllSupportStaff = async function () {
 
     openSweetLoader("Deleting Support Staff...");
 
-    await remove(
+    rasmBackgroundRemove(
       schoolRef("supportStaff")
     );
 
@@ -70313,21 +70246,18 @@ window.markStaffAttendance = async function (
 
   try {
 
-    await set(
-      schoolRef(
-        `supportAttendance/${today}/${staffId}`
-      ),
-      {
-        status,
-        timestamp: Date.now()
-      }
+    // ⚡ Do not wait for Firebase before updating the user experience.
+    const attendanceWrite = rasmBackgroundSet(
+      schoolRef(`supportAttendance/${today}/${staffId}`),
+      { status, timestamp: Date.now() }
     );
 
-    Swal.fire(
-      "Attendance Saved",
-      status,
-      "success"
-    );
+    attendanceWrite.catch(error => {
+      console.error("Support attendance write failed:", error);
+      Swal.fire("Save Failed", error.message || "Attendance could not be saved.", "error");
+    });
+
+    rasmInstantSuccess("Attendance Saved", status);
 
   } catch (error) {
 
@@ -70404,7 +70334,7 @@ window.renderDepartmentStats = function(staffArray = []) {
 
 window.generateSupportPayslip = async function(id){
 
-  const snap = await get(
+  const snap = await fastGet(
     schoolRef(`supportStaff/${id}`)
   );
 
@@ -70425,7 +70355,7 @@ window.generateSupportPayslip = async function(id){
       new Date().toISOString().slice(0,7);
 
   const advSnap =
-      await get(
+      await fastGet(
         schoolRef(`supportAdvances/${id}`)
       );
 
@@ -70829,7 +70759,7 @@ window.sendSupportStaffSMS = function () {
 window.approveSupportLeave =
 async function (id) {
 
-  await update(
+  rasmBackgroundUpdate(
     schoolRef(`supportStaff/${id}`),
     {
       status: "On Leave"
@@ -70850,7 +70780,7 @@ window.issueSupportWarning =
 async function (id) {
 
   const snap =
-    await get(
+    await fastGet(
       schoolRef(`supportStaff/${id}`)
     );
 
@@ -70861,7 +70791,7 @@ async function (id) {
   const warnings =
     Number(staff.warnings || 0) + 1;
 
-  await update(
+  rasmBackgroundUpdate(
     schoolRef(`supportStaff/${id}`),
     { warnings }
   );
@@ -70929,7 +70859,7 @@ window.giveAdvance = async function (staffId) {
     // 👤 GET STAFF
     // ===============================
     const staffSnap =
-      await get(
+      await fastGet(
         schoolRef(`supportStaff/${staffId}`)
       );
 
@@ -71072,13 +71002,13 @@ window.giveAdvance = async function (staffId) {
     // 🔥 CREATE ADVANCE
     // ===============================
     const newRef =
-      push(advancesRef);
+      rasmBackgroundPush(advancesRef);
 
 
     // ===============================
     // 💾 SAVE ADVANCE
     // ===============================
-    await set(
+    rasmBackgroundSet(
       newRef,
       {
 
@@ -71185,7 +71115,69 @@ window.giveAdvance = async function (staffId) {
 
   }
 
-};window.viewSupportMonthlyAttendance = async function () {
+};// =========================================================
+// 👥 VIEW TODAY SUPPORT STAFF ATTENDANCE
+// One school-scoped read + local staff cache.
+// =========================================================
+window.viewSupportAttendance = async function () {
+  const container = document.getElementById("supportAttendanceOutput");
+  if (!container) return;
+
+  const schoolId = window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId");
+  if (!schoolId) {
+    return Swal.fire("Error", "School session not found. Please login again.", "error");
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const staff = Array.isArray(window.__supportStaffData) ? window.__supportStaffData : [];
+
+  container.innerHTML = `<div style="padding:12px;color:#2563eb;font-weight:700;">⚡ Loading today's attendance…</div>`;
+
+  try {
+    const snap = await fastGet(schoolRef(`supportAttendance/${today}`));
+    const attendance = snap.exists() ? (snap.val() || {}) : {};
+
+    if (!staff.length) {
+      container.innerHTML = `<div style="padding:18px;color:#64748b;">No support staff records available.</div>`;
+      return;
+    }
+
+    const esc = v => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+    let present=0, absent=0, late=0, unmarked=0;
+
+    let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 15px;">
+      <span style="padding:8px 12px;border-radius:8px;background:#dcfce7;color:#166534;font-weight:700;">✅ Present: <b id="tsaPresent">0</b></span>
+      <span style="padding:8px 12px;border-radius:8px;background:#fee2e2;color:#991b1b;font-weight:700;">❌ Absent: <b id="tsaAbsent">0</b></span>
+      <span style="padding:8px 12px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:700;">⏰ Late: <b id="tsaLate">0</b></span>
+      <span style="padding:8px 12px;border-radius:8px;background:#e2e8f0;color:#334155;font-weight:700;">⚪ Unmarked: <b id="tsaUnmarked">0</b></span>
+    </div>
+    <h3>👥 Today's Support Staff Attendance — ${today}</h3>
+    <div style="overflow:auto;"><table style="width:100%;border-collapse:collapse;background:#fff;">
+      <thead><tr style="background:#111827;color:#fff;"><th>Staff</th><th>Role</th><th>Department</th><th>Status</th><th>Time</th></tr></thead><tbody>`;
+
+    staff.forEach(s => {
+      const rec = attendance[s.id] || {};
+      const status = String(rec.status || "Unmarked");
+      if(status === "Present") present++; else if(status === "Absent") absent++; else if(status === "Late") late++; else unmarked++;
+      const badge = status === "Present" ? "#16a34a" : status === "Absent" ? "#dc2626" : status === "Late" ? "#d97706" : "#64748b";
+      const time = rec.timestamp ? new Date(Number(rec.timestamp)).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : "—";
+      html += `<tr><td style="padding:9px;border:1px solid #d1d5db;font-weight:700;text-align:left;">${esc(s.name)}</td><td style="padding:9px;border:1px solid #d1d5db;">${esc(s.role)}</td><td style="padding:9px;border:1px solid #d1d5db;">${esc(s.department || "-")}</td><td style="padding:9px;border:1px solid #d1d5db;"><b style="color:${badge}">${esc(status)}</b></td><td style="padding:9px;border:1px solid #d1d5db;">${time}</td></tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+    container.querySelector("#tsaPresent").textContent = present;
+    container.querySelector("#tsaAbsent").textContent = absent;
+    container.querySelector("#tsaLate").textContent = late;
+    container.querySelector("#tsaUnmarked").textContent = unmarked;
+  } catch(error) {
+    console.error("View Today Support Attendance Error:", error);
+    container.innerHTML = `<div style="padding:15px;color:#dc2626;font-weight:700;">Unable to load today's attendance.</div>`;
+    Swal.fire("Error", error.message || "Unable to load attendance.", "error");
+  }
+};
+
+window.viewSupportMonthlyAttendance = async function () {
 
   // ===============================
   // 📌 ASK FOR MONTH
@@ -71204,7 +71196,7 @@ window.giveAdvance = async function (staffId) {
     const baseRef =
       schoolRef("supportAttendance");
 
-    const snap = await get(baseRef);
+    const snap = await fastGet(baseRef);
 
     const data = snap.val() || {};
 
@@ -71214,11 +71206,15 @@ window.giveAdvance = async function (staffId) {
     if (!container) return;
 
     let html = `
-      <h3>📅 Support Staff Attendance Report (${month})</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;background:#fff;z-index:5;padding-bottom:10px;">
+        <h3 style="margin:0;">📅 Support Staff Attendance Report (${month})</h3>
+        <span style="font-size:12px;color:#64748b;">↔ Scroll horizontally • ↕ Scroll vertically</span>
+      </div>
 
-      <table style="width:100%; border-collapse:collapse;">
+      <div style="overflow:auto;max-height:calc(70vh - 70px);border:1px solid #e2e8f0;border-radius:10px;">
+      <table style="width:100%;min-width:900px;border-collapse:collapse;">
 
-        <tr style="background:#111827;color:white;">
+        <thead><tr style="background:#111827;color:white;position:sticky;top:0;z-index:3;">
 
           <th>Staff</th>
           <th>Role</th>
@@ -71229,14 +71225,14 @@ window.giveAdvance = async function (staffId) {
           <th>Total Days</th>
           <th>% Attendance</th>
 
-        </tr>
+        </tr></thead><tbody>
     `;
 
     // ===============================
     // 📌 GET ALL STAFF
     // ===============================
     const staffSnap =
-      await get(schoolRef("supportStaff"));
+      await fastGet(schoolRef("supportStaff"));
 
     const staffList = staffSnap.val() || {};
 
@@ -71302,7 +71298,7 @@ window.giveAdvance = async function (staffId) {
       `;
     }
 
-    html += `</table>`;
+    html += `</tbody></table></div>`;
 
     container.innerHTML = html;
 
@@ -71349,7 +71345,7 @@ window.loadSchoolProfile = async function () {
       return;
     }
 
-    const snap = await get(
+    const snap = await fastGet(
       ref(db, `schools/${schoolId}`)
     );
 
@@ -71472,7 +71468,7 @@ window.saveSchoolProfile = async function () {
 
   try {
 
-    await update(
+    rasmBackgroundUpdate(
       ref(db, `schools/${schoolId}`),
       schoolData
     );
@@ -71547,7 +71543,7 @@ window.openSchoolProfileForm = async function () {
 
   try {
 
-    const snap = await get(
+    const snap = await fastGet(
       ref(db, `schools/${schoolId}`)
     );
 
@@ -72462,7 +72458,11 @@ window.addTransport = async function () {
       createdAt: Date.now()
     };
 
-    await push(schoolRef("transport"), data);
+    const transportWrite = rasmBackgroundPush(schoolRef("transport"), data);
+    transportWrite.promise.catch(err => {
+      console.error("Transport save failed:", err);
+      Swal.fire("Save Failed", err.message || "Transport could not be saved.", "error");
+    });
 
     closeSweetLoader();
 
@@ -72545,14 +72545,14 @@ window.schoolId = window.schoolId || null;
 
   const path = `transport/${schoolId}/${busId}/trips/${type}`;
 
-  const snap = await get(ref(db, path));
+  const snap = await fastGet(ref(db, path));
   const data = snap.exists() ? snap.val() : [];
 
   data.push(trip);
 
-  await set(ref(db, path), data);
+  rasmBackgroundSet(ref(db, path), data);
 
-  await update(ref(db, `transport/${schoolId}/${busId}`), {
+  rasmBackgroundUpdate(ref(db, `transport/${schoolId}/${busId}`), {
     lastUpdated: Date.now()
   });
 
@@ -72580,7 +72580,7 @@ window.loadTransport = function () {
   // ===============================
   // LIVE LISTENER (SAME AS SUPPORT STAFF)
   // ===============================
-  window.__transportListener = onValue(
+  window.__transportListener = fastOnValue(
     schoolRef("transport"),
     (snap) => {
 
@@ -73018,7 +73018,7 @@ window.markTransportFeePaid = async function (busId, studentName) {
 
     const feeRef = schoolRef(`transport/${busId}/fees/${studentName}`);
 
-    const snap = await get(feeRef);
+    const snap = await fastGet(feeRef);
 
     if (!snap.exists()) {
       Swal.fire("Error","Fee record not found.","error");
@@ -73111,7 +73111,7 @@ window.markTransportFeePaid = async function (busId, studentName) {
 
     });
 
-    await update(feeRef, {
+    rasmBackgroundUpdate(feeRef, {
 
       paidAmount: newPaid,
 
@@ -73186,7 +73186,7 @@ window.manageTransportFees = async function (busId) {
   try {
 
     const snap =
-      await get(
+      await fastGet(
         schoolRef(`transport/${busId}/fees`)
       );
 
@@ -73359,7 +73359,7 @@ window.assignStudentToBus = async function (busId) {
   }
 
   const busRef = ref(db, `schools/${schoolId}/transport/${busId}`);
-  const snap = await get(busRef);
+  const snap = await fastGet(busRef);
 
   if (!snap.exists()) {
     Swal.fire("Error", "Bus not found", "error");
@@ -73504,7 +73504,7 @@ currentStudents.push({
   addedAt: Date.now()
 });
 
-await update(busRef, {
+rasmBackgroundUpdate(busRef, {
   students: currentStudents,
   lastUpdated: Date.now()
 });
@@ -73532,7 +73532,7 @@ window.updateBusCapacity = async function (busId) {
   }
 
   const busRef = ref(db, `schools/${schoolId}/transport/${busId}`);
-  const snap = await get(busRef);
+  const snap = await fastGet(busRef);
 
   if (!snap.exists()) {
     Swal.fire("Error", "Bus not found", "error");
@@ -73591,7 +73591,7 @@ window.updateBusCapacity = async function (busId) {
 
   try {
 
-    await update(busRef, {
+    rasmBackgroundUpdate(busRef, {
       capacity: newCapacity,
       lastUpdated: Date.now()
     });
@@ -73624,7 +73624,7 @@ window.viewBusStudents = async function (busId) {
     return;
   }
 
-  const snap = await get(schoolRef(`transport/${busId}`));
+  const snap = await fastGet(schoolRef(`transport/${busId}`));
 
   if (!snap.exists()) {
     Swal.fire("Error", "Bus not found", "error");
@@ -73696,7 +73696,7 @@ window.deleteTransport = async function (id) {
 
   openSweetLoader("Deleting Transport...");
 
-  await remove(
+  rasmBackgroundRemove(
     ref(db, `schools/${schoolId}/transport/${id}`)
 );
 
@@ -73732,7 +73732,7 @@ window.deleteAllTransport = async function () {
 
   try {
 
-    await remove(
+    rasmBackgroundRemove(
     ref(db, `schools/${schoolId}/transport`)
 );
 
@@ -73763,7 +73763,7 @@ window.updateTransportStatus = async function (id, status) {
 
   const schoolId = window.schoolId;
 
-  await update(ref(db, `transport/${schoolId}/${id}`), {
+  rasmBackgroundUpdate(ref(db, `transport/${schoolId}/${id}`), {
     status,
     lastUpdated: Date.now()
   });
@@ -73781,7 +73781,7 @@ window.viewTripSummary = async function (busId) {
 
   const schoolId = window.schoolId;
 
-  const snap = await get(ref(db, `transport/${schoolId}/${busId}`));
+  const snap = await fastGet(ref(db, `transport/${schoolId}/${busId}`));
 
   if (!snap.exists()) return;
 
@@ -73806,7 +73806,7 @@ window.loadTransportStats = function () {
 
   const schoolId = window.schoolId;
 
-  onValue(ref(db, `transport/${schoolId}`), (snap) => {
+  fastOnValue(ref(db, `transport/${schoolId}`), (snap) => {
 
     let buses = 0;
     let students = 0;
@@ -73837,7 +73837,7 @@ window.viewTransportRevenue = async function () {
 
     const schoolId = window.schoolId;
 
-    const snap = await get(schoolRef("transport"));
+    const snap = await fastGet(schoolRef("transport"));
 
     if (!snap.exists()) {
         Swal.fire("No Data", "No transport records found.", "info");
@@ -74069,7 +74069,7 @@ window.setTransportFee = async function (busId, studentName) {
 
   const busRef = schoolRef(`transport/${busId}`);
 
-  const snap = await get(busRef);
+  const snap = await fastGet(busRef);
 
   if (!snap.exists()) {
     Swal.fire("Error", "Bus not found", "error");
@@ -74096,7 +74096,7 @@ window.setTransportFee = async function (busId, studentName) {
 
   };
 
-  await update(busRef, {
+  rasmBackgroundUpdate(busRef, {
 
     fees: fees,
 
@@ -74123,7 +74123,7 @@ window.loadTransportStats = function () {
 
   const schoolId = window.schoolId;
 
-  onValue(ref(db, `schools/${schoolId}/transport`), (snap) => {
+  fastOnValue(ref(db, `schools/${schoolId}/transport`), (snap) => {
 
     let buses = 0;
     let students = 0;
@@ -74305,7 +74305,11 @@ window.addHostel = async function () {
       createdAt: Date.now()
     };
 
-    await push(ref(db, `hostel/${schoolId}`), data);
+    const hostelWrite = rasmBackgroundPush(ref(db, `hostel/${schoolId}`), data);
+    hostelWrite.promise.catch(err => {
+      console.error("Hostel allocation failed:", err);
+      Swal.fire("Save Failed", err.message || "Hostel allocation could not be saved.", "error");
+    });
 
     closeSweetLoader();
 
@@ -74335,7 +74339,7 @@ window.loadHostel = function () {
 
   const schoolId = window.schoolId;
 
-  onValue(ref(db, `hostel/${schoolId}`), (snap) => {
+  fastOnValue(ref(db, `hostel/${schoolId}`), (snap) => {
 
     let html = "";
     let totalRooms = 0, occupied = 0, boys = 0, girls = 0;
@@ -74557,7 +74561,7 @@ window.updateNightAttendance = async function (id, status) {
 
     openSweetLoader("Updating attendance...");
 
-    await set(ref(db, path), status); // ✅ FIX HERE
+    rasmBackgroundSet(ref(db, path), status); // ✅ FIX HERE
 
     closeSweetLoader();
 
@@ -74587,7 +74591,7 @@ window.viewGradeAttendanceHistory = async function (grade) {
     const schoolId = window.schoolId;
 
     const snap =
-      await get(ref(db, `hostel/${schoolId}`));
+      await fastGet(ref(db, `hostel/${schoolId}`));
 
     if (!snap.exists()) {
       Swal.fire("No Data", "No hostel records found", "info");
@@ -74679,7 +74683,7 @@ window.viewAttendanceHistory = async function (id) {
   const schoolId = window.schoolId;
 
   const snap =
-    await get(ref(db, `hostel/${schoolId}/${id}/nightAttendance`));
+    await fastGet(ref(db, `hostel/${schoolId}/${id}/nightAttendance`));
 
   if (!snap.exists()) {
     Swal.fire("No history", "No attendance records found", "info");
@@ -74716,7 +74720,7 @@ window.updateDiscipline = async function (id, status) {
 
   const schoolId = window.schoolId;
 
-  await update(
+  rasmBackgroundUpdate(
     ref(db, `hostel/${schoolId}/${id}`),
     { discipline: status }
   );
@@ -74740,7 +74744,8 @@ window.deleteHostel = async function (id) {
 
   openSweetLoader("Deleting...");
 
-  await remove(ref(db, `hostel/${schoolId}/${id}`));
+  const deleteWrite = rasmBackgroundRemove(ref(db, `hostel/${schoolId}/${id}`));
+  deleteWrite.catch(err => console.error("Hostel delete failed:", err));
 
   closeSweetLoader();
 
@@ -74775,7 +74780,8 @@ window.deleteAllHostels = async function () {
 
   try {
 
-    await remove(ref(db, `hostel/${schoolId}`));
+    const deleteWrite = rasmBackgroundRemove(ref(db, `hostel/${schoolId}`));
+    deleteWrite.catch(err => console.error("Hostel bulk delete failed:", err));
 
     closeSweetLoader();
 
@@ -74833,7 +74839,11 @@ window.addDevice = async function () {
       createdAt: Date.now()
     };
 
-    await push(ref(db, `ict/${schoolId}`), data);
+    const ictWrite = rasmBackgroundPush(ref(db, `ict/${schoolId}`), data);
+    ictWrite.promise.catch(err => {
+      console.error("ICT save failed:", err);
+      Swal.fire("Save Failed", err.message || "ICT device could not be saved.", "error");
+    });
 
     closeSweetLoader();
 
@@ -74857,7 +74867,7 @@ window.loadICT = function () {
 
   const schoolId = window.schoolId;
 
-  onValue(ref(db, `ict/${schoolId}`), (snap) => {
+  fastOnValue(ref(db, `ict/${schoolId}`), (snap) => {
 
     let html = "";
 
@@ -74930,7 +74940,8 @@ window.deleteICT = async function (id) {
 
   openSweetLoader("Deleting Device...");
 
-  await remove(ref(db, `ict/${schoolId}/${id}`));
+  const deleteWrite = rasmBackgroundRemove(ref(db, `ict/${schoolId}/${id}`));
+  deleteWrite.catch(err => console.error("ICT delete failed:", err));
 
   closeSweetLoader();
 
@@ -75174,12 +75185,18 @@ window.addInventory = async function () {
 
         };
 
-        await push(
+        const inventoryWrite = rasmBackgroundPush(
             ref(db, `inventory/${schoolId}`),
             data
         );
 
+        // ⚡ Submission is complete from the UI perspective immediately;
+        // Firebase continues the write in the background.
         closeSweetLoader();
+        inventoryWrite.promise.catch(error => {
+            console.error("❌ Inventory background write failed:", error);
+            Swal.fire("Save Failed", error.message || "Inventory could not be saved.", "error");
+        });
 
         Swal.fire(
             "Success",
@@ -75243,7 +75260,7 @@ window.loadInventoryStats = function () {
         return;
     }
 
-    onValue(
+    fastOnValue(
         ref(db, `inventory/${schoolId}`),
 
         (snap) => {
@@ -75440,7 +75457,7 @@ window.loadInventory = function () {
   }
 
   const schoolId = window.schoolId;
-  onValue(
+  fastOnValue(
     ref(db, `inventory/${schoolId}`),
     (snap) => {
 
@@ -76028,7 +76045,7 @@ window.viewInventoryAssets = async function(id){
 
         const schoolId = window.schoolId;
 
-        const snap = await get(
+        const snap = await fastGet(
             ref(db, `inventory/${schoolId}/${id}`)
         );
 
@@ -76276,7 +76293,7 @@ window.returnInventory = async function (id) {
         const itemRef =
             ref(db, `inventory/${schoolId}/${id}`);
 
-        const snap = await get(itemRef);
+        const snap = await fastGet(itemRef);
 
         if (!snap.exists()) return;
 
@@ -76489,7 +76506,7 @@ window.returnInventory = async function (id) {
         // Save
         // ======================================
 
-        await update(itemRef, {
+        rasmBackgroundUpdate(itemRef, {
 
             assets,
 
@@ -76563,7 +76580,7 @@ window.borrowInventory = async function(id){
         const itemRef =
             ref(db,`inventory/${schoolId}/${id}`);
 
-        const snap = await get(itemRef);
+        const snap = await fastGet(itemRef);
 
         if(!snap.exists()){
 
@@ -76846,7 +76863,7 @@ ${assetHTML}
         // SAVE
         // ============================================
 
-        await update(itemRef,{
+        rasmBackgroundUpdate(itemRef,{
 
             assets,
 
@@ -76916,7 +76933,7 @@ window.deleteInventory = async function (id) {
 
   openSweetLoader("Deleting Item...");
 
-  await remove(ref(db, `inventory/${schoolId}/${id}`));
+  rasmBackgroundRemove(ref(db, `inventory/${schoolId}/${id}`));
 
   closeSweetLoader();
 
@@ -76951,7 +76968,7 @@ window.deleteAllInventory = async function () {
 
   try {
 
-    await remove(ref(db, `inventory/${schoolId}`));
+    rasmBackgroundRemove(ref(db, `inventory/${schoolId}`));
 
     closeSweetLoader();
 
@@ -76987,7 +77004,7 @@ window.viewInventoryHistory = async function(id){
         return;
     }
 
-    const snap = await get(
+    const snap = await fastGet(
         ref(db,`inventory/${schoolId}/${id}`)
     );
 
@@ -77346,7 +77363,7 @@ window.issueInventory = async function (id) {
 
     const itemRef = ref(db, `inventory/${schoolId}/${id}`);
 
-    const snap = await get(itemRef);
+    const snap = await fastGet(itemRef);
 
     if (!snap.exists()) {
         Swal.fire("Error", "Inventory item not found", "error");
@@ -77550,7 +77567,7 @@ window.issueInventory = async function (id) {
 
         });
 
-        await update(itemRef, {
+        rasmBackgroundUpdate(itemRef, {
 
             stock: stock - formValues.qty,
 
@@ -77647,7 +77664,7 @@ window.viewInventoryReport = async function(){
 
 
         const snap =
-            await get(
+            await fastGet(
                 ref(db,
                 `inventory/${schoolId}`)
             );
@@ -77998,7 +78015,7 @@ window.editInventory = async function(id){
 
 
         const snap =
-            await get(itemRef);
+            await fastGet(itemRef);
 
 
         if(!snap.exists()){
@@ -78304,7 +78321,7 @@ window.editInventory = async function(id){
 
 
 
-        await update(
+        rasmBackgroundUpdate(
 
             itemRef,
 
@@ -78461,14 +78478,16 @@ window.borrowICT = async function(id) {
 
   try {
 
-    await update(ref(db, `ict/${schoolId}/${id}`), {
-
+    const ictWrite = rasmBackgroundUpdate(ref(db, `ict/${schoolId}/${id}`), {
       status: "Borrowed",
       borrowedBy: formValues.borrowedBy,
       borrowerRole: formValues.role,
       borrowDate: new Date().toLocaleDateString(),
       returnDate: formValues.returnDate
-
+    });
+    ictWrite.catch(error => {
+      console.error("ICT borrow failed:", error);
+      Swal.fire("Save Failed", error.message || "Device could not be borrowed.", "error");
     });
 
     closeSweetLoader();
@@ -78514,7 +78533,7 @@ window.returnICT = async function(id) {
 
   try {
 
-    await update(ref(db, `ict/${schoolId}/${id}`), {
+    const ictWrite = rasmBackgroundUpdate(ref(db, `ict/${schoolId}/${id}`), {
 
       status: "Available",
       borrowedBy: "",
@@ -78522,6 +78541,10 @@ window.returnICT = async function(id) {
       borrowDate: "",
       returnDate: ""
 
+    });
+    ictWrite.catch(error => {
+      console.error("ICT return failed:", error);
+      Swal.fire("Save Failed", error.message || "Device could not be returned.", "error");
     });
 
     closeSweetLoader();
@@ -78554,7 +78577,7 @@ window.loadICT = function () {
 
   const schoolId = window.schoolId;
 
-  onValue(ref(db, `ict/${schoolId}`), (snap) => {
+  fastOnValue(ref(db, `ict/${schoolId}`), (snap) => {
 
     let html = "";
 
@@ -78747,7 +78770,8 @@ window.deleteICT = async function(id){
 
     try{
 
-        await remove(ref(db,`ict/${schoolId}/${id}`));
+        const deleteWrite = rasmBackgroundRemove(ref(db,`ict/${schoolId}/${id}`));
+          deleteWrite.catch(err => console.error("ICT delete failed:", err));
 
         closeSweetLoader();
 
@@ -78818,7 +78842,8 @@ window.deleteAllICT = async function(){
 
     try{
 
-        await remove(ref(db,`ict/${schoolId}`));
+        const deleteWrite = rasmBackgroundRemove(ref(db,`ict/${schoolId}`));
+          deleteWrite.catch(err => console.error("ICT bulk delete failed:", err));
 
         closeSweetLoader();
 
@@ -78993,15 +79018,20 @@ generatedBooks.forEach(item=>{
 
 };
 
- const newRef = await push(
+ const libraryWrite = rasmBackgroundPush(
     ref(db, `library/${schoolId}`),
     data
 );
+ const newRef = libraryWrite.ref;
 
 console.log("Saved Book ID:", newRef.key);
 console.log("Saved Data:", data);
 
         closeSweetLoader();
+        libraryWrite.promise.catch(error => {
+            console.error("❌ Library background write failed:", error);
+            Swal.fire("Save Failed", error.message || "Book could not be saved.", "error");
+        });
 
         Swal.fire(
             "Success",
@@ -79259,7 +79289,7 @@ window.loadLibrary = function () {
 
   const schoolId = window.schoolId;
 
-  onValue(ref(db, `library/${schoolId}`), (snap) => {
+  fastOnValue(ref(db, `library/${schoolId}`), (snap) => {
 
     let html = "";
 
@@ -79591,7 +79621,7 @@ window.generateLibraryCardsByGrade = async function () {
 
 
         const borrowingSnap =
-            await get(
+            await fastGet(
                 ref(
                     db,
                     `libraryBorrowings/${schoolId}`
@@ -81457,7 +81487,7 @@ const schoolId = window.schoolId;
 
 const bookRef = ref(db,`library/${schoolId}/${bookId}`);
 
-const snap = await get(bookRef);
+const snap = await fastGet(bookRef);
 
 if(!snap.exists()){
 
@@ -81646,7 +81676,7 @@ generatedBooks.forEach(item=>{
 // SAVE
 // ======================================
 
-await update(bookRef,{
+rasmBackgroundUpdate(bookRef,{
 
     copies,
 
@@ -81725,7 +81755,7 @@ window.viewBookCopies = function (bookId) {
 
     const schoolId = window.schoolId;
 
-    onValue(
+    fastOnValue(
         ref(db, `library/${schoolId}/${bookId}`),
         (snap) => {
 
@@ -82385,7 +82415,7 @@ if(repairer===undefined) return;
 
 const bookRef = ref(db,`library/${schoolId}/${bookId}`);
 
-const snap = await get(bookRef);
+const snap = await fastGet(bookRef);
 
 if(!snap.exists()){
 
@@ -82457,7 +82487,7 @@ copies[bookNumber],
 // UPDATE AVAILABLE COPIES
 // ======================================
 
-await update(bookRef,{
+rasmBackgroundUpdate(bookRef,{
 
 copies,
 
@@ -82525,7 +82555,7 @@ if(replacementBy===undefined) return;
 
 const bookRef = ref(db,`library/${schoolId}/${bookId}`);
 
-const snap = await get(bookRef);
+const snap = await fastGet(bookRef);
 
 if(!snap.exists()){
 
@@ -82601,7 +82631,7 @@ copies[bookNumber],
 // SAVE
 // ======================================
 
-await update(bookRef,{
+rasmBackgroundUpdate(bookRef,{
 
 copies,
 
@@ -82792,7 +82822,7 @@ if(reason===undefined)return;
 
 const bookRef=ref(db,`library/${schoolId}/${bookId}`);
 
-const snap=await get(bookRef);
+const snap=await fastGet(bookRef);
 
 if(!snap.exists()){
 
@@ -82840,7 +82870,7 @@ addCopyHistory(
 // SAVE
 // ======================================
 
-await update(bookRef,{
+rasmBackgroundUpdate(bookRef,{
 
 copies
 
@@ -83029,7 +83059,7 @@ if(reason===undefined)return;
 
 const bookRef=ref(db,`library/${schoolId}/${bookId}`);
 
-const snap=await get(bookRef);
+const snap=await fastGet(bookRef);
 
 if(!snap.exists()){
 
@@ -83091,7 +83121,7 @@ try {
     console.warn("Lost-book accountability record skipped:", accountabilityError);
 }
 
-await update(bookRef,{
+rasmBackgroundUpdate(bookRef,{
 
 copies,
 
@@ -83159,7 +83189,7 @@ window.deleteBook = async function(id){
 
   try {
 
-    await remove(ref(db, `library/${schoolId}/${id}`));
+    rasmBackgroundRemove(ref(db, `library/${schoolId}/${id}`));
 
     closeSweetLoader();
 
@@ -83202,7 +83232,7 @@ window.deleteAllBooks = async function(){
 
   try{
 
-    await remove(ref(db, `library/${schoolId}`));
+    rasmBackgroundRemove(ref(db, `library/${schoolId}`));
 
     closeSweetLoader();
 
@@ -83380,7 +83410,7 @@ window.borrowBook = async function (bookId) {
 
         const bookRef = ref(db, `library/${schoolId}/${bookId}`);
 
-        const snap = await get(bookRef);
+        const snap = await fastGet(bookRef);
 
         if (!snap.exists()) {
 
@@ -83451,7 +83481,7 @@ addCopyHistory(
         // SAVE BOOK
         // ======================================
 
-        await update(bookRef, {
+        rasmBackgroundUpdate(bookRef, {
 
             available: Number(book.available) - 1,
 
@@ -83463,7 +83493,7 @@ addCopyHistory(
         // SAVE BORROW HISTORY
         // ======================================
 
-await push(
+rasmBackgroundPush(
     ref(db, `libraryBorrowings/${schoolId}`),
     {
         bookId: bookId,
@@ -83543,7 +83573,7 @@ window.returnBookCopy = async function (bookId, bookNumber) {
 
         const borrowRef = ref(db, `libraryBorrowings/${schoolId}`);
 
-        const borrowSnap = await get(borrowRef);
+        const borrowSnap = await fastGet(borrowRef);
 
         let borrowId = null;
 
@@ -83583,7 +83613,7 @@ window.returnBookCopy = async function (bookId, bookNumber) {
         // MARK BORROW RECORD RETURNED
         // =====================================
 
-        await update(
+        rasmBackgroundUpdate(
             ref(db, `libraryBorrowings/${schoolId}/${borrowId}`),
             {
 
@@ -83602,7 +83632,7 @@ window.returnBookCopy = async function (bookId, bookNumber) {
         const bookRef =
             ref(db, `library/${schoolId}/${bookId}`);
 
-        const bookSnap = await get(bookRef);
+        const bookSnap = await fastGet(bookRef);
 
         if (!bookSnap.exists()) {
 
@@ -83663,7 +83693,7 @@ window.returnBookCopy = async function (bookId, bookNumber) {
         // SAVE BOOK
         // =====================================
 
-        await update(bookRef, {
+        rasmBackgroundUpdate(bookRef, {
 
             copies
 
@@ -83719,7 +83749,7 @@ window.returnBookCopy = async function (bookId, bookNumber) {
 ========================================================= */
 async function getStudentsForBorrow() {
 
-    const snap = await get(schoolRef("students"));
+    const snap = await fastGet(schoolRef("students"));
 
     const students = [];
 
@@ -83776,7 +83806,7 @@ function buildGradeOptions(students){
 }
 async function getTeachersForBorrow() {
 
-    const snap = await get(schoolRef("teachers"));
+    const snap = await fastGet(schoolRef("teachers"));
 
     const teachers = [];
 
@@ -83835,7 +83865,7 @@ window.viewBorrowings = function(bookId){
 
   const schoolId = window.schoolId;
 
-  onValue(
+  fastOnValue(
     ref(db, `libraryBorrowings/${schoolId}`),
     (snap)=>{
 
@@ -84188,7 +84218,7 @@ window.loadReturnsCenter = function(){
 
     openSweetLoader("Loading Borrowings...");
 
-    onValue(
+    fastOnValue(
 
         ref(db, `libraryBorrowings/${schoolId}`),
 
@@ -84933,7 +84963,7 @@ try{
 
     const bookRef = ref(db, `library/${schoolId}/${bookId}`);
 
-    const snap = await get(bookRef);
+    const snap = await fastGet(bookRef);
 
     if(!snap.exists()){
 
@@ -84993,7 +85023,7 @@ try{
     // SAVE
     // =====================================
 
-    await update(bookRef,{
+    rasmBackgroundUpdate(bookRef,{
 
         copies
 
@@ -85069,7 +85099,7 @@ window.returnBorrowedBook = async function (
        UPDATE BORROW RECORD
     =============================== */
 
-    await update(
+    rasmBackgroundUpdate(
       ref(db, `libraryBorrowings/${schoolId}/${borrowId}`),
       {
         returned: true,
@@ -85083,7 +85113,7 @@ window.returnBorrowedBook = async function (
 
     const bookRef = ref(db, `library/${schoolId}/${bookId}`);
 
-    const snap = await get(bookRef);
+    const snap = await fastGet(bookRef);
 
     if (!snap.exists()) {
 
@@ -85106,7 +85136,7 @@ window.returnBorrowedBook = async function (
        INCREASE AVAILABLE COPIES
     =============================== */
 
-    await update(bookRef, {
+    rasmBackgroundUpdate(bookRef, {
       available: Number(book.available) + 1
     });
 
@@ -85186,7 +85216,7 @@ try{
 
     const bookRef = ref(db,`library/${schoolId}/${bookId}`);
 
-    const snap = await get(bookRef);
+    const snap = await fastGet(bookRef);
 
     if(!snap.exists()){
 
@@ -85258,7 +85288,7 @@ try{
         c => c.status === "Available"
     ).length;
 
-    await update(bookRef,{
+    rasmBackgroundUpdate(bookRef,{
 
         copies,
 
@@ -85917,7 +85947,7 @@ const price =
     // SAVE TO FIREBASE
     // =====================================
 
-    await set(
+    rasmBackgroundSet(
       ref(
         db,
         `schools/${schoolId}/courses/${courseId}`
@@ -86069,7 +86099,7 @@ window.loadCourses = async function () {
     // LOAD COURSES
     // =====================================
 
-    const snapshot = await get(
+    const snapshot = await fastGet(
       ref(
         db,
         `schools/${schoolId}/courses`
@@ -86267,7 +86297,7 @@ window.deleteSelectedCourses = async function () {
 
   for (const id of selected) {
 
-    await remove(
+    rasmBackgroundRemove(
       ref(db, `schools/${schoolId}/courses/${id}`)
     );
 
@@ -86522,7 +86552,7 @@ window.bulkLockCourses = async function (lock) {
 
   for (const id of selected) {
 
-    await update(
+    rasmBackgroundUpdate(
       ref(db, `schools/${schoolId}/courses/${id}`),
       { locked: lock }
     );
@@ -86588,7 +86618,7 @@ async function(courseId, price){
   }
 
   const paymentSnap =
-    await get(
+    await fastGet(
       ref(
         db,
         `coursePayments/${uid}/${courseId}`
@@ -86871,7 +86901,7 @@ window.toggleCourseLock = async function(courseId){
 
     try{
 
-        await update(
+        rasmBackgroundUpdate(
             ref(db, `schools/${schoolId}/courses/${courseId}`),
             {
                 locked: newStatus
@@ -86978,7 +87008,7 @@ window.editCourse = function(id){
 
       };
 
-      await update(
+      rasmBackgroundUpdate(
         ref(db, `schools/${schoolId}/courses/${id}`),
         updatedData
       );
@@ -87062,7 +87092,7 @@ window.deleteCourse = function(id){
           return;
         }
 
-        await remove(
+        rasmBackgroundRemove(
           ref(
             db,
             `schools/${schoolId}/courses/${id}`
@@ -87119,7 +87149,7 @@ document.addEventListener("visibilitychange", function () {
 
 window.loadCourseAnalytics = async function(courseId){
 
-  const snap = await get(ref(db, `courseViews/${courseId}`));
+  const snap = await fastGet(ref(db, `courseViews/${courseId}`));
 
   let count = 0;
 
@@ -87335,7 +87365,7 @@ window.startAssignment = async function(id){
     if(currentLearnerId){
 
       const existingSnap =
-        await get(
+        await fastGet(
           ref(
             db,
             `schools/${schoolId}/assignmentSubmissions`
@@ -87662,7 +87692,7 @@ window.startAssignment = async function(id){
 
 
     const submissionsSnap =
-      await get(
+      await fastGet(
         submissionsRef
       );
 
@@ -89474,10 +89504,10 @@ window.cleanupExpiredAssignmentResults = async function(){
         const schoolId = window.schoolId || localStorage.getItem("schoolId");
         if(!schoolId || typeof db === "undefined") return;
 
-        const submissionsSnap = await get(ref(db, `schools/${schoolId}/assignmentSubmissions`));
+        const submissionsSnap = await fastGet(ref(db, `schools/${schoolId}/assignmentSubmissions`));
         if(!submissionsSnap.exists()) return;
 
-        const assignmentsSnap = await get(ref(db, `schools/${schoolId}/assignments`));
+        const assignmentsSnap = await fastGet(ref(db, `schools/${schoolId}/assignments`));
         const embeddedMap = {};
         if(assignmentsSnap.exists()) assignmentsSnap.forEach(child => { embeddedMap[child.key] = child.val() || {}; });
 
@@ -89601,7 +89631,7 @@ window.loadAssignments = async function () {
             }, 120);
         };
 
-        const assignmentListener = onValue(assignmentsRef, () => {
+        const assignmentListener = fastOnValue(assignmentsRef, () => {
             // Ignore the initial listener event because this load is already
             // being performed below. All subsequent changes refresh instantly.
             if (liveAssignmentFirstEvent) {
@@ -89611,7 +89641,7 @@ window.loadAssignments = async function () {
             scheduleLiveAssignmentReload();
         });
 
-        const submissionListener = onValue(submissionsRef, () => {
+        const submissionListener = fastOnValue(submissionsRef, () => {
             scheduleLiveAssignmentReload();
         });
 
@@ -89632,9 +89662,9 @@ window.loadAssignments = async function () {
             submissionSnap
         ] = await Promise.all([
 
-            get(assignmentsRef),
+            fastGet(assignmentsRef),
 
-            get(submissionsRef)
+            fastGet(submissionsRef)
 
         ]);
 
@@ -94412,7 +94442,7 @@ const submissionsRef =
   );
 
 const submissionsSnap =
-  await get(
+  await fastGet(
     submissionsRef
   );
 
@@ -95935,7 +95965,7 @@ window.refreshAssignmentResults = async function () {
         // =====================================================
 
         const assignmentSnap =
-            await get(
+            await fastGet(
                 ref(
                     db,
                     `schools/${schoolId}/assignments`
@@ -96024,7 +96054,7 @@ window.refreshAssignmentResults = async function () {
         // =====================================================
 
         const submissionSnap =
-            await get(
+            await fastGet(
                 ref(
                     db,
                     `schools/${schoolId}/assignmentSubmissions`
@@ -98134,16 +98164,16 @@ async function(){
         //
         // Instead of doing:
         //
-        // get(assignment 1)
-        // get(assignment 2)
-        // get(assignment 3)
+        // fastGet(assignment 1)
+        // fastGet(assignment 2)
+        // fastGet(assignment 3)
         //
         // we read the assignments collection once.
         //
         // =========================================
 
         const assignmentsSnap =
-            await get(
+            await fastGet(
                 ref(
                     db,
                     `schools/${schoolId}/assignments`
@@ -100845,7 +100875,7 @@ window.deleteAssignment = function(id){
 
 
                     const submissionsSnap =
-                        await get(
+                        await fastGet(
                             submissionsRef
                         );
 
@@ -102108,7 +102138,7 @@ window.hasSubmittedAssignment = async function(
       return false;
     }
 
-    const snap = await get(
+    const snap = await fastGet(
       ref(
         db,
         `schools/${schoolId}/assignmentSubmissions`
@@ -104652,7 +104682,7 @@ window.showParentFeeStatement = async function (
             );
 
         const snapshot =
-            await get(
+            await fastGet(
                 schoolRef(`fees/${year}`)
             );
 
@@ -105392,7 +105422,7 @@ window.loadStudentResults = async function (studentId, examPeriod, grade) {
       `schools/${schoolId}/students/${studentId}`;
 
     const snap =
-      await get(ref(db, path)); // ✅ FIXED (avoid schoolRef ambiguity)
+      await fastGet(ref(db, path)); // ✅ FIXED (avoid schoolRef ambiguity)
 
     const data = snap.val();
 
@@ -106454,7 +106484,7 @@ window.requestWithdrawal = async function() {
   }
 
   // ================= CHECK WALLET =================
-  const walletSnap = await get(
+  const walletSnap = await fastGet(
     ref(db, `schools/${schoolId}/wallets/${uid}`)
   );
 
@@ -106472,7 +106502,7 @@ window.requestWithdrawal = async function() {
   }
 
   // ================= CHECK PENDING REQUEST =================
-  const existingSnap = await get(
+  const existingSnap = await fastGet(
     ref(db, `schools/${schoolId}/withdrawRequests`)
   );
 
@@ -106548,7 +106578,7 @@ window.loadWithdrawalRequests = async function() {
 
     const schoolId = window.schoolId;
 
-    const snap = await get(
+    const snap = await fastGet(
       ref(db, `schools/${schoolId}/withdrawRequests`)
     );
 
@@ -106614,7 +106644,7 @@ window.loadWithdrawalRequests = async function() {
 
       try {
 
-        const userSnap = await get(
+        const userSnap = await fastGet(
           ref(db, `users/${req.uid}`)
         );
 
@@ -106810,7 +106840,7 @@ window.acceptJob = async function(jobId) {
 
   try {
 
-    const snap = await get(refJob);
+    const snap = await fastGet(refJob);
 
     if (!snap.exists()) {
       return Swal.fire(
@@ -106927,7 +106957,7 @@ window.acceptJob = async function(jobId) {
     // ================= DOUBLE CHECK STATUS =================
 
     const latestSnap =
-      await get(refJob);
+      await fastGet(refJob);
 
     const latest =
       latestSnap.val();
@@ -106997,7 +107027,7 @@ window.loadMyWithdrawals = async function() {
   const uid = window.currentUser?.uid;
   const schoolId = window.schoolId;
 
-  const snap = await get(
+  const snap = await fastGet(
     ref(db, `schools/${schoolId}/withdrawRequests`)
   );
 
@@ -107043,7 +107073,7 @@ window.ensureTeacherWallet = async function(uid){
       `schools/${schoolId}/wallets/${uid}`
     );
 
-  const snap = await get(walletRef);
+  const snap = await fastGet(walletRef);
 
   if(!snap.exists()){
 
@@ -107063,7 +107093,7 @@ window.loadTeacherWallet = async function () {
 
   if (!uid) return;
 
-  const snap = await get(
+  const snap = await fastGet(
     ref(db, `schools/${schoolId}/wallets/${uid}`)
   );
 
@@ -107135,7 +107165,7 @@ window.approveWithdrawal = async function(requestId){
         `schools/${schoolId}/withdrawRequests/${requestId}`
       );
 
-    const snap = await get(reqRef);
+    const snap = await fastGet(reqRef);
 
     if (!snap.exists()) {
       return Swal.fire(
@@ -107184,7 +107214,7 @@ window.approveWithdrawal = async function(requestId){
     const walletRef =
       ref(db, `schools/${schoolId}/wallets/${req.uid}`);
 
-    const walletSnap = await get(walletRef);
+    const walletSnap = await fastGet(walletRef);
 
     if (!walletSnap.exists()) {
       return Swal.fire(
@@ -107315,7 +107345,7 @@ window.viewAnswer = async function(jobId) {
 
   const schoolId = window.schoolId;
 
-  const snap = await get(
+  const snap = await fastGet(
     ref(db, `schools/${schoolId}/deliveries`)
   );
 
@@ -107373,7 +107403,7 @@ window.viewDelivery = async function(deliveryId) {
 
   const schoolId = window.schoolId;
 
-  const snap = await get(
+  const snap = await fastGet(
     ref(db, `schools/${schoolId}/deliveries/${deliveryId}`)
   );
 
@@ -107437,7 +107467,7 @@ window.releasePayment = async function(jobId) {
       `schools/${schoolId}/jobs/${jobId}`
     );
 
-  const snap = await get(jobRef);
+  const snap = await fastGet(jobRef);
 
   if (!snap.exists()) {
     return Swal.fire(
@@ -107564,7 +107594,7 @@ window.releasePayment = async function(jobId) {
       );
 
     const walletSnap =
-      await get(walletRef);
+      await fastGet(walletRef);
 
     const wallet =
       walletSnap.val() || {};
@@ -107825,7 +107855,7 @@ window.rateWorker = async function(jobId, rating) {
   const schoolId = window.schoolId;
   const jobRef = ref(db, `schools/${schoolId}/jobs/${jobId}`);
 
-  const snap = await get(jobRef);
+  const snap = await fastGet(jobRef);
   const job = snap.val();
 
   await set(ref(db, `schools/${schoolId}/ratings/${job.acceptedBy}/${jobId}`), {
@@ -107849,7 +107879,7 @@ window.sendJobMessage = async function(jobId, message) {
   if (!text) return;
 
   // ================= SECURITY CHECK =================
-  const jobSnap = await get(ref(db, `schools/${schoolId}/jobs/${jobId}`));
+  const jobSnap = await fastGet(ref(db, `schools/${schoolId}/jobs/${jobId}`));
   if (!jobSnap.exists()) return;
 
   const job = jobSnap.val();
@@ -107897,7 +107927,7 @@ window.loadJobChat = async function(jobId) {
 
   const schoolId = window.schoolId;
 
-  const snap = await get(
+  const snap = await fastGet(
     ref(db, `schools/${schoolId}/jobChats/${jobId}`)
   );
 
@@ -107947,7 +107977,7 @@ window.loadAssignmentHelp = async function () {
 
   if (!schoolId || !uid) return;
 // ================= REGISTRATION GATE =================
-const userSnap = await get(
+const userSnap = await fastGet(
   ref(db, `users/${uid}`)
 );
 
@@ -108010,7 +108040,7 @@ if (userSnap.exists()) {
   }
   window._jobsListenerAttached = true;
 
-  onValue(jobsRef, (snap) => {
+  fastOnValue(jobsRef, (snap) => {
 
     const container = document.getElementById("helpPostsContainer");
     if (!container) return;
@@ -108341,7 +108371,7 @@ window.listenJobChat = function(jobId) {
     window._chatListeners[jobId](); // detach previous listener
   }
 
-  const unsubscribe = onValue(chatRef, snap => {
+  const unsubscribe = fastOnValue(chatRef, snap => {
 
     const box = document.getElementById(`chat-${jobId}`);
     if (!box) return;
@@ -108559,7 +108589,7 @@ window.loadRegistrationRequests = function () {
 
   const usersRef = ref(db, "users");
 
-  onValue(usersRef, (snap) => {
+  fastOnValue(usersRef, (snap) => {
 
     console.log("📥 Users snapshot received");
     console.log("📥 Exists:", snap.exists());
@@ -108743,7 +108773,7 @@ window.generateManualReceipt = async function(id){
 
   try {
 
-    const snap = await db.ref(`schools/${id}`).get();
+    const snap = await fastGet(ref(db, `schools/${id}`));
     if (!snap.exists()) return;
 
     const school = snap.val();
@@ -108841,7 +108871,7 @@ window.loadUsersTable = function () {
     window._usersListener(); // unsubscribe old listener
   }
 
-  window._usersListener = onValue(usersRef, (snapshot) => {
+  window._usersListener = fastOnValue(usersRef, (snapshot) => {
 
     window._allUsersCache = [];
     tbody.innerHTML = "";
@@ -108962,7 +108992,7 @@ window.getActiveSchoolId = function () {
 };
 window.toggleUser = async function(uid, currentState) {
 
-  await update(ref(db, `users/${uid}`), {
+  rasmBackgroundUpdate(ref(db, `users/${uid}`), {
     active: !currentState
   });
 
@@ -108982,7 +109012,7 @@ window.deleteUser = async function(uid) {
     }
 
     // Read user
-    const snap = await get(ref(db, `users/${uid}`));
+    const snap = await fastGet(ref(db, `users/${uid}`));
 
     if (!snap.exists()) {
       return Swal.fire({
@@ -109042,7 +109072,7 @@ window.deleteUser = async function(uid) {
     });
 
     // Delete user
-    await remove(ref(db, `users/${uid}`));
+    rasmBackgroundRemove(ref(db, `users/${uid}`));
 
     Swal.fire({
       icon: "success",
@@ -109215,7 +109245,7 @@ class="swal2-select">
 
     try{
 
-        await push(
+        rasmBackgroundPush(
 
             schoolRef("customSubjects"),
 
@@ -109231,8 +109261,7 @@ class="swal2-select">
 
         );
 
-        await loadCustomSubjects();
-
+        // Optimistic UI: select the newly added subject immediately.
         document.getElementById("subject").value=form.name;
 
         Swal.fire(
@@ -109277,7 +109306,7 @@ window.loadCustomSubjects = function(){
     if(oldGroup)
         oldGroup.remove();
 
-    onValue(
+    fastOnValue(
 
         schoolRef("customSubjects"),
 
@@ -112922,7 +112951,7 @@ async function assignSelectedToNewGrade() {
 
         });
 
-        await update(
+        rasmBackgroundUpdate(
             ref(db),
             updates
         );
@@ -113469,7 +113498,7 @@ window.assignSelectedToNewGrade = async function () {
         // 7. SAVE TO FIREBASE
         // ==================================================
 
-        await update(
+        rasmBackgroundUpdate(
             ref(db),
             updates
         );
@@ -115656,7 +115685,7 @@ window.generateFeeBalanceNotices = async function () {
         // =====================================================
 
         const snap =
-            await get(
+            await fastGet(
                 schoolRef(`fees/${year}`)
             );
 
@@ -116981,7 +117010,7 @@ window.getGrade1To6ReportLabel = function(level) {
   window.getLearnerLostBooks = async function(ctx){
     const schoolId=window.schoolId;
     if(!schoolId) return [];
-    const snap=await get(ref(db,`library/${schoolId}`));
+    const snap=await fastGet(ref(db,`library/${schoolId}`));
     if(!snap.exists()) return [];
     const learner=ctx.learner||{};
     const ids=new Set([ctx.learnerId,learner.id,learner.studentId,learner.admissionNo,learner.admission,learner.adm]
@@ -119022,7 +119051,7 @@ updateProgress();
     let students = Array.isArray(window.allStudents) ? window.allStudents.filter(Boolean) : [];
     if(!students.length && schoolId){
       try{
-        const snap = await get(schoolRef("students"));
+        const snap = await fastGet(schoolRef("students"));
         if(snap.exists()){
           students = [];
           snap.forEach(ch => students.push({ ...ch.val(), id: ch.key }));
@@ -119070,7 +119099,7 @@ updateProgress();
 
   async function getLostFromExistingLibrary(ctx){
     const schoolId=window.schoolId;
-    const snap=await get(ref(db,`library/${schoolId}`));
+    const snap=await fastGet(ref(db,`library/${schoolId}`));
     const out=[];
     if(!snap.exists()) return out;
 
@@ -119187,7 +119216,7 @@ updateProgress();
     const selectedYear=digits(ctx.year);
     const selectedGrade=norm(ctx.grade);
     const out=[];
-    const snap=await get(ref(db,`library/${schoolId}`));
+    const snap=await fastGet(ref(db,`library/${schoolId}`));
     if(!snap.exists()) return out;
 
     snap.forEach(bookChild=>{
@@ -119274,7 +119303,7 @@ updateProgress();
     let students=Array.isArray(window.allStudents)?window.allStudents.filter(Boolean):[];
     let x=students.find(s=>idsOf(s).includes(String(id)));
     if(x) return x;
-    try{const snap=await get(schoolRef('students')); if(snap.exists()){snap.forEach(ch=>{const s={...(ch.val()||{}),id:ch.key}; if(!x&&idsOf(s).includes(String(id))) x=s;});}}catch(e){console.warn('Clearance learner lookup fallback failed',e)}
+    try{const snap=await fastGet(schoolRef('students')); if(snap.exists()){snap.forEach(ch=>{const s={...(ch.val()||{}),id:ch.key}; if(!x&&idsOf(s).includes(String(id))) x=s;});}}catch(e){console.warn('Clearance learner lookup fallback failed',e)}
     return x;
   }
   function copyBelongsTo(copy,learner){
@@ -119286,7 +119315,7 @@ updateProgress();
   }
   async function panelRecords(learner){
     const schoolId=window.schoolId; if(!schoolId) throw new Error('School session missing');
-    const snap=await get(ref(db,`library/${schoolId}`)); const rows=[];
+    const snap=await fastGet(ref(db,`library/${schoolId}`)); const rows=[];
     if(!snap.exists()) return rows;
     snap.forEach(bookChild=>{const book=bookChild.val()||{}; Object.entries(book.copies||{}).forEach(([key,c])=>{c=c||{}; const status=norm(c.status); if(!['lost','damaged'].includes(status)) return; if(!copyBelongsTo(c,learner)) return; const resolved=!!c.replacementDate||!!c.replacedAt||!!c.damageResolved||!!c.repairCompletedDate||!!c.lostAccountability?.replaced; rows.push({bookId:bookChild.key,bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',bookNumber:c.bookNumber||key,status,resolved,borrower:c.borrower||c.borrowerName||''});});});
     return rows;
@@ -119325,7 +119354,7 @@ updateProgress();
     let learner=students.find(s=>idsOf(s).includes(wanted));
     if(learner) return learner;
     try{
-      const snap=await get(schoolRef('students'));
+      const snap=await fastGet(schoolRef('students'));
       if(snap.exists()) snap.forEach(ch=>{
         const s={...(ch.val()||{}),id:ch.key};
         if(!learner && idsOf(s).includes(wanted)) learner=s;
@@ -119365,7 +119394,7 @@ updateProgress();
   async function readExactBookCopies(learner){
     const schoolId=window.schoolId;
     if(!schoolId) throw new Error('School session missing. Please login again.');
-    const snap=await get(ref(db,`library/${schoolId}`));
+    const snap=await fastGet(ref(db,`library/${schoolId}`));
     const rows=[];
     if(!snap.exists()) return rows;
     snap.forEach(bookChild=>{
@@ -119472,7 +119501,7 @@ updateProgress();
     const prompt=kind==='Lost'?['Lost Book','Reason / Remarks','Describe what happened...']:['Damaged Book','Damage Description','Describe the damage...'];
     const {value:reason}=await Swal.fire({title:prompt[0],input:'textarea',inputLabel:prompt[1],inputPlaceholder:prompt[2],showCancelButton:true,confirmButtonText:`Mark ${kind}`});
     if(reason===undefined)return;
-    const schoolId=window.schoolId, bookRef=ref(db,`library/${schoolId}/${bookId}`), snap=await get(bookRef);
+    const schoolId=window.schoolId, bookRef=ref(db,`library/${schoolId}/${bookId}`), snap=await fastGet(bookRef);
     if(!snap.exists()) return Swal.fire('Error','Book not found.','error');
     const book=snap.val()||{}, copies=book.copies||{}, copy=copies[bookNumber];
     if(!copy) return Swal.fire('Error','Copy not found.','error');
@@ -119482,7 +119511,7 @@ updateProgress();
     else {copy.damageReason=reason||'No reason provided';copy.damagedDate=date;}
     copy.lostAccountability={...(copy.lostAccountability||{}),bookId:String(bookId),bookNumber:String(bookNumber),bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',learnerId:String(borrower.id),learnerName:borrower.name||'Unknown Learner',reason:reason||'No reason provided',year:String(now.getFullYear()),grade:copy.grade||copy.class||copy.gradeName||'',status:kind.toLowerCase(),replaced:false,resolved:false,markedAt:Date.now(),lostDate:kind==='Lost'?date:(copy.lostAccountability?.lostDate||''),damagedDate:kind==='Damaged'?date:(copy.lostAccountability?.damagedDate||'')};
     if(typeof addCopyHistory==='function') addCopyHistory(copy,`Marked ${kind}`,reason||'No reason provided');
-    await update(bookRef,{copies});
+    rasmBackgroundUpdate(bookRef,{copies});
     Swal.fire('Success',`${bookNumber} marked as ${kind.toLowerCase()}. This learner's library clearance is now blocked until replacement/resolution is recorded.`,'success');
     viewBookCopies(bookId);
   }
@@ -119492,7 +119521,7 @@ updateProgress();
   async function replace(bookId,bookNumber,kind){
     const {value:by}=await Swal.fire({title:`Replace ${kind} Book`,input:'text',inputLabel:`Who replaced/resolved the ${kind.toLowerCase()} book?`,inputPlaceholder:'Learner / Parent / Librarian',showCancelButton:true,confirmButtonText:'Record Replacement'});
     if(by===undefined)return;
-    const schoolId=window.schoolId, bookRef=ref(db,`library/${schoolId}/${bookId}`), snap=await get(bookRef);
+    const schoolId=window.schoolId, bookRef=ref(db,`library/${schoolId}/${bookId}`), snap=await fastGet(bookRef);
     if(!snap.exists()) return Swal.fire('Error','Book not found.','error');
     const book=snap.val()||{}, copies=book.copies||{}, copy=copies[bookNumber];
     if(!copy)return Swal.fire('Error','Book copy not found.','error');
@@ -119501,7 +119530,7 @@ updateProgress();
     copy.replacementDate=date; copy.replacedAt=Date.now(); copy.replacedBy=by||'Not specified';
     copy.status='Available'; copy.borrower=null; copy.borrowerName=null; copy.borrowerAdm=null; copy.borrowerId=null; copy.studentId=null; copy.borrowDate=null; copy.dueDate=null;
     if(typeof addCopyHistory==='function') addCopyHistory(copy,`${kind} Book Replaced`,by||'Not specified');
-    await update(bookRef,{copies,available:Number(book.available||0)+1});
+    rasmBackgroundUpdate(bookRef,{copies,available:Number(book.available||0)+1});
     Swal.fire('Replacement Recorded',`${bookNumber} has been replaced/resolved. The learner's accountability record is now marked resolved.`,'success');
     viewBookCopies(bookId);
   }
@@ -119527,7 +119556,7 @@ updateProgress();
     const schoolId=window.schoolId;
     if(!schoolId) throw new Error('School session is not available. Please reload and try again.');
     const bookRef=ref(db,`library/${schoolId}/${bookId}`);
-    const snap=await get(bookRef);
+    const snap=await fastGet(bookRef);
     if(!snap.exists()) return Swal.fire('Error','Book not found.','error');
     const book=snap.val()||{}, copies=book.copies||{};
     const copy=findCopy(copies,bookNumber);
@@ -119538,7 +119567,7 @@ updateProgress();
     copy.lostAccountability={...(copy.lostAccountability||{}),bookId:String(bookId),bookNumber:String(copy.bookNumber||bookNumber),bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',learnerId:String(borrowerId),learnerName:borrowerName,replaced:true,resolved:true,replacedAt:now,replacementDate:date,replacedBy:by||'Not specified',status:'resolved'};
     copy.replacementDate=date; copy.replacedAt=now; copy.replacedBy=by||'Not specified'; copy.status='Available';
     copy.borrower=null; copy.borrowerName=null; copy.borrowerAdm=null; copy.borrowerId=null; copy.studentId=null; copy.borrowDate=null; copy.dueDate=null;
-    await update(bookRef,{copies,available:Number(book.available||0)+1});
+    rasmBackgroundUpdate(bookRef,{copies,available:Number(book.available||0)+1});
     await Swal.fire('Replacement Recorded',`${copy.bookNumber||bookNumber} has been replaced/resolved. The learner can now proceed with clearance if no other unresolved lost/damaged books remain.`,'success');
     if(typeof window.viewBookCopies==='function') window.viewBookCopies(bookId);
     if(typeof window.loadBorrowedBooks==='function') window.loadBorrowedBooks();
@@ -119737,4 +119766,32 @@ updateProgress();
     window.initRasmManagementFormToggles = initRasmManagementFormToggles;
 })();
 </script>
-
+<!-- RASM 360 PWA bootstrap: deliberately outside all printWindow template literals. -->
+<script id="rasm-pwa-bootstrap">
+(function () {
+  'use strict';
+  var protocol = window.location && window.location.protocol;
+  if (protocol !== 'http:' && protocol !== 'https:') {
+    return;
+  }
+  function addManifest() {
+    if (document.querySelector('link[rel="manifest"]')) return;
+    var link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = './manifest.webmanifest';
+    document.head.appendChild(link);
+  }
+  function registerSW() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('./service-worker.js', {scope: './'})
+      .then(function (reg) { console.info('RASM 360 PWA active:', reg.scope); })
+      .catch(function (err) { console.warn('RASM 360 PWA registration failed:', err); });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addManifest, {once:true});
+  } else {
+    addManifest();
+  }
+  window.addEventListener('load', registerSW, {once:true});
+})();
+</script>
