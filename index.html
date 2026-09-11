@@ -10002,7 +10002,7 @@ font-weight:bold;
     position:relative;
     overflow:hidden;
 
-    background-image:url('https://i.imgur.com/FIsJigH.jpeg');
+    background-image:url('https://imgur.com/a/o80mK1Y');
 
     background-size:cover;
     background-position:center;
@@ -24797,112 +24797,86 @@ function () {
 
 
 
-/* ============================================================
-   🚀 RASM 360 — ULTRA-FAST TEACHER REGISTRATION
-   ============================================================
-   ✔ School isolated
-   ✔ No download of all teachers
-   ✔ Fast single-record reads
-   ✔ Duplicate phone protection
-   ✔ Duplicate email protection
-   ✔ Safe update mode
-   ✔ Safe create mode
-   ✔ Prevents double submission
-   ✔ Works efficiently with thousands of schools
-   ============================================================ */
+
+
+     /* ============================================================
+   👨‍🏫 RASM 360 — SAVE TEACHER
+   ------------------------------------------------------------
+   ✔ Fixes async push() bug
+   ✔ Waits for Firebase
+   ✔ Creates teacher immediately
+   ✔ Updates local table immediately
+   ✔ Updates teacher count immediately
+   ✔ Works for CREATE
+   ✔ Works for EDIT
+   ✔ SweetAlert2 only
+============================================================ */
 
 window.addTeacher = async function () {
 
-    /* ========================================================
-       🛑 PREVENT DOUBLE SUBMISSION
-    ======================================================== */
-
-    if (window.__addingTeacher) return;
+    if (window.__addingTeacher) {
+        return;
+    }
 
     window.__addingTeacher = true;
-
 
     const saveBtn =
         document.getElementById(
             "saveTeacherBtn"
         );
 
-
     try {
 
-
-        /* ====================================================
-           1. GET VALUES ONCE
-        ==================================================== */
+        /* =====================================================
+           1. GET FORM VALUES
+        ===================================================== */
 
         const name =
-            document
-                .getElementById("teacherName")
-                ?.value
-                ?.trim() || "";
-
+            document.getElementById(
+                "teacherName"
+            )?.value.trim() || "";
 
         const phone =
-            document
-                .getElementById("teacherPhone")
-                ?.value
-                ?.trim() || "";
-
+            document.getElementById(
+                "teacherPhone"
+            )?.value.trim() || "";
 
         const email =
-            document
-                .getElementById("teacherEmail")
-                ?.value
-                ?.trim()
-                ?.toLowerCase() || "";
-
+            document.getElementById(
+                "teacherEmail"
+            )?.value.trim().toLowerCase() || "";
 
         const subject =
-            document
-                .getElementById("teacherSubject")
-                ?.value
-                ?.trim() || "";
-
+            document.getElementById(
+                "teacherSubject"
+            )?.value.trim() || "";
 
         const classAssigned =
-            document
-                .getElementById("teacherClass")
-                ?.value
-                ?.trim() || "";
-
+            document.getElementById(
+                "teacherClass"
+            )?.value.trim() || "";
 
         const staffNumber =
-            document
-                .getElementById("teacherStaffNumber")
-                ?.value
-                ?.trim() || "";
-
+            document.getElementById(
+                "teacherStaffNumber"
+            )?.value.trim() || "";
 
         const employmentType =
-            document
-                .getElementById("teacherEmployment")
-                ?.value
-                ?.trim() || "";
+            document.getElementById(
+                "teacherEmployment"
+            )?.value.trim() || "";
 
 
-
-        /* ====================================================
+        /* =====================================================
            2. VALIDATION
-        ==================================================== */
+        ===================================================== */
 
         if (!name) {
 
             await Swal.fire({
-
-                icon:
-                    "warning",
-
-                title:
-                    "Teacher Name Required",
-
-                text:
-                    "Please enter the teacher's full name."
-
+                icon: "warning",
+                title: "Teacher Name Required",
+                text: "Please enter the teacher's full name."
             });
 
             return;
@@ -24912,16 +24886,9 @@ window.addTeacher = async function () {
         if (!subject) {
 
             await Swal.fire({
-
-                icon:
-                    "warning",
-
-                title:
-                    "Subject Required",
-
-                text:
-                    "Please enter the teaching subject."
-
+                icon: "warning",
+                title: "Subject Required",
+                text: "Please enter the teaching subject."
             });
 
             return;
@@ -24931,48 +24898,30 @@ window.addTeacher = async function () {
         if (!classAssigned) {
 
             await Swal.fire({
-
-                icon:
-                    "warning",
-
-                title:
-                    "Class Required",
-
-                text:
-                    "Please enter the assigned class."
-
+                icon: "warning",
+                title: "Class Required",
+                text: "Please enter the assigned class."
             });
 
             return;
         }
 
 
-
-        /* ====================================================
+        /* =====================================================
            3. EMAIL VALIDATION
-        ==================================================== */
+        ===================================================== */
 
         if (email) {
 
             const emailRegex =
                 /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-
-            if (
-                !emailRegex.test(email)
-            ) {
+            if (!emailRegex.test(email)) {
 
                 await Swal.fire({
-
-                    icon:
-                        "warning",
-
-                    title:
-                        "Invalid Email",
-
-                    text:
-                        "Enter a valid email address."
-
+                    icon: "warning",
+                    title: "Invalid Email",
+                    text: "Enter a valid email address."
                 });
 
                 return;
@@ -24981,32 +24930,21 @@ window.addTeacher = async function () {
         }
 
 
-
-        /* ====================================================
+        /* =====================================================
            4. PHONE VALIDATION
-        ==================================================== */
+        ===================================================== */
 
         if (phone) {
 
             const phoneRegex =
                 /^(?:\+254|254|0)[17]\d{8}$/;
 
-
-            if (
-                !phoneRegex.test(phone)
-            ) {
+            if (!phoneRegex.test(phone)) {
 
                 await Swal.fire({
-
-                    icon:
-                        "warning",
-
-                    title:
-                        "Invalid Phone Number",
-
-                    text:
-                        "Enter a valid Kenyan phone number."
-
+                    icon: "warning",
+                    title: "Invalid Phone Number",
+                    text: "Enter a valid Kenyan phone number."
                 });
 
                 return;
@@ -25015,29 +24953,20 @@ window.addTeacher = async function () {
         }
 
 
-
-        /* ====================================================
+        /* =====================================================
            5. NORMALIZE PHONE
-           
-           This makes:
-           
-           0712345678
-           254712345678
-           +254712345678
-           
-           comparable.
-        ==================================================== */
+        ===================================================== */
 
         let normalizedPhone =
             phone;
 
-
         if (normalizedPhone) {
 
             normalizedPhone =
-                normalizedPhone
-                    .replace(/\s+/g, "");
-
+                normalizedPhone.replace(
+                    /\s+/g,
+                    ""
+                );
 
             if (
                 normalizedPhone.startsWith(
@@ -25068,10 +24997,12 @@ window.addTeacher = async function () {
         }
 
 
+        /* =====================================================
+           6. BASE TEACHER DATA
+        ===================================================== */
 
-        /* ====================================================
-           6. CREATE TEACHER OBJECT
-        ==================================================== */
+        const now =
+            Date.now();
 
         const teacherData = {
 
@@ -25089,85 +25020,78 @@ window.addTeacher = async function () {
 
             staffNumber,
 
+            /*
+             * IMPORTANT:
+             * Save both names so old table code and
+             * new table code can display employment.
+             */
             employmentType,
+
+            employment:
+                employmentType,
 
             status:
                 "Active",
 
             updatedAt:
-                Date.now()
+                now
 
         };
 
 
-
-        /* ====================================================
-           7. CREATE MODE
-        ==================================================== */
-
-        if (!editingTeacherId) {
-
-            teacherData.createdAt =
-                Date.now();
-
-        }
-
-
-
-        /* ====================================================
-           8. BUTTON LOADING STATE
-        ==================================================== */
+        /* =====================================================
+           7. LOADING BUTTON
+        ===================================================== */
 
         if (saveBtn) {
 
-            saveBtn.disabled =
-                true;
+            saveBtn.disabled = true;
 
-            saveBtn.innerHTML =
-                `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+            saveBtn.innerHTML = `
+                <i class="fas fa-spinner fa-spin"></i>
+                Saving...
+            `;
 
         }
 
 
-
-        /* ====================================================
-           9. SCHOOL-SCOPED REFERENCE
-        ==================================================== */
+        /* =====================================================
+           8. SCHOOL REFERENCE
+        ===================================================== */
 
         const teachersRef =
-            schoolRef("teachers");
+            schoolRef(
+                "teachers"
+            );
 
 
-
-        /* ====================================================
-           10. UPDATE EXISTING TEACHER
-        ==================================================== */
+        /* =====================================================
+           9. EDIT EXISTING TEACHER
+        ===================================================== */
 
         if (editingTeacherId) {
 
+            const teacherId =
+                String(
+                    editingTeacherId
+                );
 
             const teacherRef =
                 schoolRef(
-                    `teachers/${editingTeacherId}`
+                    `teachers/${teacherId}`
                 );
 
 
-            /*
-             * We only read THIS teacher.
-             *
-             * We do NOT download the entire teachers
-             * collection.
-             */
+            /* ================================================
+               VERIFY RECORD
+            ================================================= */
 
             const currentSnap =
                 await fastGet(
                     teacherRef
                 );
 
-
-            if (
-                !currentSnap.exists()
-            ) {
+            if (!currentSnap.exists()) {
 
                 throw new Error(
                     "This teacher no longer exists."
@@ -25176,144 +25100,323 @@ window.addTeacher = async function () {
             }
 
 
+            /* ================================================
+               PRESERVE ID
+            ================================================= */
+
+            const updatedTeacher = {
+
+                ...teacherData,
+
+                id: teacherId
+
+            };
+
 
             /* ================================================
-               UPDATE ONLY THE TEACHER RECORD
+               WAIT FOR ACTUAL FIREBASE UPDATE
             ================================================= */
 
-            const teacherWrite = rasmBackgroundUpdate(teacherRef, teacherData);
-            teacherWrite.catch(err => console.error("Teacher update failed:", err));
+            await rasmBackgroundUpdate(
+
+                teacherRef,
+
+                updatedTeacher
+
+            );
 
 
-
-            Swal.fire({
-
-                icon:
-                    "success",
-
-                title:
-                    "Teacher Updated",
-
-                text:
-                    "Teacher profile updated successfully.",
-
-                timer:
-                    1500,
-
-                showConfirmButton:
-                    false
-
-            });
-
-
-            editingTeacherId =
-                null;
-
-
-        } else {
-
-
-            /* =================================================
-               11. NEW TEACHER
+            /* ================================================
+               UPDATE LOCAL TABLE CACHE
             ================================================= */
 
+            if (
+                !Array.isArray(
+                    window.__teacherData
+                )
+            ) {
 
-            /*
-             * Generate Firebase key locally.
-             *
-             * No network request is made by push()
-             * when used without data.
-             */
+                window.__teacherData = [];
 
-            const teacherKey =
-                push(
-                    teachersRef
-                ).key;
+            }
 
 
+            const index =
+                window.__teacherData.findIndex(
+                    teacher =>
+                        String(
+                            teacher.id
+                        ) === teacherId
+                );
 
-            if (!teacherKey) {
 
-                throw new Error(
-                    "Unable to create teacher record."
+            if (index !== -1) {
+
+                window.__teacherData[
+                    index
+                ] = {
+
+                    ...window.__teacherData[
+                        index
+                    ],
+
+                    ...updatedTeacher
+
+                };
+
+            } else {
+
+                window.__teacherData.unshift(
+                    updatedTeacher
                 );
 
             }
 
 
-
-            /* =================================================
-               12. CREATE TEACHER
+            /* ================================================
+               REFRESH TABLE IMMEDIATELY
             ================================================= */
 
-            const teacherWrite = rasmBackgroundSet(
-                schoolRef(`teachers/${teacherKey}`),
-                teacherData
-            );
-            teacherWrite.catch(err => console.error("Teacher create failed:", err));
+            window.__teacherPage = 1;
+
+            if (
+                typeof window.renderTeacherPage ===
+                "function"
+            ) {
+
+                window.renderTeacherPage();
+
+            }
 
 
-
-            /* =================================================
-               13. SUCCESS
+            /* ================================================
+               UPDATE COUNT
             ================================================= */
 
-            Swal.fire({
+            const totalTeachers =
+                document.getElementById(
+                    "totalTeachers"
+                );
 
-                icon:
-                    "success",
+            if (totalTeachers) {
 
-                title:
-                    "Teacher Added",
+                totalTeachers.textContent =
+                    (
+                        window.__teacherData
+                            .length
+                    ).toLocaleString();
 
-                html: `
+            }
 
-                    <b>
-                        ${teacherData.name}
-                    </b>
 
-                    <br><br>
+            /* ================================================
+               CLEAR EDIT MODE
+            ================================================= */
 
-                    Staff Number:
+            editingTeacherId =
+                null;
 
-                    <br>
 
-                    <b>
-                        ${
-                            teacherData.staffNumber ||
-                            "Not Provided"
-                        }
-                    </b>
+            await Swal.fire({
 
-                `,
+                icon: "success",
 
-                timer:
-                    2200,
+                title: "Teacher Updated",
 
-                showConfirmButton:
-                    false
+                text:
+                    `${name} has been updated successfully.`,
+
+                timer: 1800,
+
+                showConfirmButton: false
 
             });
 
         }
 
 
+        /* =====================================================
+           10. CREATE NEW TEACHER
+        ===================================================== */
 
-        /* ====================================================
-           14. LIGHT UI REFRESH
-           
-           Do not download the whole teacher database here.
-        ==================================================== */
+        else {
 
-        // No forced module reload: the existing live teacher listener
-        // will receive the committed record and update the table.
+            /*
+             * IMPORTANT FIX:
+             *
+             * Your push() wrapper is async.
+             *
+             * Therefore we MUST await it before
+             * reading .key.
+             */
+            const newTeacherRef =
+                await push(
+                    teachersRef
+                );
 
 
+            const teacherKey =
+                newTeacherRef?.key;
 
 
-        /* ====================================================
-           15. CLEAR FORM
-        ==================================================== */
+            if (!teacherKey) {
+
+                throw new Error(
+                    "Firebase could not generate a teacher ID."
+                );
+
+            }
+
+
+            /* ================================================
+               ADD ID TO DATA
+            ================================================= */
+
+            const newTeacher = {
+
+                ...teacherData,
+
+                id: teacherKey
+
+            };
+
+
+            /* ================================================
+               WAIT FOR FIREBASE WRITE
+            ================================================= */
+
+            await rasmBackgroundSet(
+
+                schoolRef(
+                    `teachers/${teacherKey}`
+                ),
+
+                newTeacher
+
+            );
+
+
+            /* ================================================
+               UPDATE LOCAL CACHE IMMEDIATELY
+            ================================================= */
+
+            if (
+                !Array.isArray(
+                    window.__teacherData
+                )
+            ) {
+
+                window.__teacherData = [];
+
+            }
+
+
+            /*
+             * Put newest teacher at the top
+             * so the user sees the new record
+             * immediately.
+             */
+            window.__teacherData.unshift(
+                newTeacher
+            );
+
+
+            /* ================================================
+               RESET TO FIRST PAGE
+            ================================================= */
+
+            window.__teacherPage = 1;
+
+
+            /* ================================================
+               RENDER TABLE IMMEDIATELY
+            ================================================= */
+
+            if (
+                typeof window.renderTeacherPage ===
+                "function"
+            ) {
+
+                window.renderTeacherPage();
+
+            }
+
+
+            /* ================================================
+               UPDATE TOTAL TEACHERS
+            ================================================= */
+
+            const totalTeachers =
+                document.getElementById(
+                    "totalTeachers"
+                );
+
+            if (totalTeachers) {
+
+                totalTeachers.textContent =
+                    (
+                        window.__teacherData
+                            .length
+                    ).toLocaleString();
+
+            }
+
+
+            /* ================================================
+               SUCCESS ONLY AFTER FIREBASE + TABLE
+            ================================================= */
+
+            await Swal.fire({
+
+                icon: "success",
+
+                title: "Teacher Added Successfully",
+
+                html: `
+                    <div style="line-height:1.7;">
+
+                        <b>
+                            ${escapeTeacherHTML(
+                                name
+                            )}
+                        </b>
+
+                        <br>
+
+                        Staff Number:
+                        <b>
+                            ${escapeTeacherHTML(
+                                staffNumber ||
+                                "Not Provided"
+                            )}
+                        </b>
+
+                        <br><br>
+
+                        <span style="
+                            color:#16a34a;
+                            font-weight:700;
+                        ">
+                            ✓ Saved to Firebase
+                            <br>
+                            ✓ Added to Teachers Table
+                        </span>
+
+                    </div>
+                `,
+
+                timer: 2200,
+
+                showConfirmButton: false
+
+            });
+
+        }
+
+
+        /* =====================================================
+           11. CLEAR FORM
+        ===================================================== */
 
         if (
             typeof clearTeacherForm ===
@@ -25325,62 +25428,54 @@ window.addTeacher = async function () {
         }
 
 
-
     } catch (error) {
 
-
-        /* ====================================================
-           ❌ ERROR
-        ==================================================== */
-
         console.error(
-            "❌ Teacher registration error:",
+            "❌ Teacher save error:",
             error
         );
 
 
         await Swal.fire({
 
-            icon:
-                "error",
+            icon: "error",
 
-            title:
-                "Unable to Save Teacher",
+            title: "Unable to Save Teacher",
 
-            text:
-                error?.message ||
-                "An unexpected error occurred."
+            html: `
+                <div style="line-height:1.6;">
+                    ${
+                        escapeTeacherHTML(
+                            error?.message ||
+                            "An unexpected error occurred."
+                        )
+                    }
+                </div>
+            `
 
         });
 
 
-
     } finally {
-
-
-        /* ====================================================
-           🔓 UNLOCK
-        ==================================================== */
 
         window.__addingTeacher =
             false;
 
 
-
         if (saveBtn) {
 
-            saveBtn.disabled =
-                false;
+            saveBtn.disabled = false;
 
-            saveBtn.innerHTML =
-                `<i class="fas fa-save"></i> Save Teacher`;
+            saveBtn.innerHTML = `
+                <i class="fas fa-save"></i>
+                Save Teacher
+            `;
 
         }
 
     }
 
 };
-
 function clearTeacherForm() {
 
   document.getElementById("teacherName").value = "";
@@ -37668,260 +37763,643 @@ window.loadFeeFormYears = function () {
 document.addEventListener("DOMContentLoaded", () => {
   loadFees();
 });
+/* ============================================================
+   ✏️ RASM 360 — EDIT LEARNER FEE
+   ------------------------------------------------------------
+   ✔ Updates Firebase
+   ✔ Waits for Firebase write
+   ✔ Invalidates stale fee cache
+   ✔ Reloads fee table immediately
+   ✔ Refreshes finance summary
+   ✔ Shows success ONLY after everything is saved
+============================================================ */
+
 window.openEditFeeModal = async (year, feeId) => {
 
-  try {
+    try {
 
-    // ================= FETCH RECORD =================
-    const snap = await fastGet(
-      schoolRef(`fees/${year}/${feeId}`)
-    );
+        /* =====================================================
+           1. FETCH CURRENT FEE RECORD
+        ===================================================== */
 
-    if (!snap.exists()) {
+        const feeRef = schoolRef(
+            `fees/${year}/${feeId}`
+        );
 
-      return Swal.fire(
-        "Error",
-        "Fee record not found",
-        "error"
-      );
-    }
+        const snap = await fastGet(feeRef);
 
-    const fee = snap.val();
+        if (!snap.exists()) {
 
-    const feesObj = fee.fees || {};
+            return Swal.fire({
+                icon: "error",
+                title: "Fee Record Not Found",
+                text: "The learner fee record could not be found."
+            });
 
-    // ================= FEE TYPES =================
-    const feeTypes = Object.keys(feesObj);
-
-    if (!feeTypes.length) {
-
-      return Swal.fire(
-        "Error",
-        "No fee categories found",
-        "error"
-      );
-    }
-
-    // ================= BUILD OPTIONS =================
-    let optionsHtml = "";
-
-    feeTypes.forEach(type => {
-
-      let total = 0;
-
-      if (Array.isArray(feesObj[type])) {
-
-        total = feesObj[type].reduce((sum, p) => {
-
-          return sum + Number(p.amount || 0);
-
-        }, 0);
-      }
-
-      optionsHtml += `
-        <option value="${type}">
-          ${type} (KES ${total})
-        </option>
-      `;
-    });
-
-    // ================= POPUP =================
-    const result = await Swal.fire({
-
-      title: "✏️ Edit Learner Fee",
-
-      html: `
-
-        <div style="text-align:left;">
-
-          <div style="
-            background:#f3f4f6;
-            padding:12px;
-            border-radius:10px;
-            margin-bottom:15px;
-            font-size:14px;
-          ">
-
-            <b>👨 Learner:</b>
-            ${fee.studentName || "-"}
-
-            <br><br>
-
-            <b>🏫 Grade:</b>
-            ${fee.grade || "-"}
-
-            <br><br>
-
-            <b>💰 Current Total Paid:</b>
-            KES ${(fee.totalPaid || 0).toLocaleString()}
-
-          </div>
-
-          <label style="
-            font-weight:bold;
-            display:block;
-            margin-bottom:5px;
-          ">
-            Select Fee Category
-          </label>
-
-          <select
-            id="editFeeType"
-            class="swal2-input"
-            style="
-              width:100%;
-              margin-bottom:15px;
-            "
-          >
-
-            ${optionsHtml}
-
-          </select>
-
-          <label style="
-            font-weight:bold;
-            display:block;
-            margin-bottom:5px;
-          ">
-            New Amount
-          </label>
-
-          <input
-            type="number"
-            id="editFeeAmount"
-            class="swal2-input"
-            placeholder="Enter new amount"
-            style="width:100%;"
-          >
-
-        </div>
-      `,
-
-      confirmButtonText: "💾 Save Changes",
-
-      cancelButtonText: "Cancel",
-
-      showCancelButton: true,
-
-      confirmButtonColor: "#16a34a",
-
-      cancelButtonColor: "#6b7280",
-
-      preConfirm: () => {
-
-        const type =
-          document.getElementById("editFeeType").value;
-
-        const amount =
-          Number(
-            document.getElementById("editFeeAmount").value
-          );
-
-        if (!type || isNaN(amount) || amount < 0) {
-
-          Swal.showValidationMessage(
-            "Enter valid amount"
-          );
-
-          return false;
         }
 
-        return {
-          type,
-          amount
-        };
-      }
-    });
+        const fee = snap.val() || {};
 
-    // ================= CANCEL =================
-    if (!result.isConfirmed) return;
+        /*
+         * Make a completely independent copy.
+         * This prevents accidental modification of
+         * cached Firebase data before Save.
+         */
+        const feesObj = JSON.parse(
+            JSON.stringify(fee.fees || {})
+        );
 
-    const { type, amount } = result.value;
 
-    // ================= UPDATE CATEGORY =================
-    feesObj[type] = [
-      {
-        amount,
-        timestamp: Date.now(),
-        edited: true,
-        editedBy:
-          localStorage.getItem("username") || "Admin"
-      }
-    ];
+        /* =====================================================
+           2. GET FEE CATEGORIES
+        ===================================================== */
 
-    // ================= RECALCULATE =================
-    let totalPaid = 0;
+        const feeTypes = Object.keys(feesObj);
 
-    Object.values(feesObj).forEach(list => {
+        if (!feeTypes.length) {
 
-      if (Array.isArray(list)) {
+            return Swal.fire({
+                icon: "error",
+                title: "No Fee Categories",
+                text: "This learner has no fee categories to edit."
+            });
 
-        list.forEach(item => {
+        }
 
-          totalPaid += Number(item.amount || 0);
+
+        /* =====================================================
+           3. BUILD CATEGORY OPTIONS
+        ===================================================== */
+
+        let optionsHtml = "";
+
+        feeTypes.forEach(type => {
+
+            let total = 0;
+
+            if (Array.isArray(feesObj[type])) {
+
+                total = feesObj[type].reduce(
+                    (sum, item) => {
+                        return sum + Number(
+                            item?.amount || 0
+                        );
+                    },
+                    0
+                );
+
+            }
+
+            optionsHtml += `
+                <option value="${feeSafeHTML(type)}">
+                    ${feeSafeHTML(type)}
+                    (KES ${total.toLocaleString()})
+                </option>
+            `;
 
         });
-      }
-    });
 
-   const gradeRange = getGradeRange(fee.grade);
 
-const feeSnap = await fastGet(
-    schoolRef(
-        `settings/schoolFee/${year}/${gradeRange}`
-    )
-);
+        /* =====================================================
+           4. EDIT MODAL
+        ===================================================== */
 
-const expectedTotal =
-    feeSnap.exists()
-        ? Number(feeSnap.val().amount || 0)
-        : 0;
+        const result = await Swal.fire({
 
-    const balance =
-      expectedTotal - totalPaid;
+            title: "✏️ Edit Learner Fee",
 
-    // ================= SAVE =================
-    await update(
+            html: `
 
-      schoolRef(`fees/${year}/${feeId}`),
+                <div style="
+                    text-align:left;
+                    width:100%;
+                ">
 
-      {
-        fees: feesObj,
-        totalPaid,
-        balance,
-        updatedAt: Date.now()
-      }
+                    <div style="
+                        background:#f3f4f6;
+                        padding:14px;
+                        border-radius:10px;
+                        margin-bottom:18px;
+                        line-height:1.7;
+                    ">
+
+                        <b>👨 Learner:</b>
+                        ${feeSafeHTML(
+                            fee.studentName || "-"
+                        )}
+
+                        <br>
+
+                        <b>🏫 Grade:</b>
+                        ${feeSafeHTML(
+                            fee.grade || "-"
+                        )}
+
+                        <br>
+
+                        <b>📅 Academic Year:</b>
+                        ${feeSafeHTML(
+                            String(year)
+                        )}
+
+                        <br>
+
+                        <b>💰 Current Total Paid:</b>
+                        KES ${Number(
+                            fee.totalPaid || 0
+                        ).toLocaleString()}
+
+                    </div>
+
+
+                    <label style="
+                        display:block;
+                        font-weight:700;
+                        margin-bottom:6px;
+                    ">
+                        Select Fee Category
+                    </label>
+
+                    <select
+                        id="editFeeType"
+                        class="swal2-input"
+                        style="
+                            width:100%;
+                            margin:0 0 16px 0;
+                        "
+                    >
+                        ${optionsHtml}
+                    </select>
+
+
+                   <label style="
+    display:block;
+    font-weight:700;
+    margin-bottom:6px;
+">
+    Top-Up Amount
+</label>
+
+<input
+    type="number"
+    id="editFeeAmount"
+    class="swal2-input"
+    min="0"
+    step="0.01"
+    placeholder="Enter amount being paid"
+    style="
+        width:100%;
+        margin:0;
+    "
+>
+                </div>
+
+            `,
+
+            confirmButtonText: "💾 Save Changes",
+
+            cancelButtonText: "Cancel",
+
+            showCancelButton: true,
+
+            confirmButtonColor: "#16a34a",
+
+            cancelButtonColor: "#6b7280",
+
+            allowOutsideClick: false,
+
+            preConfirm: () => {
+
+                const type =
+                    document.getElementById(
+                        "editFeeType"
+                    )?.value;
+
+                const amount =
+                    Number(
+                        document.getElementById(
+                            "editFeeAmount"
+                        )?.value
+                    );
+
+                if (
+                    !type ||
+                    !Number.isFinite(amount) ||
+                    amount < 0
+                ) {
+
+                    Swal.showValidationMessage(
+                        "Please enter a valid fee amount."
+                    );
+
+                    return false;
+
+                }
+
+                return {
+                    type,
+                    amount
+                };
+
+            }
+
+        });
+
+
+        /* =====================================================
+           5. CANCEL
+        ===================================================== */
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+
+        const {
+            type,
+            amount
+        } = result.value;
+
+
+       /* =====================================================
+   6. ADD TOP-UP TO SELECTED FEE CATEGORY
+
+   IMPORTANT:
+   The amount entered is a NEW PAYMENT / TOP-UP.
+
+   Example:
+   Existing payment = KES 100
+   New top-up       = KES 10
+   New total        = KES 110
+
+   The old payment is NEVER erased.
+===================================================== */
+
+const existingPayments =
+    Array.isArray(feesObj[type])
+        ? feesObj[type]
+        : [];
+
+/* Calculate what was already paid in this category */
+const previousCategoryTotal =
+    existingPayments.reduce(
+        (sum, item) =>
+            sum + Number(item?.amount || 0),
+        0
     );
 
-    // ================= SUCCESS =================
-    Swal.fire({
+/*
+ * Add the new payment as a NEW transaction.
+ * Do NOT replace the existing payment array.
+ */
+existingPayments.push({
 
-      icon: "success",
+    amount: amount,
 
-      title: "Fee Updated",
+    timestamp: Date.now(),
 
-      text: "Learner fee updated successfully",
+    topUp: true,
 
-      timer: 1800,
+    previousAmount:
+        previousCategoryTotal,
 
-      showConfirmButton: false
-    });
+    edited: true,
 
- // ================= RELOAD REMOVED =================
+    editedBy:
+        localStorage.getItem("username") ||
+        window.currentUser?.name ||
+        window.currentUser?.fullName ||
+        "Admin"
 
-} catch (err) {
+});
 
-  console.error("Edit fee error:", err);
 
-  Swal.fire(
-    "Error",
-    err.message || "Failed to edit fee",
-    "error"
-  );
-}
-};
 
-// ===================================================
+        /* =====================================================
+           7. RECALCULATE TOTAL PAID
+        ===================================================== */
+
+        let totalPaid = 0;
+
+        Object.values(feesObj).forEach(list => {
+
+            if (Array.isArray(list)) {
+
+                list.forEach(item => {
+
+                    totalPaid += Number(
+                        item?.amount || 0
+                    );
+
+                });
+
+            }
+
+        });
+
+
+        /* =====================================================
+           8. GET EXPECTED SCHOOL FEE
+        ===================================================== */
+
+        let expectedTotal = 0;
+
+        try {
+
+            const gradeRange =
+                getGradeRange(
+                    fee.grade
+                );
+
+            if (gradeRange) {
+
+                const feeSnap =
+                    await fastGet(
+                        schoolRef(
+                            `settings/schoolFee/${year}/${gradeRange}`
+                        )
+                    );
+
+                if (feeSnap.exists()) {
+
+                    expectedTotal =
+                        Number(
+                            feeSnap.val()?.amount || 0
+                        );
+
+                }
+
+            }
+
+        } catch (expectedFeeError) {
+
+            console.warn(
+                "Expected school fee lookup failed:",
+                expectedFeeError
+            );
+
+            /*
+             * Keep the existing balance if the
+             * school-fee setting cannot be read.
+             */
+            expectedTotal =
+                Number(
+                    fee.expectedTotal ||
+                    fee.totalExpected ||
+                    0
+                );
+
+        }
+
+
+        /* =====================================================
+           9. CALCULATE BALANCE
+        ===================================================== */
+
+        const balance =
+            expectedTotal - totalPaid;
+
+
+        /* =====================================================
+           10. SHOW SAVE LOADER
+        ===================================================== */
+
+        Swal.fire({
+
+            title: "Saving Fee Changes...",
+
+            html: `
+                <div style="
+                    font-size:14px;
+                    color:#64748b;
+                ">
+                    Updating the learner fee record
+                    and refreshing the table...
+                </div>
+            `,
+
+            allowOutsideClick: false,
+
+            allowEscapeKey: false,
+
+            showConfirmButton: false,
+
+            didOpen: () => {
+
+                Swal.showLoading();
+
+            }
+
+        });
+
+
+        /* =====================================================
+           11. ACTUAL FIREBASE WRITE
+           
+           IMPORTANT:
+           WE WAIT FOR THE WRITE.
+        ===================================================== */
+
+        await update(
+
+            feeRef,
+
+            {
+
+                fees: feesObj,
+
+                totalPaid: totalPaid,
+
+                balance: balance,
+
+                updatedAt: Date.now()
+
+            }
+
+        );
+
+
+        /* =====================================================
+           12. INVALIDATE OLD FEE CACHE
+           
+           fastGet() normally uses:
+           rasm360_cache_v1:
+        ===================================================== */
+
+        try {
+
+            const cacheKey =
+                "rasm360_cache_v1:" +
+                feeRef.toString()
+                    .replace(/\/+$/, "");
+
+            localStorage.removeItem(
+                cacheKey
+            );
+
+            /*
+             * Also invalidate the complete
+             * academic-year fee cache because
+             * loadFees() reads fees/{year}.
+             */
+            const yearRef =
+                schoolRef(
+                    `fees/${year}`
+                );
+
+            const yearCacheKey =
+                "rasm360_cache_v1:" +
+                yearRef.toString()
+                    .replace(/\/+$/, "");
+
+            localStorage.removeItem(
+                yearCacheKey
+            );
+
+        } catch (cacheError) {
+
+            console.warn(
+                "Fee cache invalidation warning:",
+                cacheError
+            );
+
+        }
+
+
+        /* =====================================================
+           13. UPDATE LOCAL FEE ACTION DATA
+        ===================================================== */
+
+        if (
+            window.feeActionData &&
+            window.feeActionData[feeId]
+        ) {
+
+            window.feeActionData[feeId] = {
+
+                ...window.feeActionData[feeId],
+
+                fees: feesObj,
+
+                totalPaid: totalPaid,
+
+                balance: balance,
+
+                updatedAt: Date.now()
+
+            };
+
+        }
+
+
+        /* =====================================================
+           14. RELOAD FEE TABLE
+           
+           IMPORTANT:
+           loadFees() now reads fresh Firebase data
+           because the stale year cache was removed.
+        ===================================================== */
+
+        await loadFees();
+
+
+        /* =====================================================
+           15. REFRESH FINANCE SUMMARY
+        ===================================================== */
+
+        try {
+
+            if (
+                typeof window.loadFinanceSummary ===
+                "function"
+            ) {
+
+                await window.loadFinanceSummary();
+
+            }
+
+        } catch (summaryError) {
+
+            console.warn(
+                "Finance summary refresh failed:",
+                summaryError
+            );
+
+        }
+
+
+        /* =====================================================
+           16. SUCCESS
+        ===================================================== */
+
+        await Swal.fire({
+
+            icon: "success",
+
+            title: "Fee Updated Successfully",
+
+            html: `
+                <div style="line-height:1.7;">
+
+                    <b>
+                        ${feeSafeHTML(
+                            fee.studentName ||
+                            "Learner"
+                        )}
+                    </b>
+
+                    <br>
+
+                    ${feeSafeHTML(type)}
+                    updated to
+
+                    <b>
+                        KES ${amount.toLocaleString()}
+                    </b>
+
+                    <br><br>
+
+                    <span style="
+                        color:#16a34a;
+                        font-weight:700;
+                    ">
+                        ✓ Firebase updated
+                        <br>
+                        ✓ Fee table refreshed
+                    </span>
+
+                </div>
+            `,
+
+            timer: 2200,
+
+            showConfirmButton: false
+
+        });
+
+
+    } catch (err) {
+
+        console.error(
+            "❌ Edit fee error:",
+            err
+        );
+
+        Swal.fire({
+
+            icon: "error",
+
+            title: "Unable to Update Fee",
+
+            text:
+                err?.message ||
+                "The learner fee could not be updated."
+
+        });
+
+    }
+
+};// ===================================================
 // OPEN SCHOOL FEE MODAL
 // ===================================================
 
@@ -38400,15 +38878,73 @@ window.saveEditedFee = async () => {
       const amount =
         Number(input.value) || 0;
 
-      updatedFees[type] = [
-        {
-          amount,
-          timestamp: Date.now(),
-          edited: true,
-          editedBy:
-            localStorage.getItem("username") || "Admin"
-        }
-      ];
+    /* ============================================================
+   ADD TOP-UP TO EXISTING PAYMENT
+   Example:
+   Existing payment = 100
+   New top-up       = 10
+   New total        = 110
+   ============================================================ */
+
+const existingPayments =
+    Array.isArray(feesObj[type])
+        ? feesObj[type]
+        : [];
+
+
+/* ---------------------------------------------
+   Calculate what has already been paid
+   under this fee category
+   --------------------------------------------- */
+
+const previousCategoryTotal =
+    existingPayments.reduce(
+        (sum, item) =>
+            sum +
+            Number(item?.amount || 0),
+        0
+    );
+
+
+/* ---------------------------------------------
+   NEW CATEGORY TOTAL
+   --------------------------------------------- */
+
+const newCategoryTotal =
+    previousCategoryTotal +
+    amount;
+
+
+/* ---------------------------------------------
+   Store the accumulated payment
+   --------------------------------------------- */
+
+updatedFees[type] = [
+
+    {
+        amount:
+            newCategoryTotal,
+
+        timestamp:
+            Date.now(),
+
+        edited:
+            true,
+
+        editedBy:
+            localStorage.getItem(
+                "username"
+            ) ||
+            "Admin",
+
+        previousAmount:
+            previousCategoryTotal,
+
+        topUp:
+            amount
+    }
+
+];
 
       totalPaid += amount;
 
@@ -119794,4 +120330,1981 @@ updateProgress();
   }
   window.addEventListener('load', registerSW, {once:true});
 })();
+</script>
+<!-- ============================================================
+     RASM 360 — FINAL FIX
+     TEACHER SAVE + IMMEDIATE TABLE UPDATE
+     FEE EDIT + IMMEDIATE TABLE UPDATE
+     ============================================================ -->
+<script>
+(function () {
+
+    "use strict";
+
+    /* ============================================================
+       COMMON HELPERS
+       ============================================================ */
+
+    function showLoading(title, text) {
+        return Swal.fire({
+            title: title || "Please wait...",
+            text: text || "Saving changes...",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+    }
+
+
+    function closeLoading() {
+        if (Swal.isVisible()) {
+            Swal.close();
+        }
+    }
+
+
+    /*
+     * Clear the localStorage cache used by fastGet().
+     *
+     * This is important because fastGet() can return cached data
+     * before Firebase's fresh value is loaded.
+     */
+    function clearRasmCache(firebaseRef) {
+
+        try {
+
+            if (!firebaseRef) return;
+
+            const path =
+                String(
+                    firebaseRef?.toString?.() ||
+                    firebaseRef?.path ||
+                    ""
+                ).replace(/\/+$/, "");
+
+            const key =
+                "rasm360_cache_v1:" + path;
+
+            localStorage.removeItem(key);
+
+            console.log(
+                "🧹 RASM cache cleared:",
+                key
+            );
+
+        } catch (error) {
+
+            console.warn(
+                "Cache clear warning:",
+                error
+            );
+
+        }
+    }
+
+
+    /* ============================================================
+       TEACHER FORM VALUES
+       ============================================================ */
+
+    function getTeacherFormValues() {
+
+        const name =
+            document.getElementById("teacherName")
+                ?.value
+                ?.trim() || "";
+
+        const phone =
+            document.getElementById("teacherPhone")
+                ?.value
+                ?.trim() || "";
+
+        const email =
+            document.getElementById("teacherEmail")
+                ?.value
+                ?.trim()
+                ?.toLowerCase() || "";
+
+        const subject =
+            document.getElementById("teacherSubject")
+                ?.value
+                ?.trim() || "";
+
+        const classAssigned =
+            document.getElementById("teacherClass")
+                ?.value
+                ?.trim() || "";
+
+        const staffNumber =
+            document.getElementById("teacherStaffNumber")
+                ?.value
+                ?.trim() || "";
+
+        const employmentType =
+            document.getElementById("teacherEmployment")
+                ?.value
+                ?.trim() || "";
+
+
+        return {
+            name,
+            phone,
+            email,
+            subject,
+            classAssigned,
+            staffNumber,
+            employmentType
+        };
+    }
+
+
+    /* ============================================================
+       CLEAR TEACHER FORM
+       ============================================================ */
+
+    function clearTeacherFormFixed() {
+
+        const ids = [
+            "teacherName",
+            "teacherPhone",
+            "teacherEmail",
+            "teacherSubject",
+            "teacherClass",
+            "teacherStaffNumber",
+            "teacherEmployment"
+        ];
+
+        ids.forEach(id => {
+
+            const el =
+                document.getElementById(id);
+
+            if (!el) return;
+
+            if (
+                el.tagName === "SELECT"
+            ) {
+                el.value = "";
+            } else {
+                el.value = "";
+            }
+
+        });
+
+
+        window.editingTeacherId = null;
+
+
+        const saveBtn =
+            document.getElementById(
+                "saveTeacherBtn"
+            );
+
+        if (saveBtn) {
+
+            saveBtn.disabled = false;
+
+            saveBtn.innerHTML =
+                `<i class="fas fa-save"></i> Save Teacher`;
+
+        }
+    }
+
+
+    /* ============================================================
+       FINAL TEACHER SAVE FUNCTION
+       ============================================================ */
+
+    window.addTeacher = async function () {
+
+        if (window.__addingTeacher) {
+
+            console.warn(
+                "Teacher save already running."
+            );
+
+            return;
+        }
+
+
+        window.__addingTeacher = true;
+
+
+        const saveBtn =
+            document.getElementById(
+                "saveTeacherBtn"
+            );
+
+
+        try {
+
+            /* ----------------------------------------------------
+               READ FORM
+               ---------------------------------------------------- */
+
+            const values =
+                getTeacherFormValues();
+
+
+            const {
+                name,
+                phone,
+                email,
+                subject,
+                classAssigned,
+                staffNumber,
+                employmentType
+            } = values;
+
+
+            /* ----------------------------------------------------
+               VALIDATION
+               ---------------------------------------------------- */
+
+            if (!name) {
+
+                await Swal.fire({
+                    icon: "warning",
+                    title: "Teacher Name Required",
+                    text:
+                        "Please enter the teacher's full name."
+                });
+
+                return;
+            }
+
+
+            if (!subject) {
+
+                await Swal.fire({
+                    icon: "warning",
+                    title: "Subject Required",
+                    text:
+                        "Please enter the teaching subject."
+                });
+
+                return;
+            }
+
+
+            if (!classAssigned) {
+
+                await Swal.fire({
+                    icon: "warning",
+                    title: "Class Required",
+                    text:
+                        "Please enter the assigned class."
+                });
+
+                return;
+            }
+
+
+            /* ----------------------------------------------------
+               EMAIL VALIDATION
+               ---------------------------------------------------- */
+
+            if (email) {
+
+                const emailRegex =
+                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                if (!emailRegex.test(email)) {
+
+                    await Swal.fire({
+                        icon: "warning",
+                        title: "Invalid Email",
+                        text:
+                            "Enter a valid email address."
+                    });
+
+                    return;
+                }
+            }
+
+
+            /* ----------------------------------------------------
+               PHONE VALIDATION
+               ---------------------------------------------------- */
+
+            if (phone) {
+
+                const phoneRegex =
+                    /^(?:\+254|254|0)[17]\d{8}$/;
+
+                if (!phoneRegex.test(phone)) {
+
+                    await Swal.fire({
+                        icon: "warning",
+                        title: "Invalid Phone Number",
+                        text:
+                            "Enter a valid Kenyan phone number."
+                    });
+
+                    return;
+                }
+            }
+
+
+            /* ----------------------------------------------------
+               NORMALIZE PHONE
+               ---------------------------------------------------- */
+
+            let normalizedPhone =
+                phone.replace(/\s+/g, "");
+
+
+            if (
+                normalizedPhone.startsWith("+254")
+            ) {
+
+                normalizedPhone =
+                    "0" +
+                    normalizedPhone.substring(4);
+
+            } else if (
+                normalizedPhone.startsWith("254")
+            ) {
+
+                normalizedPhone =
+                    "0" +
+                    normalizedPhone.substring(3);
+            }
+
+
+            /* ----------------------------------------------------
+               BUILD TEACHER RECORD
+               ---------------------------------------------------- */
+
+            const now =
+                Date.now();
+
+
+            const teacherData = {
+
+                name: name,
+
+                phone: phone,
+
+                normalizedPhone:
+                    normalizedPhone,
+
+                email: email,
+
+                subject: subject,
+
+                classAssigned:
+                    classAssigned,
+
+                staffNumber:
+                    staffNumber,
+
+                employmentType:
+                    employmentType || "Permanent",
+
+                /*
+                 * The renderer uses employment.
+                 * Keep both fields for compatibility.
+                 */
+                employment:
+                    employmentType || "Permanent",
+
+                status:
+                    "Active",
+
+                updatedAt:
+                    now
+            };
+
+
+            /* ----------------------------------------------------
+               LOADING
+               ---------------------------------------------------- */
+
+            if (saveBtn) {
+
+                saveBtn.disabled = true;
+
+                saveBtn.innerHTML =
+                    `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+
+            }
+
+
+            await showLoading(
+                "Saving Teacher",
+                "Writing teacher information to Firebase..."
+            );
+
+
+            /* ----------------------------------------------------
+               SCHOOL TEACHERS REFERENCE
+               ---------------------------------------------------- */
+
+            const teachersRef =
+                schoolRef("teachers");
+
+
+            /* ====================================================
+               EDIT EXISTING TEACHER
+               ==================================================== */
+
+            if (window.editingTeacherId) {
+
+                const teacherId =
+                    String(
+                        window.editingTeacherId
+                    );
+
+
+                const teacherRef =
+                    schoolRef(
+                        `teachers/${teacherId}`
+                    );
+
+
+                /* -----------------------------------------------
+                   Make sure teacher still exists
+                   ----------------------------------------------- */
+
+                const currentSnap =
+                    await fastGet(
+                        teacherRef
+                    );
+
+
+                if (!currentSnap.exists()) {
+
+                    throw new Error(
+                        "This teacher no longer exists."
+                    );
+                }
+
+
+                /*
+                 * ACTUAL FIREBASE UPDATE
+                 *
+                 * Wait for the write to finish.
+                 */
+                if (
+                    typeof window.rasmBackgroundUpdate ===
+                    "function"
+                ) {
+
+                    const write =
+                        window.rasmBackgroundUpdate(
+                            teacherRef,
+                            teacherData
+                        );
+
+                    await write;
+
+                } else {
+
+                    await update(
+                        teacherRef,
+                        teacherData
+                    );
+                }
+
+
+                /* -----------------------------------------------
+                   UPDATE LOCAL TABLE DATA IMMEDIATELY
+                   ----------------------------------------------- */
+
+                const teachers =
+                    window.__teacherData || [];
+
+
+                const index =
+                    teachers.findIndex(
+                        teacher =>
+                            String(teacher.id) ===
+                            teacherId
+                    );
+
+
+                const localTeacher = {
+
+                    id: teacherId,
+
+                    name:
+                        teacherData.name,
+
+                    phone:
+                        teacherData.phone || "-",
+
+                    email:
+                        teacherData.email || "-",
+
+                    subject:
+                        teacherData.subject || "-",
+
+                    classAssigned:
+                        teacherData.classAssigned || "-",
+
+                    staffNumber:
+                        teacherData.staffNumber ||
+                        `TCH-${String(
+                            Math.max(
+                                1,
+                                teachers.length + 1
+                            )
+                        ).padStart(4, "0")}`,
+
+                    employment:
+                        teacherData.employmentType ||
+                        "Permanent",
+
+                    status:
+                        teacherData.status ||
+                        "Active"
+                };
+
+
+                if (index >= 0) {
+
+                    teachers[index] =
+                        localTeacher;
+
+                } else {
+
+                    teachers.unshift(
+                        localTeacher
+                    );
+                }
+
+
+                window.__teacherData =
+                    teachers;
+
+
+                window.__teacherPage =
+                    1;
+
+
+                /* -----------------------------------------------
+                   UPDATE COUNTER
+                   ----------------------------------------------- */
+
+                const totalElement =
+                    document.getElementById(
+                        "totalTeachers"
+                    );
+
+                if (totalElement) {
+
+                    totalElement.innerText =
+                        teachers.length.toLocaleString();
+                }
+
+
+                /* -----------------------------------------------
+                   IMMEDIATE TABLE RENDER
+                   ----------------------------------------------- */
+
+                if (
+                    typeof window.renderTeacherPage ===
+                    "function"
+                ) {
+
+                    window.renderTeacherPage();
+
+                } else {
+
+                    /*
+                     * Fallback if renderer is temporarily
+                     * unavailable.
+                     */
+                    clearRasmCache(
+                        teachersRef
+                    );
+
+                    await window.loadTeachers();
+                }
+
+
+                closeLoading();
+
+
+                await Swal.fire({
+
+                    icon: "success",
+
+                    title:
+                        "Teacher Updated",
+
+                    text:
+                        `${name} has been updated successfully.`,
+
+                    timer: 1800,
+
+                    showConfirmButton:
+                        false
+
+                });
+
+
+                clearTeacherFormFixed();
+
+
+                return;
+            }
+
+
+            /* ====================================================
+               CREATE NEW TEACHER
+               ==================================================== */
+
+            teacherData.createdAt =
+                now;
+
+
+            /*
+             * IMPORTANT:
+             *
+             * DO NOT USE:
+             *
+             * push(teachersRef).key
+             *
+             * because the ERP has replaced push()
+             * with an async queued function.
+             *
+             * rasmBackgroundPush() gives us the real
+             * Firebase reference immediately.
+             */
+
+            let teacherKey = "";
+
+
+            if (
+                typeof window.rasmBackgroundPush ===
+                "function"
+            ) {
+
+                const pushResult =
+                    window.rasmBackgroundPush(
+                        teachersRef,
+                        teacherData
+                    );
+
+
+                teacherKey =
+                    pushResult
+                        ?.ref
+                        ?.key;
+
+
+                if (!teacherKey) {
+
+                    throw new Error(
+                        "Firebase could not generate a teacher ID."
+                    );
+                }
+
+
+                /*
+                 * WAIT FOR ACTUAL DATABASE WRITE.
+                 */
+                await pushResult.promise;
+
+
+            } else {
+
+                /*
+                 * Fallback using Firebase's actual push()
+                 * implementation if available.
+                 */
+
+                const newTeacherRef =
+                    firebasePush(
+                        teachersRef
+                    );
+
+
+                teacherKey =
+                    newTeacherRef.key;
+
+
+                if (!teacherKey) {
+
+                    throw new Error(
+                        "Firebase could not generate a teacher ID."
+                    );
+                }
+
+
+                await set(
+                    newTeacherRef,
+                    teacherData
+                );
+            }
+
+
+            /* ====================================================
+               UPDATE LOCAL TEACHER ARRAY IMMEDIATELY
+               ==================================================== */
+
+            const teachers =
+                Array.isArray(
+                    window.__teacherData
+                )
+                    ? window.__teacherData
+                    : [];
+
+
+            const newTeacher = {
+
+                id:
+                    teacherKey,
+
+                name:
+                    teacherData.name,
+
+                phone:
+                    teacherData.phone || "-",
+
+                email:
+                    teacherData.email || "-",
+
+                subject:
+                    teacherData.subject || "-",
+
+                classAssigned:
+                    teacherData.classAssigned || "-",
+
+                staffNumber:
+                    teacherData.staffNumber ||
+                    `TCH-${String(
+                        teachers.length + 1
+                    ).padStart(4, "0")}`,
+
+                employment:
+                    teacherData.employmentType ||
+                    "Permanent",
+
+                status:
+                    teacherData.status ||
+                    "Active"
+            };
+
+
+            /*
+             * Put newest teacher at the top.
+             */
+            teachers.unshift(
+                newTeacher
+            );
+
+
+            window.__teacherData =
+                teachers;
+
+
+            window.__teacherPage =
+                1;
+
+
+            /* ====================================================
+               UPDATE TOTAL TEACHERS COUNTER
+               ==================================================== */
+
+            const totalElement =
+                document.getElementById(
+                    "totalTeachers"
+                );
+
+
+            if (totalElement) {
+
+                totalElement.innerText =
+                    teachers.length.toLocaleString();
+
+            }
+
+
+            /* ====================================================
+               RENDER IMMEDIATELY
+               ==================================================== */
+
+            if (
+                typeof window.renderTeacherPage ===
+                "function"
+            ) {
+
+                window.renderTeacherPage();
+
+            } else {
+
+                /*
+                 * If teacher table hasn't been initialized,
+                 * reload it from Firebase.
+                 */
+                clearRasmCache(
+                    teachersRef
+                );
+
+                if (
+                    typeof window.loadTeachers ===
+                    "function"
+                ) {
+
+                    await window.loadTeachers();
+                }
+            }
+
+
+            closeLoading();
+
+
+            /* ====================================================
+               SUCCESS
+               ==================================================== */
+
+            await Swal.fire({
+
+                icon:
+                    "success",
+
+                title:
+                    "Teacher Added",
+
+                html: `
+                    <div style="
+                        text-align:center;
+                        padding:5px;
+                    ">
+
+                        <div style="
+                            font-size:45px;
+                            margin-bottom:10px;
+                        ">
+                            👩‍🏫
+                        </div>
+
+                        <strong>
+                            ${name}
+                        </strong>
+
+                        <br><br>
+
+                        Teacher has been added
+                        successfully.
+
+                        <br><br>
+
+                        ${
+                            teacherData.staffNumber
+                                ? `
+                                    <span>
+                                        Staff Number:
+                                    </span>
+                                    <br>
+                                    <strong>
+                                        ${teacherData.staffNumber}
+                                    </strong>
+                                  `
+                                : ""
+                        }
+
+                    </div>
+                `,
+
+                timer:
+                    2200,
+
+                showConfirmButton:
+                    false
+
+            });
+
+
+            /* ====================================================
+               CLEAR FORM
+               ==================================================== */
+
+            clearTeacherFormFixed();
+
+
+            console.log(
+                "✅ Teacher added successfully:",
+                teacherKey,
+                teacherData
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "❌ Teacher save failed:",
+                error
+            );
+
+
+            closeLoading();
+
+
+            await Swal.fire({
+
+                icon:
+                    "error",
+
+                title:
+                    "Unable to Save Teacher",
+
+                text:
+                    error?.message ||
+                    "An unexpected error occurred while saving the teacher."
+
+            });
+
+
+        } finally {
+
+            window.__addingTeacher =
+                false;
+
+
+            if (saveBtn) {
+
+                saveBtn.disabled =
+                    false;
+
+                saveBtn.innerHTML =
+                    `<i class="fas fa-save"></i> Save Teacher`;
+
+            }
+
+        }
+
+    };
+
+
+    /* ============================================================
+       FEE GRADE RANGE
+       ============================================================ */
+
+    function getFeeGradeRangeFixed(grade) {
+
+        const gradeNo =
+            parseInt(
+                String(grade)
+                    .replace(/\D/g, "")
+            );
+
+
+        if (
+            gradeNo >= 1 &&
+            gradeNo <= 3
+        ) {
+            return "grade1-3";
+        }
+
+
+        if (
+            gradeNo >= 4 &&
+            gradeNo <= 6
+        ) {
+            return "grade4-6";
+        }
+
+
+        if (
+            gradeNo >= 7 &&
+            gradeNo <= 9
+        ) {
+            return "grade7-9";
+        }
+
+
+        if (
+            gradeNo >= 10 &&
+            gradeNo <= 12
+        ) {
+            return "grade10-12";
+        }
+
+
+        return null;
+    }
+
+
+    /* ============================================================
+       FINAL FEE EDIT FUNCTION
+       ============================================================ */
+
+    window.openEditFeeModal =
+        async function (year, feeId) {
+
+        try {
+
+            /* ----------------------------------------------------
+               GET FRESH FEE RECORD
+               ---------------------------------------------------- */
+
+            const feeRef =
+                schoolRef(
+                    `fees/${year}/${feeId}`
+                );
+
+
+            /*
+             * Use Firebase get directly here rather than
+             * relying on an old fastGet cache.
+             */
+            const snap =
+                await get(
+                    feeRef
+                );
+
+
+            if (!snap.exists()) {
+
+                await Swal.fire({
+
+                    icon:
+                        "error",
+
+                    title:
+                        "Fee Record Not Found",
+
+                    text:
+                        "The learner fee record could not be found."
+
+                });
+
+                return;
+            }
+
+
+            const fee =
+                snap.val() || {};
+
+
+            const feesObj =
+                fee.fees || {};
+
+
+            const feeTypes =
+                Object.keys(
+                    feesObj
+                );
+
+
+            if (!feeTypes.length) {
+
+                await Swal.fire({
+
+                    icon:
+                        "error",
+
+                    title:
+                        "No Fee Categories",
+
+                    text:
+                        "No fee categories were found for this learner."
+
+                });
+
+                return;
+            }
+
+
+            /* ----------------------------------------------------
+               BUILD CATEGORY OPTIONS
+               ---------------------------------------------------- */
+
+            let optionsHtml = "";
+
+
+            feeTypes.forEach(
+                type => {
+
+                    let total =
+                        0;
+
+
+                    if (
+                        Array.isArray(
+                            feesObj[type]
+                        )
+                    ) {
+
+                        total =
+                            feesObj[type]
+                                .reduce(
+                                    (
+                                        sum,
+                                        item
+                                    ) => {
+
+                                        return (
+                                            sum +
+                                            Number(
+                                                item?.amount ||
+                                                0
+                                            )
+                                        );
+
+                                    },
+                                    0
+                                );
+                    }
+
+
+                    optionsHtml += `
+
+                        <option value="${String(type)
+                            .replace(/"/g, "&quot;")}">
+
+                            ${type}
+
+                            (KES
+                            ${total.toLocaleString()}
+                            )
+
+                        </option>
+
+                    `;
+                }
+            );
+
+
+            /* ----------------------------------------------------
+               OPEN EDIT MODAL
+               ---------------------------------------------------- */
+
+            const result =
+                await Swal.fire({
+
+                    title:
+                        "✏️ Edit Learner Fee",
+
+                    html: `
+
+                        <div style="
+                            text-align:left;
+                        ">
+
+                            <div style="
+                                background:#f3f4f6;
+                                padding:14px;
+                                border-radius:10px;
+                                margin-bottom:18px;
+                                font-size:14px;
+                            ">
+
+                                <b>
+                                    👨 Learner:
+                                </b>
+
+                                ${fee.studentName || "-"}
+
+                                <br><br>
+
+                                <b>
+                                    🏫 Grade:
+                                </b>
+
+                                ${fee.grade || "-"}
+
+                                <br><br>
+
+                                <b>
+                                    💰 Current Total Paid:
+                                </b>
+
+                                KES
+                                ${Number(
+                                    fee.totalPaid || 0
+                                ).toLocaleString()}
+
+                            </div>
+
+
+                            <label style="
+                                font-weight:bold;
+                                display:block;
+                                margin-bottom:6px;
+                            ">
+                                Select Fee Category
+                            </label>
+
+
+                            <select
+                                id="editFeeType"
+                                class="swal2-input"
+                                style="
+                                    width:100%;
+                                    margin:0 0 16px 0;
+                                "
+                            >
+                                ${optionsHtml}
+                            </select>
+
+
+                            <label style="
+                                font-weight:bold;
+                                display:block;
+                                margin-bottom:6px;
+                            ">
+                                New Amount
+                            </label>
+
+
+                            <input
+                                type="number"
+                                id="editFeeAmount"
+                                class="swal2-input"
+                                min="0"
+                                step="0.01"
+                                placeholder="Enter new amount"
+                                style="
+                                    width:100%;
+                                    margin:0;
+                                "
+                            >
+
+                        </div>
+                    `,
+
+                    confirmButtonText:
+                        "💾 Save Changes",
+
+                    cancelButtonText:
+                        "Cancel",
+
+                    showCancelButton:
+                        true,
+
+                    confirmButtonColor:
+                        "#16a34a",
+
+                    cancelButtonColor:
+                        "#6b7280",
+
+
+                    didOpen: () => {
+
+                        const typeSelect =
+                            document.getElementById(
+                                "editFeeType"
+                            );
+
+                        const amountInput =
+                            document.getElementById(
+                                "editFeeAmount"
+                            );
+
+
+                        function updateAmount() {
+
+                            const type =
+                                typeSelect?.value;
+
+
+                            const list =
+                                feesObj[type];
+
+
+                            let total =
+                                0;
+
+
+                            if (
+                                Array.isArray(
+                                    list
+                                )
+                            ) {
+
+                                total =
+                                    list.reduce(
+                                        (
+                                            sum,
+                                            item
+                                        ) =>
+                                            sum +
+                                            Number(
+                                                item?.amount ||
+                                                0
+                                            ),
+                                        0
+                                    );
+                            }
+
+
+                            if (
+                                amountInput
+                            ) {
+
+                                amountInput.value =
+                                    total || "";
+                            }
+                        }
+
+
+                        typeSelect?.addEventListener(
+                            "change",
+                            updateAmount
+                        );
+
+
+                        updateAmount();
+                    },
+
+
+                    preConfirm: () => {
+
+                        const type =
+                            document.getElementById(
+                                "editFeeType"
+                            )?.value;
+
+
+                        const amount =
+                            Number(
+                                document.getElementById(
+                                    "editFeeAmount"
+                                )?.value
+                            );
+
+
+                        if (
+                            !type
+                        ) {
+
+                            Swal.showValidationMessage(
+                                "Please select a fee category."
+                            );
+
+                            return false;
+                        }
+
+
+                        if (
+                            !Number.isFinite(
+                                amount
+                            ) ||
+                            amount < 0
+                        ) {
+
+                            Swal.showValidationMessage(
+                                "Please enter a valid amount."
+                            );
+
+                            return false;
+                        }
+
+
+                        return {
+                            type,
+                            amount
+                        };
+                    }
+
+                });
+
+
+            if (
+                !result.isConfirmed
+            ) {
+                return;
+            }
+
+
+            const {
+                type,
+                amount
+            } =
+                result.value;
+
+
+            /* ----------------------------------------------------
+               COPY FEES OBJECT
+               ---------------------------------------------------- */
+
+            const updatedFees = {
+                ...feesObj
+            };
+
+
+            /*
+             * Preserve the existing data structure:
+             *
+             * fees:
+             * {
+             *    FeeType: [
+             *       {
+             *          amount: ...
+             *       }
+             *    ]
+             * }
+             */
+
+            updatedFees[type] = [
+
+                {
+                    amount:
+                        amount,
+
+                    timestamp:
+                        Date.now(),
+
+                    edited:
+                        true,
+
+                    editedBy:
+                        localStorage.getItem(
+                            "username"
+                        ) ||
+                        "Admin"
+                }
+
+            ];
+
+
+            /* ----------------------------------------------------
+               RECALCULATE TOTAL PAID
+               ---------------------------------------------------- */
+
+            let totalPaid =
+                0;
+
+
+            Object.values(
+                updatedFees
+            ).forEach(
+                list => {
+
+                    if (
+                        Array.isArray(
+                            list
+                        )
+                    ) {
+
+                        list.forEach(
+                            item => {
+
+                                totalPaid +=
+                                    Number(
+                                        item?.amount ||
+                                        0
+                                    );
+
+                            }
+                        );
+                    }
+                }
+            );
+
+
+            /* ----------------------------------------------------
+               CALCULATE BALANCE
+               ---------------------------------------------------- */
+
+            const gradeRange =
+                getFeeGradeRangeFixed(
+                    fee.grade
+                );
+
+
+            let expectedTotal =
+                0;
+
+
+            if (gradeRange) {
+
+                try {
+
+                    /*
+                     * Direct Firebase read so that an old
+                     * cached school fee cannot interfere.
+                     */
+                    const expectedSnap =
+                        await get(
+                            schoolRef(
+                                `settings/schoolFee/${year}/${gradeRange}`
+                            )
+                        );
+
+
+                    if (
+                        expectedSnap.exists()
+                    ) {
+
+                        expectedTotal =
+                            Number(
+                                expectedSnap
+                                    .val()
+                                    ?.amount ||
+                                0
+                            );
+                    }
+
+                } catch (feeSettingsError) {
+
+                    console.warn(
+                        "School fee setting could not be read:",
+                        feeSettingsError
+                    );
+
+                    /*
+                     * Keep the old expected amount if
+                     * Firebase settings are unavailable.
+                     */
+                    expectedTotal =
+                        Number(
+                            fee.expectedTotal ||
+                            0
+                        );
+                }
+            }
+
+
+            /*
+             * If there is no configured school fee,
+             * retain the old balance relationship.
+             */
+            if (
+                expectedTotal === 0 &&
+                fee.balance != null &&
+                fee.totalPaid != null
+            ) {
+
+                expectedTotal =
+                    Number(
+                        fee.balance || 0
+                    ) +
+                    Number(
+                        fee.totalPaid || 0
+                    );
+            }
+
+
+            const balance =
+                expectedTotal -
+                totalPaid;
+
+
+            /* ----------------------------------------------------
+               CONFIRMATION LOADER
+               ---------------------------------------------------- */
+
+            await showLoading(
+                "Updating Learner Fee",
+                "Saving changes and refreshing the fee table..."
+            );
+
+
+            /* ----------------------------------------------------
+               ACTUAL FIREBASE UPDATE
+               ---------------------------------------------------- */
+
+            await update(
+                feeRef,
+                {
+
+                    fees:
+                        updatedFees,
+
+                    totalPaid:
+                        totalPaid,
+
+                    balance:
+                        balance,
+
+                    updatedAt:
+                        Date.now()
+                }
+            );
+
+
+            /* ----------------------------------------------------
+               IMPORTANT:
+               REMOVE STALE FEE CACHE
+               ---------------------------------------------------- */
+
+            clearRasmCache(
+                schoolRef(
+                    `fees/${year}`
+                )
+            );
+
+
+            /* ----------------------------------------------------
+               REFRESH TABLE FROM FRESH FIREBASE DATA
+               ---------------------------------------------------- */
+
+            /*
+             * Keep the user's currently selected year.
+             */
+            const yearFilter =
+                document.getElementById(
+                    "filterFeeYear"
+                );
+
+
+            if (
+                yearFilter &&
+                String(
+                    yearFilter.value
+                ) !==
+                String(year)
+            ) {
+
+                yearFilter.value =
+                    String(year);
+            }
+
+
+            /*
+             * loadFees() now gets fresh Firebase data
+             * because its cache was removed above.
+             */
+            if (
+                typeof window.loadFees ===
+                "function"
+            ) {
+
+                await window.loadFees();
+
+            }
+
+
+            closeLoading();
+
+
+            /* ----------------------------------------------------
+               SUCCESS
+               ---------------------------------------------------- */
+
+            await Swal.fire({
+
+                icon:
+                    "success",
+
+                title:
+                    "Fee Updated",
+
+                html: `
+
+                    <div style="
+                        text-align:center;
+                    ">
+
+                        <div style="
+                            font-size:45px;
+                            margin-bottom:8px;
+                        ">
+                            💰
+                        </div>
+
+                        <strong>
+                            ${fee.studentName || "Learner"}
+                        </strong>
+
+                        <br><br>
+
+                        <span>
+                            ${type}
+                        </span>
+
+                        <br>
+
+                        <strong>
+                            KES
+                            ${amount.toLocaleString()}
+                        </strong>
+
+                        <br><br>
+
+                        <small>
+                            Fee table refreshed successfully.
+                        </small>
+
+                    </div>
+
+                `,
+
+                timer:
+                    2000,
+
+                showConfirmButton:
+                    false
+
+            });
+
+
+            console.log(
+                "✅ Fee updated:",
+                {
+                    year,
+                    feeId,
+                    type,
+                    amount,
+                    totalPaid,
+                    balance
+                }
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "❌ Edit fee error:",
+                error
+            );
+
+
+            closeLoading();
+
+
+            await Swal.fire({
+
+                icon:
+                    "error",
+
+                title:
+                    "Fee Update Failed",
+
+                text:
+                    error?.message ||
+                    "Failed to update learner fee."
+
+            });
+        }
+
+    };
+
+
+    /* ============================================================
+       INITIALIZATION
+       ============================================================ */
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        function () {
+
+            console.log(
+                "🚀 RASM 360 final teacher + fee fixes loaded."
+            );
+
+        }
+    );
+
+
+})();
+
+function getCBCSchoolLevel(grade) {
+
+    const gradeNo = parseInt(
+        String(grade).replace(/\D/g, ""),
+        10
+    );
+
+    if (gradeNo >= 1 && gradeNo <= 6) {
+        return "GRADE_1_6";
+    }
+
+    if (gradeNo >= 7 && gradeNo <= 9) {
+        return "GRADE_7_9";
+    }
+
+    if (gradeNo >= 10 && gradeNo <= 12) {
+        return "GRADE_10_12";
+    }
+
+    return null;
+}
+
+
+function getCBCGradeResult(score, grade) {
+
+    score = Number(score) || 0;
+
+    const schoolLevel = getCBCSchoolLevel(grade);
+
+    // ==========================================
+    // GRADE 1–6
+    // ==========================================
+    if (schoolLevel === "GRADE_1_6") {
+
+        if (score >= 75) {
+            return {
+                code: "EE",
+                level: 4,
+                descriptor: "Exceeding Expectation"
+            };
+        }
+
+        if (score >= 50) {
+            return {
+                code: "ME",
+                level: 3,
+                descriptor: "Meeting Expectation"
+            };
+        }
+
+        if (score >= 30) {
+            return {
+                code: "AE",
+                level: 2,
+                descriptor: "Approaching Expectation"
+            };
+        }
+
+        return {
+            code: "BE",
+            level: 1,
+            descriptor: "Below Expectation"
+        };
+    }
+
+
+    // ==========================================
+    // GRADE 7–9
+    // ==========================================
+    if (schoolLevel === "GRADE_7_9") {
+
+        if (score >= 90) {
+            return {
+                code: "EE1",
+                level: 8,
+                descriptor: "Exceeding Expectation"
+            };
+        }
+
+        if (score >= 75) {
+            return {
+                code: "EE2",
+                level: 7,
+                descriptor: "Exceeding Expectation"
+            };
+        }
+
+        if (score >= 58) {
+            return {
+                code: "ME1",
+                level: 6,
+                descriptor: "Meeting Expectation"
+            };
+        }
+
+        if (score >= 41) {
+            return {
+                code: "ME2",
+                level: 5,
+                descriptor: "Meeting Expectation"
+            };
+        }
+
+        if (score >= 31) {
+            return {
+                code: "AE1",
+                level: 4,
+                descriptor: "Approaching Expectation"
+            };
+        }
+
+        if (score >= 21) {
+            return {
+                code: "AE2",
+                level: 3,
+                descriptor: "Approaching Expectation"
+            };
+        }
+
+        if (score >= 11) {
+            return {
+                code: "BE1",
+                level: 2,
+                descriptor: "Below Expectation"
+            };
+        }
+
+        return {
+            code: "BE2",
+            level: 1,
+            descriptor: "Below Expectation"
+        };
+    }
+
+
+    // ==========================================
+    // GRADE 10–12
+    // ==========================================
+    if (schoolLevel === "GRADE_10_12") {
+
+        if (score >= 90) {
+            return {
+                code: "EE1",
+                level: 8,
+                descriptor: "Exceeding Expectation"
+            };
+        }
+
+        if (score >= 75) {
+            return {
+                code: "EE2",
+                level: 7,
+                descriptor: "Exceeding Expectation"
+            };
+        }
+
+        if (score >= 58) {
+            return {
+                code: "ME1",
+                level: 6,
+                descriptor: "Meeting Expectation"
+            };
+        }
+
+        if (score >= 41) {
+            return {
+                code: "ME2",
+                level: 5,
+                descriptor: "Meeting Expectation"
+            };
+        }
+
+        if (score >= 31) {
+            return {
+                code: "AE1",
+                level: 4,
+                descriptor: "Approaching Expectation"
+            };
+        }
+
+        if (score >= 21) {
+            return {
+                code: "AE2",
+                level: 3,
+                descriptor: "Approaching Expectation"
+            };
+        }
+
+        if (score >= 11) {
+            return {
+                code: "BE1",
+                level: 2,
+                descriptor: "Below Expectation"
+            };
+        }
+
+        return {
+            code: "BE2",
+            level: 1,
+            descriptor: "Below Expectation"
+        };
+    }
+
+    return {
+        code: "",
+        level: 0,
+        descriptor: ""
+    };
+}
 </script>
