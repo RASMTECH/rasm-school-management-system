@@ -8323,573 +8323,632 @@ Answer: C</pre>
   </div>
 
 
-  <!-- ================= REGISTRATION FORM ================= -->
-  <div
-    id="studentRegistrationForm"
-    style="display:none;"
-  >
+ 
+<!-- ================= REGISTRATION FORM ================= -->
+<div
+  id="studentRegistrationForm"
+  style="display:none;"
+>
 
-    <!-- MAIN FORM -->
+  <!-- ================= YELLOW LABEL STYLES ================= -->
+  <style>
+    /* Main form labels */
+    #studentRegistrationForm label {
+      display: inline-block !important;
+      background: #fff3a3 !important;
+      color: #111827 !important;
+      padding: 6px 10px !important;
+      margin-bottom: 7px !important;
+      border-radius: 6px !important;
+      border-left: 4px solid #facc15 !important;
+      font-size: 13px !important;
+      font-weight: 800 !important;
+      line-height: 1.3 !important;
+      box-sizing: border-box !important;
+    }
+
+    /* Required asterisk */
+    #studentRegistrationForm label span {
+      background: transparent !important;
+      color: #dc2626 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      font-weight: 900 !important;
+    }
+
+    /* Section headings */
+    #studentRegistrationForm .registration-section-title {
+      display: inline-block;
+      background: #fff3a3;
+      color: #111827;
+      padding: 8px 13px;
+      border-radius: 7px;
+      border-left: 5px solid #facc15;
+      font-size: 17px;
+      font-weight: 900;
+      line-height: 1.3;
+    }
+
+    /* Learner name heading */
+    #studentRegistrationForm .learner-name-title {
+      display: inline-block;
+      background: #fff3a3;
+      color: #111827;
+      padding: 7px 12px;
+      border-radius: 7px;
+      border-left: 5px solid #facc15;
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    /* Better mobile responsiveness */
+    @media (max-width: 600px) {
+      #studentRegistrationForm > div {
+        padding: 15px !important;
+      }
+
+      #studentRegistrationForm .registration-section-title {
+        font-size: 15px;
+        padding: 7px 10px;
+      }
+
+      #studentRegistrationForm .learner-name-title {
+        font-size: 15px;
+        padding: 7px 10px;
+      }
+    }
+  </style>
+
+
+  <!-- ================= MAIN FORM ================= -->
+  <div style="
+      background:#ffffff;
+      border:1px solid #e5e7eb;
+      border-radius:16px;
+      padding:24px;
+      box-shadow:0 8px 24px rgba(0,0,0,.08);
+  ">
+
+
+    <!-- ================= BULK REGISTRATION ================= -->
     <div style="
-        background:#ffffff;
-        border:1px solid #e5e7eb;
-        border-radius:16px;
-        padding:24px;
-        box-shadow:0 8px 24px rgba(0,0,0,.08);
+        border:1px solid #dbeafe;
+        border-left:5px solid #2563eb;
+        border-radius:12px;
+        padding:18px;
+        margin-bottom:20px;
+        background:#f8fbff;
     ">
 
-
-      <!-- ================= BULK REGISTRATION ================= -->
       <div style="
-          border:1px solid #dbeafe;
-          border-left:5px solid #2563eb;
-          border-radius:12px;
-          padding:18px;
-          margin-bottom:20px;
-          background:#f8fbff;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          flex-wrap:wrap;
+          gap:12px;
+          margin-bottom:12px;
       ">
 
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            flex-wrap:wrap;
-            gap:12px;
-            margin-bottom:12px;
-        ">
+        <div>
 
-          <div>
-            <div style="
-                font-size:17px;
-                font-weight:800;
-                color:#1e293b;
-            ">
-              👤 Learner Name(s)
-            </div>
-
-            <div style="
-                font-size:12px;
-                color:#64748b;
-                margin-top:4px;
-            ">
-              Enter one learner per line when registering multiple learners.
-            </div>
+          <div class="learner-name-title">
+            👤 Learner Name(s)
           </div>
 
-          <button
-            type="button"
-            onclick="pasteFromClipboard()"
-            style="
-              background:#2563eb;
-              color:white;
-              border:none;
-              padding:9px 15px;
-              border-radius:8px;
-              cursor:pointer;
-              font-size:13px;
-              font-weight:700;
-            "
-          >
-            📥 Paste from Excel
-          </button>
+          <div style="
+              font-size:12px;
+              color:#64748b;
+              margin-top:7px;
+          ">
+            Enter one learner per line when registering multiple learners.
+          </div>
 
         </div>
 
 
-        <textarea
-          id="studentName"
-          rows="6"
-          placeholder="Enter learner name or paste names from Excel...
+        <button
+          type="button"
+          onclick="pasteFromClipboard()"
+          style="
+            background:#2563eb;
+            color:white;
+            border:none;
+            padding:9px 15px;
+            border-radius:8px;
+            cursor:pointer;
+            font-size:13px;
+            font-weight:700;
+          "
+        >
+          📥 Paste from Excel
+        </button>
+
+      </div>
+
+
+      <textarea
+        id="studentName"
+        rows="6"
+        placeholder="Enter learner name or paste names from Excel...
 
 Example:
 Rowan Aiden
 Mary Wanjiku
 Peter Kimani"
-          style="
-            width:100%;
-            padding:14px;
-            border:1px solid #cbd5e1;
-            border-radius:10px;
-            background:#ffffff;
-            color:#111827;
-            font-size:14px;
-            line-height:1.5;
-            resize:vertical;
-            box-sizing:border-box;
-            outline:none;
-          "
-          onfocus="
-            this.style.borderColor='#2563eb';
-            this.style.boxShadow='0 0 0 3px rgba(37,99,235,.12)';
-          "
-          onblur="
-            this.style.borderColor='#cbd5e1';
-            this.style.boxShadow='none';
-          "
-        ></textarea>
+        style="
+          width:100%;
+          padding:14px;
+          border:1px solid #cbd5e1;
+          border-radius:10px;
+          background:#ffffff;
+          color:#111827;
+          font-size:14px;
+          line-height:1.5;
+          resize:vertical;
+          box-sizing:border-box;
+          outline:none;
+        "
+        onfocus="
+          this.style.borderColor='#2563eb';
+          this.style.boxShadow='0 0 0 3px rgba(37,99,235,.12)';
+        "
+        onblur="
+          this.style.borderColor='#cbd5e1';
+          this.style.boxShadow='none';
+        "
+      ></textarea>
 
 
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            flex-wrap:wrap;
-            gap:10px;
-            margin-top:8px;
-        ">
-
-          <small style="
-              color:#64748b;
-              font-size:12px;
-          ">
-            💡 Each learner should occupy a separate line.
-          </small>
-
-          <div
-            id="nameCounter"
-            style="
-              background:#dcfce7;
-              color:#166534;
-              padding:6px 12px;
-              border-radius:20px;
-              font-size:12px;
-              font-weight:800;
-            "
-          >
-            0 names detected
-          </div>
-
-        </div>
-
-      </div>
-
-
-      <!-- ================= LEARNER DETAILS ================= -->
-      <div style="
-          border:1px solid #e5e7eb;
-          border-radius:12px;
-          padding:20px;
-          margin-bottom:18px;
-      ">
-
-        <div style="
-            font-size:17px;
-            font-weight:800;
-            color:#111827;
-            margin-bottom:16px;
-            padding-bottom:10px;
-            border-bottom:1px solid #e5e7eb;
-        ">
-          🎓 Learner Details
-        </div>
-
-
-        <div style="
-            display:grid;
-            grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
-            gap:18px;
-        ">
-
-          <!-- Gender -->
-          <div>
-            <label style="
-                display:block;
-                margin-bottom:6px;
-                font-size:13px;
-                font-weight:700;
-                color:#374151;
-            ">
-              Gender <span style="color:#dc2626;">*</span>
-            </label>
-
-            <select
-              id="gender"
-              style="
-                width:100%;
-                height:44px;
-                padding:0 12px;
-                border:1px solid #cbd5e1;
-                border-radius:8px;
-                background:#fff;
-                color:#111827;
-                font-size:14px;
-                outline:none;
-                box-sizing:border-box;
-              "
-            >
-              <option value="">Select Gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
-
-            <small style="
-                color:#64748b;
-                font-size:11px;
-                display:block;
-                margin-top:5px;
-            ">
-              Applied to all learners in bulk admission.
-            </small>
-          </div>
-
-
-          <!-- Grade -->
-          <div>
-            <label style="
-                display:block;
-                margin-bottom:6px;
-                font-size:13px;
-                font-weight:700;
-                color:#374151;
-            ">
-              Grade / Class <span style="color:#dc2626;">*</span>
-            </label>
-
-            <input
-              type="text"
-              id="grade"
-              placeholder="e.g. Grade 9A"
-              style="
-                width:100%;
-                height:44px;
-                padding:0 12px;
-                border:1px solid #cbd5e1;
-                border-radius:8px;
-                font-size:14px;
-                color:#111827;
-                box-sizing:border-box;
-                outline:none;
-              "
-            >
-          </div>
-
-
-          <!-- Age -->
-          <div>
-            <label style="
-                display:block;
-                margin-bottom:6px;
-                font-size:13px;
-                font-weight:700;
-                color:#374151;
-            ">
-              Age
-            </label>
-
-            <input
-              type="number"
-              id="age"
-              min="1"
-              placeholder="Leave empty for auto"
-              style="
-                width:100%;
-                height:44px;
-                padding:0 12px;
-                border:1px solid #cbd5e1;
-                border-radius:8px;
-                font-size:14px;
-                color:#111827;
-                box-sizing:border-box;
-                outline:none;
-              "
-            >
-          </div>
-
-        </div>
-
-      </div>
-
-
-      <!-- ================= PARENT DETAILS ================= -->
-      <div style="
-          border:1px solid #e5e7eb;
-          border-radius:12px;
-          padding:20px;
-          margin-bottom:18px;
-      ">
-
-        <div style="
-            font-size:17px;
-            font-weight:800;
-            color:#111827;
-            margin-bottom:16px;
-            padding-bottom:10px;
-            border-bottom:1px solid #e5e7eb;
-        ">
-          👨‍👩‍👧 Parent / Guardian Details
-        </div>
-
-
-        <div style="
-            display:grid;
-            grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
-            gap:18px;
-        ">
-
-          <div>
-            <label style="
-                display:block;
-                margin-bottom:6px;
-                font-size:13px;
-                font-weight:700;
-                color:#374151;
-            ">
-              Parent / Guardian Name
-            </label>
-
-            <input
-              type="text"
-              id="parentName"
-              placeholder="Optional"
-              style="
-                width:100%;
-                height:44px;
-                padding:0 12px;
-                border:1px solid #cbd5e1;
-                border-radius:8px;
-                font-size:14px;
-                box-sizing:border-box;
-                outline:none;
-              "
-            >
-          </div>
-
-
-          <div>
-            <label style="
-                display:block;
-                margin-bottom:6px;
-                font-size:13px;
-                font-weight:700;
-                color:#374151;
-            ">
-              Parent / Guardian Phone
-            </label>
-
-            <input
-              type="tel"
-              id="parentPhone"
-              placeholder="0712345678"
-              style="
-                width:100%;
-                height:44px;
-                padding:0 12px;
-                border:1px solid #cbd5e1;
-                border-radius:8px;
-                font-size:14px;
-                box-sizing:border-box;
-                outline:none;
-              "
-            >
-          </div>
-
-        </div>
-
-        <div style="
-            margin-top:10px;
-            font-size:11px;
-            color:#64748b;
-        ">
-          Parent information is optional and may be applied to all learners during bulk registration.
-        </div>
-
-      </div>
-
-
-      <!-- ================= IDENTIFICATION ================= -->
-      <div style="
-          border:1px solid #e5e7eb;
-          border-radius:12px;
-          padding:20px;
-          margin-bottom:18px;
-      ">
-
-        <div style="
-            font-size:17px;
-            font-weight:800;
-            color:#111827;
-            margin-bottom:16px;
-            padding-bottom:10px;
-            border-bottom:1px solid #e5e7eb;
-        ">
-          🪪 Identification & Admission
-        </div>
-
-
-        <div style="
-            display:grid;
-            grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
-            gap:18px;
-        ">
-
-          <div>
-            <label style="
-                display:block;
-                margin-bottom:6px;
-                font-size:13px;
-                font-weight:700;
-                color:#374151;
-            ">
-              Birth Certificate No.
-            </label>
-
-            <input
-              type="text"
-              id="birthCert"
-              placeholder="Optional"
-              style="
-                width:100%;
-                height:44px;
-                padding:0 12px;
-                border:1px solid #cbd5e1;
-                border-radius:8px;
-                font-size:14px;
-                box-sizing:border-box;
-                outline:none;
-              "
-            >
-          </div>
-
-
-          <div>
-            <label style="
-                display:block;
-                margin-bottom:6px;
-                font-size:13px;
-                font-weight:700;
-                color:#374151;
-            ">
-              Admission Number
-            </label>
-
-            <input
-              type="text"
-              id="admissionNo"
-              placeholder="Leave empty for auto-generation"
-              style="
-                width:100%;
-                height:44px;
-                padding:0 12px;
-                border:1px solid #cbd5e1;
-                border-radius:8px;
-                font-size:14px;
-                box-sizing:border-box;
-                outline:none;
-              "
-            >
-          </div>
-
-        </div>
-
-      </div>
-
-
-      <!-- ================= PHOTO ================= -->
-      <div style="
-          border:1px solid #e5e7eb;
-          border-radius:12px;
-          padding:20px;
-          margin-bottom:20px;
-      ">
-
-        <div style="
-            font-size:17px;
-            font-weight:800;
-            color:#111827;
-            margin-bottom:16px;
-            padding-bottom:10px;
-            border-bottom:1px solid #e5e7eb;
-        ">
-          📷 Learner Photo
-        </div>
-
-        <input
-          id="photo"
-          type="file"
-          accept="image/*"
-          style="
-            width:100%;
-            padding:11px;
-            border:1px dashed #94a3b8;
-            border-radius:8px;
-            background:#f8fafc;
-            box-sizing:border-box;
-            font-size:13px;
-          "
-        >
-
-        <div style="
-            margin-top:7px;
-            font-size:11px;
-            color:#64748b;
-        ">
-          Upload a clear passport-style learner photograph.
-        </div>
-
-      </div>
-
-
-      <!-- ================= ACTION BUTTONS ================= -->
       <div style="
           display:flex;
-          justify-content:flex-end;
+          justify-content:space-between;
           align-items:center;
-          gap:12px;
           flex-wrap:wrap;
-          border-top:1px solid #e5e7eb;
-          padding-top:18px;
+          gap:10px;
+          margin-top:8px;
       ">
 
-        <button
-          type="button"
-          onclick="previewStudents()"
-          style="
-            background:#ffffff;
-            color:#374151;
-            border:1px solid #cbd5e1;
-            padding:10px 18px;
-            border-radius:8px;
-            font-size:13px;
-            font-weight:700;
-            cursor:pointer;
-          "
-        >
-          👀 Preview List
-        </button>
+        <small style="
+            color:#64748b;
+            font-size:12px;
+        ">
+          💡 Each learner should occupy a separate line.
+        </small>
 
 
-        <button
-          type="button"
-          onclick="addStudent()"
+        <div
+          id="nameCounter"
           style="
-            background:#16a34a;
-            color:white;
-            border:none;
-            padding:10px 20px;
-            border-radius:8px;
-            font-size:13px;
+            background:#dcfce7;
+            color:#166534;
+            padding:6px 12px;
+            border-radius:20px;
+            font-size:12px;
             font-weight:800;
-            cursor:pointer;
-            box-shadow:0 4px 10px rgba(22,163,74,.20);
           "
         >
-          ➕ Add Student
-        </button>
+          0 names detected
+        </div>
 
-      </div>
-
-
-      <div style="
-          text-align:center;
-          margin-top:14px;
-          color:#64748b;
-          font-size:11px;
-      ">
-        Fields marked with <span style="color:#dc2626;font-weight:800;">*</span> are required.
       </div>
 
     </div>
+
+
+    <!-- ================= LEARNER DETAILS ================= -->
+    <div style="
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        padding:20px;
+        margin-bottom:18px;
+    ">
+
+      <div style="
+          margin-bottom:16px;
+          padding-bottom:10px;
+          border-bottom:1px solid #e5e7eb;
+      ">
+        <span class="registration-section-title">
+          🎓 Learner Details
+        </span>
+      </div>
+
+
+      <div style="
+          display:grid;
+          grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+          gap:18px;
+      ">
+
+        <!-- Gender -->
+        <div>
+
+          <label for="gender">
+            Gender <span>*</span>
+          </label>
+
+          <select
+            id="gender"
+            style="
+              width:100%;
+              height:44px;
+              padding:0 12px;
+              border:1px solid #cbd5e1;
+              border-radius:8px;
+              background:#fff;
+              color:#111827;
+              font-size:14px;
+              outline:none;
+              box-sizing:border-box;
+            "
+          >
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+
+          <small style="
+              color:#64748b;
+              font-size:11px;
+              display:block;
+              margin-top:5px;
+          ">
+            Applied to all learners in bulk admission.
+          </small>
+
+        </div>
+
+
+        <!-- Grade -->
+        <div>
+
+          <label for="grade">
+            Grade / Class <span>*</span>
+          </label>
+
+          <input
+            type="text"
+            id="grade"
+            placeholder="e.g. Grade 9A"
+            style="
+              width:100%;
+              height:44px;
+              padding:0 12px;
+              border:1px solid #cbd5e1;
+              border-radius:8px;
+              font-size:14px;
+              color:#111827;
+              box-sizing:border-box;
+              outline:none;
+            "
+          >
+
+        </div>
+
+
+        <!-- Age -->
+        <div>
+
+          <label for="age">
+            Age
+          </label>
+
+          <input
+            type="number"
+            id="age"
+            min="1"
+            placeholder="Leave empty for auto"
+            style="
+              width:100%;
+              height:44px;
+              padding:0 12px;
+              border:1px solid #cbd5e1;
+              border-radius:8px;
+              font-size:14px;
+              color:#111827;
+              box-sizing:border-box;
+              outline:none;
+            "
+          >
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ================= PARENT DETAILS ================= -->
+    <div style="
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        padding:20px;
+        margin-bottom:18px;
+    ">
+
+      <div style="
+          margin-bottom:16px;
+          padding-bottom:10px;
+          border-bottom:1px solid #e5e7eb;
+      ">
+        <span class="registration-section-title">
+          👨‍👩‍👧 Parent / Guardian Details
+        </span>
+      </div>
+
+
+      <div style="
+          display:grid;
+          grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+          gap:18px;
+      ">
+
+        <!-- Parent Name -->
+        <div>
+
+          <label for="parentName">
+            Parent / Guardian Name
+          </label>
+
+          <input
+            type="text"
+            id="parentName"
+            placeholder="Optional"
+            style="
+              width:100%;
+              height:44px;
+              padding:0 12px;
+              border:1px solid #cbd5e1;
+              border-radius:8px;
+              font-size:14px;
+              box-sizing:border-box;
+              outline:none;
+            "
+          >
+
+        </div>
+
+
+        <!-- Parent Phone -->
+        <div>
+
+          <label for="parentPhone">
+            Parent / Guardian Phone
+          </label>
+
+          <input
+            type="tel"
+            id="parentPhone"
+            placeholder="0712345678"
+            style="
+              width:100%;
+              height:44px;
+              padding:0 12px;
+              border:1px solid #cbd5e1;
+              border-radius:8px;
+              font-size:14px;
+              box-sizing:border-box;
+              outline:none;
+            "
+          >
+
+        </div>
+
+      </div>
+
+
+      <div style="
+          margin-top:10px;
+          font-size:11px;
+          color:#64748b;
+      ">
+        Parent information is optional and may be applied to all learners during bulk registration.
+      </div>
+
+    </div>
+
+
+    <!-- ================= IDENTIFICATION ================= -->
+    <div style="
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        padding:20px;
+        margin-bottom:18px;
+    ">
+
+      <div style="
+          margin-bottom:16px;
+          padding-bottom:10px;
+          border-bottom:1px solid #e5e7eb;
+      ">
+        <span class="registration-section-title">
+          🪪 Identification & Admission
+        </span>
+      </div>
+
+
+      <div style="
+          display:grid;
+          grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+          gap:18px;
+      ">
+
+        <!-- Birth Certificate -->
+        <div>
+
+          <label for="birthCert">
+            Birth Certificate No.
+          </label>
+
+          <input
+            type="text"
+            id="birthCert"
+            placeholder="Optional"
+            style="
+              width:100%;
+              height:44px;
+              padding:0 12px;
+              border:1px solid #cbd5e1;
+              border-radius:8px;
+              font-size:14px;
+              box-sizing:border-box;
+              outline:none;
+            "
+          >
+
+        </div>
+
+
+        <!-- Admission Number -->
+        <div>
+
+          <label for="admissionNo">
+            Admission Number
+          </label>
+
+          <input
+            type="text"
+            id="admissionNo"
+            placeholder="Leave empty for auto-generation"
+            style="
+              width:100%;
+              height:44px;
+              padding:0 12px;
+              border:1px solid #cbd5e1;
+              border-radius:8px;
+              font-size:14px;
+              box-sizing:border-box;
+              outline:none;
+            "
+          >
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ================= PHOTO ================= -->
+    <div style="
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        padding:20px;
+        margin-bottom:20px;
+    ">
+
+      <div style="
+          margin-bottom:16px;
+          padding-bottom:10px;
+          border-bottom:1px solid #e5e7eb;
+      ">
+        <span class="registration-section-title">
+          📷 Learner Photo
+        </span>
+      </div>
+
+
+      <label for="photo">
+        Learner Photograph
+      </label>
+
+      <input
+        id="photo"
+        type="file"
+        accept="image/*"
+        style="
+          width:100%;
+          padding:11px;
+          border:1px dashed #94a3b8;
+          border-radius:8px;
+          background:#f8fafc;
+          box-sizing:border-box;
+          font-size:13px;
+        "
+      >
+
+
+      <div style="
+          margin-top:7px;
+          font-size:11px;
+          color:#64748b;
+      ">
+        Upload a clear passport-style learner photograph.
+      </div>
+
+    </div>
+
+
+    <!-- ================= ACTION BUTTONS ================= -->
+    <div style="
+        display:flex;
+        justify-content:flex-end;
+        align-items:center;
+        gap:12px;
+        flex-wrap:wrap;
+        border-top:1px solid #e5e7eb;
+        padding-top:18px;
+    ">
+
+      <button
+        type="button"
+        onclick="previewStudents()"
+        style="
+          background:#ffffff;
+          color:#374151;
+          border:1px solid #cbd5e1;
+          padding:10px 18px;
+          border-radius:8px;
+          font-size:13px;
+          font-weight:700;
+          cursor:pointer;
+        "
+      >
+        👀 Preview List
+      </button>
+
+
+      <button
+        type="button"
+        onclick="addStudent()"
+        style="
+          background:#16a34a;
+          color:white;
+          border:none;
+          padding:10px 20px;
+          border-radius:8px;
+          font-size:13px;
+          font-weight:800;
+          cursor:pointer;
+          box-shadow:0 4px 10px rgba(22,163,74,.20);
+        "
+      >
+        ➕ Add Student
+      </button>
+
+    </div>
+
+
+    <!-- ================= REQUIRED NOTE ================= -->
+    <div style="
+        text-align:center;
+        margin-top:14px;
+        color:#64748b;
+        font-size:11px;
+    ">
+      Fields marked with
+      <span style="
+        color:#dc2626;
+        font-weight:800;
+      ">*</span>
+      are required.
+    </div>
+
   </div>
+
+</div>
+
 
 
 
@@ -21387,251 +21446,257 @@ if (
 
 }
 /* ============================================================
-   🔐 RASM 360 — PRODUCTION LOGIN ENGINE
-   ============================================================
-   Senior-level resilient login flow
+   🔐 RASM 360 — LOGIN LOADING CONTROLLER
+   Safe version — prevents "setLoginLoading is not defined"
+============================================================ */
+
+window.setLoginLoading = function (isLoading, message = "Signing you in...") {
+
+    try {
+
+        const loginButton =
+            document.getElementById("loginButton") ||
+            document.querySelector(
+                '#loginForm button[type="submit"], ' +
+                '#loginForm button, ' +
+                'button[onclick*="login"]'
+            );
+
+        const emailInput =
+            document.getElementById("loginEmail") ||
+            document.getElementById("email") ||
+            document.querySelector(
+                '#loginForm input[type="email"], ' +
+                '#loginForm input[name="email"]'
+            );
+
+        const passwordInput =
+            document.getElementById("loginPassword") ||
+            document.getElementById("password") ||
+            document.querySelector(
+                '#loginForm input[type="password"], ' +
+                '#loginForm input[name="password"]'
+            );
+
+        if (isLoading) {
+
+            /* -----------------------------------------
+               SAVE ORIGINAL BUTTON TEXT
+            ----------------------------------------- */
+
+            if (loginButton) {
+
+                if (!loginButton.dataset.originalText) {
+                    loginButton.dataset.originalText =
+                        loginButton.innerHTML;
+                }
+
+                loginButton.disabled = true;
+
+                loginButton.innerHTML = `
+                    <span
+                        style="
+                            display:inline-block;
+                            width:16px;
+                            height:16px;
+                            border:2px solid currentColor;
+                            border-top-color:transparent;
+                            border-radius:50%;
+                            animation:rasmLoginSpin .7s linear infinite;
+                            vertical-align:-3px;
+                            margin-right:7px;
+                        ">
+                    </span>
+                    ${message}
+                `;
+
+                loginButton.style.cursor = "wait";
+                loginButton.setAttribute("aria-busy", "true");
+            }
+
+            /* -----------------------------------------
+               PREVENT DOUBLE LOGIN
+            ----------------------------------------- */
+
+            if (emailInput) {
+                emailInput.disabled = true;
+            }
+
+            if (passwordInput) {
+                passwordInput.disabled = true;
+            }
+
+        } else {
+
+            /* -----------------------------------------
+               RESTORE BUTTON
+            ----------------------------------------- */
+
+            if (loginButton) {
+
+                loginButton.disabled = false;
+
+                if (loginButton.dataset.originalText) {
+                    loginButton.innerHTML =
+                        loginButton.dataset.originalText;
+                }
+
+                loginButton.style.cursor = "";
+                loginButton.removeAttribute("aria-busy");
+            }
+
+            /* -----------------------------------------
+               RESTORE INPUTS
+            ----------------------------------------- */
+
+            if (emailInput) {
+                emailInput.disabled = false;
+            }
+
+            if (passwordInput) {
+                passwordInput.disabled = false;
+            }
+        }
+
+    } catch (error) {
+
+        /*
+         * IMPORTANT:
+         * A problem with the loading UI must NEVER
+         * stop Firebase login.
+         */
+
+        console.warn(
+            "⚠️ Login loading UI could not be updated:",
+            error
+        );
+    }
+};
+
+
+/* ============================================================
+   LOGIN SPINNER ANIMATION
+============================================================ */
+
+if (!document.getElementById("rasmLoginSpinnerStyle")) {
+
+    const style = document.createElement("style");
+
+    style.id = "rasmLoginSpinnerStyle";
+
+    style.textContent = `
+        @keyframes rasmLoginSpin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    `;
+
+    document.head.appendChild(style);
+}
+
+/* ============================================================
+   🔐 RASM 360 — STABLE LOGIN ENGINE
    ------------------------------------------------------------
-   ✓ Offline/network detection
-   ✓ Firebase Auth error handling
+   Designed for:
+   ✓ Mobile data
+   ✓ Slow Wi-Fi
+   ✓ High-latency Wi-Fi
+   ✓ Firebase authentication
+   ✓ Firebase retry
+   ✓ User profile verification
+   ✓ School verification
+   ✓ Subscription verification
    ✓ School isolation
-   ✓ Account security validation
-   ✓ Subscription validation
-   ✓ Subscription retry
-   ✓ School-read retry
-   ✓ Cached school UI fallback
-   ✓ No subscription timeout = false restriction
-   ✓ Prevents double login
-   ✓ Clean loading state
-   ✓ No dangerous storage clearing
-   ✓ Safe session storage
-   ============================================================ */
+   ✓ Security checks
+   ✓ SweetAlert2
+   ✓ No native alert/confirm
+============================================================ */
 
 window.__loggingIn = false;
 
 
 /* ============================================================
-   🌐 NETWORK STATUS
-   ============================================================ */
-
-window.isNetworkAvailable = function () {
-
-    return navigator.onLine !== false;
-
-};
-
-
-window.addEventListener("offline", () => {
-
-    console.warn(
-        "🌐 RASM 360: Device is offline."
-    );
-
-});
-
-
-window.addEventListener("online", () => {
-
-    console.log(
-        "🌐 RASM 360: Network connection restored."
-    );
-
-});
-
-
-/* ============================================================
-   🎨 LOGIN LOADER
-   ============================================================ */
-
-window.showLoginLoader = function (
-    message = "Signing you in securely..."
-) {
-
-    let loader =
-        document.getElementById(
-            "modernLoginLoader"
-        );
-
-
-    if (!loader) {
-
-        loader =
-            document.createElement("div");
-
-        loader.id =
-            "modernLoginLoader";
-
-
-        loader.innerHTML = `
-
-            <div class="modern-loader-box">
-
-                <div class="modern-dots">
-
-                    <span></span>
-                    <span></span>
-                    <span></span>
-
-                </div>
-
-
-                <div
-                    id="modernLoaderText"
-                    class="modern-loader-text"
-                >
-                    ${message}
-                </div>
-
-            </div>
-
-        `;
-
-
-        document.body.appendChild(
-            loader
-        );
-
-    }
-
-
-    const text =
-        document.getElementById(
-            "modernLoaderText"
-        );
-
-
-    if (text) {
-
-        text.textContent =
-            message;
-
-    }
-
-
-    loader.style.display =
-        "flex";
-
-};
-
-
-/* ============================================================
-   🎨 HIDE LOGIN LOADER
-   ============================================================ */
-
-window.hideLoginLoader = function () {
-
-    const loader =
-        document.getElementById(
-            "modernLoginLoader"
-        );
-
-
-    if (loader) {
-
-        loader.style.display =
-            "none";
-
-    }
-
-};
-
-
-/* ============================================================
-   🔘 LOGIN BUTTON STATE
-   ============================================================ */
-
-window.setLoginLoading = function (
-    isLoading
-) {
-
-    const loginBtn =
-        document.getElementById(
-            "loginBtn"
-        );
-
-
-    const buttons =
-        document.querySelectorAll(
-            "#authSection button"
-        );
-
-
-    buttons.forEach(btn => {
-
-        btn.disabled =
-            isLoading;
-
-    });
-
-
-    if (!loginBtn) return;
-
-
-    if (isLoading) {
-
-        loginBtn.innerHTML = `
-
-            <span class="login-btn-loading">
-
-                <span class="spinner"></span>
-
-                <span>
-                    Signing In...
-                </span>
-
-            </span>
-
-        `;
-
-    }
-
-    else {
-
-        loginBtn.innerHTML =
-            "🔐 Login";
-
-    }
-
-};
-
-
-/* ============================================================
    📧 EMAIL VALIDATION
-   ============================================================ */
+============================================================ */
 
-window.isValidEmail = function (
-    email
-) {
+window.isValidEmail = function (email) {
 
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        .test(email);
+    const value =
+        String(email || "").trim();
+
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 };
 
 
 /* ============================================================
-   ⏱️ TIMEOUT HELPER
-   ============================================================ */
+   🌐 NETWORK ERROR DETECTOR
+============================================================ */
+
+window.isNetworkError = function (error) {
+
+    const message =
+        String(error?.message || "").toLowerCase();
+
+    const code =
+        String(error?.code || "").toLowerCase();
+
+    return (
+
+        code.includes("network") ||
+
+        code.includes("timeout") ||
+
+        code.includes("unavailable") ||
+
+        code.includes("connection") ||
+
+        message.includes("network") ||
+
+        message.includes("timeout") ||
+
+        message.includes("connection") ||
+
+        message.includes("unavailable") ||
+
+        message.includes("failed to fetch") ||
+
+        message.includes("offline") ||
+
+        message.includes("websocket")
+
+    );
+
+};
+
+
+/* ============================================================
+   ⏱️ SAFE TIMEOUT
+============================================================ */
 
 window.withTimeout = function (
     promise,
-    timeout = 12000,
-    message = "Request timed out."
+    timeout = 30000,
+    message = "The server took too long to respond."
 ) {
 
     let timer;
 
-
     const timeoutPromise =
         new Promise((_, reject) => {
 
-            timer =
-                setTimeout(() => {
+            timer = setTimeout(() => {
 
-                    reject(
-                        new Error(message)
-                    );
+                reject(
+                    new Error(message)
+                );
 
-                }, timeout);
+            }, timeout);
 
         });
 
@@ -21641,7 +21706,9 @@ window.withTimeout = function (
         Promise.resolve(promise)
             .finally(() => {
 
-                clearTimeout(timer);
+                if (timer) {
+                    clearTimeout(timer);
+                }
 
             }),
 
@@ -21653,16 +21720,16 @@ window.withTimeout = function (
 
 
 /* ============================================================
-   🔁 RETRY HELPER
-   ============================================================ */
+   🔄 FIREBASE RETRY
+============================================================ */
 
-async function retryRequest(
+window.retryRequest = async function (
     requestFunction,
-    attempts = 2,
-    delay = 500
+    attempts = 3,
+    delay = 1500
 ) {
 
-    let lastError;
+    let lastError = null;
 
 
     for (
@@ -21673,35 +21740,49 @@ async function retryRequest(
 
         try {
 
+            console.log(
+                `🌐 RASM request attempt ${attempt}/${attempts}`
+            );
+
+
             return await requestFunction();
 
         }
 
         catch (error) {
 
-            lastError =
-                error;
+            lastError = error;
 
 
             console.warn(
-                `⚠️ Request attempt ${attempt} failed:`,
+                `⚠️ RASM request attempt ${attempt} failed:`,
                 error
             );
 
 
             if (
-                attempt < attempts
+                attempt >= attempts
             ) {
-
-                await new Promise(
-                    resolve =>
-                        setTimeout(
-                            resolve,
-                            delay
-                        )
-                );
-
+                break;
             }
+
+
+            const retryDelay =
+                delay * attempt;
+
+
+            console.log(
+                `⏳ Retrying in ${retryDelay}ms...`
+            );
+
+
+            await new Promise(
+                resolve =>
+                    setTimeout(
+                        resolve,
+                        retryDelay
+                    )
+            );
 
         }
 
@@ -21710,86 +21791,261 @@ async function retryRequest(
 
     throw lastError;
 
+};
+
+
+/* ============================================================
+   📡 WAIT FOR NETWORK
+============================================================ */
+
+window.waitForNetwork = async function (
+    maxWait = 10000
+) {
+
+    if (
+        navigator.onLine !== false
+    ) {
+
+        return true;
+
+    }
+
+
+    console.warn(
+        "📡 RASM: Browser reports offline."
+    );
+
+
+    return new Promise(resolve => {
+
+        let finished = false;
+
+
+        const cleanup = () => {
+
+            window.removeEventListener(
+                "online",
+                handleOnline
+            );
+
+        };
+
+
+        const finish = value => {
+
+            if (finished) {
+                return;
+            }
+
+
+            finished = true;
+
+            cleanup();
+
+            resolve(value);
+
+        };
+
+
+        const handleOnline = () => {
+
+            console.log(
+                "🌐 RASM: Network restored."
+            );
+
+            finish(true);
+
+        };
+
+
+        window.addEventListener(
+            "online",
+            handleOnline,
+            { once: true }
+        );
+
+
+        setTimeout(() => {
+
+            finish(
+                navigator.onLine !== false
+            );
+
+        }, maxWait);
+
+    });
+
+};
+
+
+/* ============================================================
+   🔄 LOGIN BUTTON LOADING
+============================================================ */
+
+window.setLoginLoading = function (
+    loading,
+    message = "Signing in..."
+) {
+
+    try {
+
+        const loginButton =
+
+            document.getElementById(
+                "loginButton"
+            ) ||
+
+            document.querySelector(
+                '#loginForm button[type="submit"]'
+            ) ||
+
+            document.querySelector(
+                'button[onclick*="login"]'
+            );
+
+
+        if (!loginButton) {
+
+            console.warn(
+                "⚠️ Login button not found. Continuing login."
+            );
+
+            return;
+
+        }
+
+
+        if (loading) {
+
+            if (
+                !loginButton.dataset.originalText
+            ) {
+
+                loginButton.dataset.originalText =
+                    loginButton.innerHTML;
+
+            }
+
+
+            loginButton.disabled = true;
+
+
+            loginButton.innerHTML = `
+
+                <span style="
+                    display:inline-block;
+                    width:16px;
+                    height:16px;
+                    border:2px solid currentColor;
+                    border-top-color:transparent;
+                    border-radius:50%;
+                    animation:rasmLoginSpin .7s linear infinite;
+                    vertical-align:-3px;
+                    margin-right:7px;
+                "></span>
+
+                ${message}
+
+            `;
+
+
+            loginButton.style.cursor =
+                "wait";
+
+
+        }
+
+        else {
+
+            loginButton.disabled =
+                false;
+
+
+            if (
+                loginButton.dataset.originalText
+            ) {
+
+                loginButton.innerHTML =
+                    loginButton.dataset.originalText;
+
+            }
+
+
+            loginButton.style.cursor =
+                "";
+
+        }
+
+    }
+
+    catch (error) {
+
+        console.warn(
+            "⚠️ Login button loading error:",
+            error
+        );
+
+    }
+
+};
+
+
+/* ============================================================
+   🎨 LOGIN SPINNER CSS
+============================================================ */
+
+if (
+    !document.getElementById(
+        "rasmLoginSpinnerStyle"
+    )
+) {
+
+    const style =
+        document.createElement("style");
+
+
+    style.id =
+        "rasmLoginSpinnerStyle";
+
+
+    style.textContent = `
+
+        @keyframes rasmLoginSpin {
+
+            from {
+                transform:rotate(0deg);
+            }
+
+            to {
+                transform:rotate(360deg);
+            }
+
+        }
+
+    `;
+
+
+    document.head.appendChild(style);
+
 }
 
 
 /* ============================================================
-   📡 OFFLINE SESSION RESUME
-   ------------------------------------------------------------
-   A previously authenticated device can reopen RASM 360 without
-   contacting Firebase. This is intentionally limited to a session
-   that Firebase Auth has already restored locally.
-   ============================================================ */
-window.resumeOfflineSession = async function(){
-    if (navigator.onLine !== false) return false;
-    const firebaseUser = auth?.currentUser;
-    if (!firebaseUser?.uid) return false;
-
-    let cachedProfile = null;
-    try { cachedProfile = JSON.parse(localStorage.getItem("rasm360_cached_user_profile") || "null"); } catch (_) {}
-    if (!cachedProfile?.userData || String(cachedProfile.uid) !== String(firebaseUser.uid)) return false;
-
-    const userData = cachedProfile.userData || {};
-    const schoolId = String(userData.schoolId || localStorage.getItem("schoolId") || "").trim();
-    if (!schoolId) return false;
-
-    let cachedSchool = null;
-    try { cachedSchool = JSON.parse(localStorage.getItem("rasm360_cached_school_" + schoolId) || "null"); } catch (_) {}
-    const schoolData = cachedSchool?.schoolData || {};
-
-    window.schoolId = schoolId;
-    window.schoolName = schoolData.name || schoolData.schoolName || userData.schoolName || localStorage.getItem("schoolName") || "My School";
-    window.userUid = firebaseUser.uid;
-    window.currentUser = {
-        ...userData,
-        uid: firebaseUser.uid,
-        email: userData.email || firebaseUser.email || ""
-    };
-    window.currentUserRole = userData.role || "";
-
-    try {
-        localStorage.setItem("schoolId", schoolId);
-        localStorage.setItem("schoolName", window.schoolName);
-        localStorage.setItem("currentUser", JSON.stringify(window.currentUser));
-        sessionStorage.setItem("schoolId", schoolId);
-        sessionStorage.setItem("userUid", firebaseUser.uid);
-    } catch (_) {}
-
-    const authSection = document.getElementById("authSection");
-    const app = document.getElementById("app");
-    if (authSection) authSection.style.display = "none";
-    if (app) {
-        app.style.display = "block";
-        app.style.opacity = "1";
-    }
-    const schoolDisplay = document.getElementById("schoolNameDisplay");
-    if (schoolDisplay) schoolDisplay.textContent = window.schoolName;
-
-    console.info("📡 RASM 360 resumed from local offline session.");
-    setTimeout(() => {
-        try { window.flushOfflineWrites?.(); } catch (_) {}
-        try { if (typeof loadAll === "function") loadAll(); } catch (err) { console.warn("Offline loadAll warning:", err); }
-    }, 0);
-    return true;
-};
-
-/* ============================================================
    🔐 MAIN LOGIN
-   ============================================================ */
+============================================================ */
 
 window.login = async function () {
 
-
-    /* ========================================================
-       🚫 PREVENT DOUBLE LOGIN
-       ======================================================== */
+    /* --------------------------------------------------------
+       PREVENT DOUBLE LOGIN
+    -------------------------------------------------------- */
 
     if (
         window.__loggingIn
     ) {
 
         console.warn(
-            "⚠️ Login already in progress."
+            "⚠️ Login already running."
         );
 
         return;
@@ -21797,44 +22053,37 @@ window.login = async function () {
     }
 
 
-    /* ========================================================
-       📋 GET INPUTS
-       ======================================================== */
+    /* --------------------------------------------------------
+       INPUTS
+    -------------------------------------------------------- */
 
     const emailInput =
-        document.getElementById(
-            "email"
-        );
-
+        document.getElementById("email");
 
     const passwordInput =
-        document.getElementById(
-            "password"
-        );
+        document.getElementById("password");
 
 
     const userEmail =
         emailInput?.value
             ?.trim()
-            ?.toLowerCase() ||
-        "";
+            ?.toLowerCase() || "";
 
 
     const userPassword =
-        passwordInput?.value ||
-        "";
+        passwordInput?.value || "";
 
 
-    /* ========================================================
+    /* --------------------------------------------------------
        BASIC VALIDATION
-       ======================================================== */
+    -------------------------------------------------------- */
 
     if (
         !userEmail ||
         !userPassword
     ) {
 
-        return Swal.fire({
+        await Swal.fire({
 
             icon: "warning",
 
@@ -21849,18 +22098,22 @@ window.login = async function () {
 
         });
 
+        return;
+
     }
 
 
-    /* ========================================================
+    /* --------------------------------------------------------
        EMAIL VALIDATION
-       ======================================================== */
+    -------------------------------------------------------- */
 
     if (
-        !isValidEmail(userEmail)
+        !window.isValidEmail(
+            userEmail
+        )
     ) {
 
-        return Swal.fire({
+        await Swal.fire({
 
             icon: "warning",
 
@@ -21875,144 +22128,101 @@ window.login = async function () {
 
         });
 
+        return;
+
     }
 
 
-    /* ========================================================
-       🌐 OFFLINE CHECK
-       ======================================================== */
+    /* --------------------------------------------------------
+       NETWORK
+    -------------------------------------------------------- */
 
     if (
-        !navigator.onLine
+        navigator.onLine === false
     ) {
 
-        if (await window.resumeOfflineSession()) {
-            return Swal.fire({
-                icon: "info",
-                title: "📡 Offline Mode",
-                text: "RASM 360 opened using your saved session and cached data. Changes will synchronize automatically when internet returns.",
-                confirmButtonText: "Continue",
-                confirmButtonColor: "#2563eb"
-            });
-        }
-
-        const cachedUser =
-            auth?.currentUser ||
-            null;
+        const online =
+            await window.waitForNetwork(
+                10000
+            );
 
 
-        if (cachedUser) {
+        if (!online) {
 
-            return Swal.fire({
+            await Swal.fire({
 
-                icon: "info",
+                icon: "warning",
 
                 title:
-                    "You're Offline",
+                    "No Internet Connection",
 
-                html: `
-
-                    <div style="
-                        text-align:center;
-                    ">
-
-                        <div style="
-                            font-size:42px;
-                            margin-bottom:10px;
-                        ">
-                            📡
-                        </div>
-
-                        <p>
-                            You are currently offline.
-                        </p>
-
-                        <p style="
-                            color:#64748b;
-                            font-size:14px;
-                        ">
-                            Please reconnect before
-                            signing in again.
-                        </p>
-
-                    </div>
-
-                `,
+                text:
+                    "Please reconnect to the internet and try again.",
 
                 confirmButtonText:
-                    "OK",
+                    "Try Again",
 
                 confirmButtonColor:
                     "#2563eb"
 
             });
 
+            return;
+
         }
-
-
-        return Swal.fire({
-
-            icon: "warning",
-
-            title:
-                "No Internet Connection",
-
-            text:
-                "RASM 360 needs an internet connection to sign you in.",
-
-            confirmButtonText:
-                "Try Again",
-
-            confirmButtonColor:
-                "#2563eb"
-
-        });
 
     }
 
 
-    /* ========================================================
-       🚀 START LOGIN
-       ======================================================== */
+    /* --------------------------------------------------------
+       LOCK
+    -------------------------------------------------------- */
 
     window.__loggingIn =
         true;
 
 
-    setLoginLoading(
-        true
-    );
-
-
-    showLoginLoader(
-        "Connecting securely..."
+    window.setLoginLoading(
+        true,
+        "Connecting..."
     );
 
 
     try {
 
-
         /* ====================================================
            🔐 FIREBASE AUTHENTICATION
-           ==================================================== */
+        ==================================================== */
 
-        showLoginLoader(
-            "Verifying your account..."
+        console.log(
+            "🔐 RASM: Authenticating..."
         );
 
 
-        const userCredential =
-            await withTimeout(
+        let userCredential;
 
-                signInWithEmailAndPassword(
-                    auth,
-                    userEmail,
-                    userPassword
-                ),
 
-                15000,
+        userCredential =
+            await window.retryRequest(
 
-                "Authentication request timed out."
+                () =>
+                    window.withTimeout(
+
+                        signInWithEmailAndPassword(
+                            auth,
+                            userEmail,
+                            userPassword
+                        ),
+
+                        30000,
+
+                        "Authentication timed out."
+
+                    ),
+
+                3,
+
+                1500
 
             );
 
@@ -22026,7 +22236,7 @@ window.login = async function () {
         ) {
 
             throw new Error(
-                "Authentication completed but no user account was returned."
+                "AUTH_USER_NOT_RETURNED"
             );
 
         }
@@ -22036,38 +22246,67 @@ window.login = async function () {
             firebaseUser.uid;
 
 
-        /* ====================================================
-           👤 USER PROFILE
-           ==================================================== */
-
-        showLoginLoader(
-            "Loading your school profile..."
+        console.log(
+            "✅ Authentication successful:",
+            uid
         );
 
 
-        const userSnapshot =
-            await retryRequest(
+        /* ====================================================
+           👤 USER PROFILE
+        ==================================================== */
 
-                () => withTimeout(
+        window.setLoginLoading(
+            true,
+            "Loading school profile..."
+        );
 
-                    fastGet(
-                        ref(
-                            db,
-                            `users/${uid}`
-                        )
-                    ),
 
-                    10000,
+        let userSnapshot;
 
-                    "User profile request timed out."
 
-                ),
+        try {
 
-                2,
+            userSnapshot =
+                await window.retryRequest(
 
-                600
+                    () =>
+                        window.withTimeout(
 
+                            fastGet(
+                                ref(
+                                    db,
+                                    `users/${uid}`
+                                )
+                            ),
+
+                            30000,
+
+                            "User profile timed out."
+
+                        ),
+
+                    3,
+
+                    1500
+
+                );
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "❌ User profile error:",
+                error
             );
+
+
+            throw new Error(
+                "USER_PROFILE_CONNECTION_FAILED"
+            );
+
+        }
 
 
         if (
@@ -22082,26 +22321,16 @@ window.login = async function () {
 
 
         const userData =
-            userSnapshot.val() ||
-            {};
-
-        try {
-            localStorage.setItem("rasm360_cached_user_profile", JSON.stringify({
-                uid,
-                userData,
-                savedAt: Date.now()
-            }));
-        } catch (_) {}
+            userSnapshot.val() || {};
 
 
         /* ====================================================
            🏫 SCHOOL ID
-           ==================================================== */
+        ==================================================== */
 
         const schoolId =
             String(
-                userData.schoolId ||
-                ""
+                userData.schoolId || ""
             ).trim();
 
 
@@ -22114,9 +22343,15 @@ window.login = async function () {
         }
 
 
+        console.log(
+            "🏫 School:",
+            schoolId
+        );
+
+
         /* ====================================================
-           🔐 USER CONTEXT
-           ==================================================== */
+           👤 USER CONTEXT
+        ==================================================== */
 
         if (
             typeof window.setCurrentUser ===
@@ -22127,34 +22362,25 @@ window.login = async function () {
 
                 uid,
 
-                // Keep the user's registered identity in the session.
-                // This is important for the Audit Trail so it never
-                // falls back to "Unknown User" when only the UID/email
-                // is available after login.
                 fullName:
                     userData.fullName ||
                     userData.name ||
                     userData.displayName ||
-                    userData.username ||
                     "",
 
                 name:
                     userData.name ||
                     userData.fullName ||
-                    userData.displayName ||
-                    userData.username ||
                     "",
 
                 displayName:
                     userData.displayName ||
                     userData.fullName ||
                     userData.name ||
-                    userData.username ||
                     "",
 
                 role:
-                    userData.role ||
-                    "",
+                    userData.role || "",
 
                 schoolId,
 
@@ -22169,27 +22395,19 @@ window.login = async function () {
 
 
         /* ====================================================
-           🌍 GLOBAL SCHOOL CONTEXT
-           ==================================================== */
+           🌍 SCHOOL CONTEXT
+        ==================================================== */
 
         window.schoolId =
             schoolId;
 
 
-        /* ====================================================
-           🏫 SCHOOL-SCOPED REFERENCE
-           ==================================================== */
-
         window.schoolRef =
-            function (
-                path = ""
-            ) {
+            function(path = "") {
 
-                const sid =
-                    window.schoolId;
-
-
-                if (!sid) {
+                if (
+                    !window.schoolId
+                ) {
 
                     throw new Error(
                         "School context missing."
@@ -22203,8 +22421,10 @@ window.login = async function () {
                     db,
 
                     path
-                        ? `schools/${sid}/${path}`
-                        : `schools/${sid}`
+
+                        ? `schools/${window.schoolId}/${path}`
+
+                        : `schools/${window.schoolId}`
 
                 );
 
@@ -22212,113 +22432,53 @@ window.login = async function () {
 
 
         /* ====================================================
-           🏫 SCHOOL INFORMATION
-           ==================================================== */
+           🏫 SCHOOL VERIFICATION
+        ==================================================== */
 
-        showLoginLoader(
-            "Verifying your school..."
+        window.setLoginLoading(
+            true,
+            "Verifying school..."
         );
 
 
-        let schoolSnapshot =
-            null;
+        let schoolSnapshot;
 
-
-        let schoolData =
-            null;
-
-
-        let schoolName =
-            userData.schoolName ||
-            localStorage.getItem(
-                "schoolName"
-            ) ||
-            "My School";
-
-
-        /* ====================================================
-           🔄 LIVE SCHOOL READ WITH RETRY
-           ==================================================== */
 
         try {
 
             schoolSnapshot =
-                await retryRequest(
+                await window.retryRequest(
 
-                    () => withTimeout(
+                    () =>
+                        window.withTimeout(
 
-                        fastGet(
-                            ref(
-                                db,
-                                `schools/${schoolId}`
-                            )
+                            fastGet(
+                                ref(
+                                    db,
+                                    `schools/${schoolId}`
+                                )
+                            ),
+
+                            30000,
+
+                            "School verification timed out."
+
                         ),
 
-                        12000,
+                    3,
 
-                        "School information request timed out."
-
-                    ),
-
-                    2,
-
-                    700
+                    1800
 
                 );
-
-
-            if (
-                !schoolSnapshot.exists()
-            ) {
-
-                throw new Error(
-                    "SCHOOL_NOT_FOUND"
-                );
-
-            }
-
-
-            schoolData =
-                schoolSnapshot.val() ||
-                {};
-
-            try {
-                localStorage.setItem("rasm360_cached_school_" + schoolId, JSON.stringify({
-                    schoolId,
-                    schoolData,
-                    savedAt: Date.now()
-                }));
-            } catch (_) {}
-
 
         }
 
-        catch (schoolError) {
+        catch (error) {
 
             console.error(
-                "⚠️ School information request failed:",
-                schoolError
+                "❌ School verification error:",
+                error
             );
-
-
-            /*
-             * IMPORTANT:
-             *
-             * We DO NOT grant access using cache
-             * when live school verification fails.
-             *
-             * Cache is only used for displaying
-             * information, never for security.
-             */
-
-            if (
-                schoolError?.message ===
-                "SCHOOL_NOT_FOUND"
-            ) {
-
-                throw schoolError;
-
-            }
 
 
             throw new Error(
@@ -22328,13 +22488,28 @@ window.login = async function () {
         }
 
 
+        if (
+            !schoolSnapshot.exists()
+        ) {
+
+            throw new Error(
+                "SCHOOL_NOT_FOUND"
+            );
+
+        }
+
+
+        const schoolData =
+            schoolSnapshot.val() || {};
+
+
         /* ====================================================
-           🔒 SCHOOL SECURITY
-           ==================================================== */
+           🔒 SECURITY
+        ==================================================== */
 
         if (
-            userData.schoolId !==
-            schoolId
+            String(userData.schoolId) !==
+            String(schoolId)
         ) {
 
             throw new Error(
@@ -22377,11 +22552,7 @@ window.login = async function () {
         }
 
 
-        /* ====================================================
-           🏫 SCHOOL NAME
-           ==================================================== */
-
-        schoolName =
+        const schoolName =
             schoolData.name ||
             schoolData.schoolName ||
             userData.schoolName ||
@@ -22393,8 +22564,8 @@ window.login = async function () {
 
 
         /* ====================================================
-           💾 SESSION CACHE
-           ==================================================== */
+           💾 SESSION
+        ==================================================== */
 
         try {
 
@@ -22403,24 +22574,20 @@ window.login = async function () {
                 schoolId
             );
 
-
             localStorage.setItem(
                 "schoolName",
                 schoolName
             );
-
 
             sessionStorage.setItem(
                 "schoolId",
                 schoolId
             );
 
-
             sessionStorage.setItem(
                 "userUid",
                 uid
             );
-
 
             sessionStorage.setItem(
                 "schoolEmail",
@@ -22429,11 +22596,11 @@ window.login = async function () {
 
         }
 
-        catch (storageError) {
+        catch (error) {
 
             console.warn(
-                "⚠️ Session storage unavailable:",
-                storageError
+                "⚠️ Storage unavailable:",
+                error
             );
 
         }
@@ -22441,9 +22608,7 @@ window.login = async function () {
 
         /* ====================================================
            🕒 LAST LOGIN
-           ----------------------------------------------------
-           Non-critical
-           ==================================================== */
+        ==================================================== */
 
         update(
 
@@ -22460,7 +22625,7 @@ window.login = async function () {
         ).catch(error => {
 
             console.warn(
-                "Last-login update skipped:",
+                "Last login update skipped:",
                 error
             );
 
@@ -22468,91 +22633,51 @@ window.login = async function () {
 
 
         /* ====================================================
-           💳 SUBSCRIPTION VERIFICATION
-           ==================================================== */
+           💳 SUBSCRIPTION
+        ==================================================== */
 
-        showLoginLoader(
-            "Checking your subscription..."
+        window.setLoginLoading(
+            true,
+            "Checking subscription..."
         );
 
 
-        let accessAllowed =
-            true;
-
-
         if (
-            typeof checkSubscriptionAccess ===
+            typeof window.checkSubscriptionAccess ===
             "function"
         ) {
 
             let subscriptionVerified =
                 false;
 
+            let accessAllowed =
+                false;
 
-            try {
-
-                /*
-                 * FIRST ATTEMPT
-                 */
-
-                accessAllowed =
-                    await withTimeout(
-
-                        Promise.resolve(
-                            checkSubscriptionAccess()
-                        ),
-
-                        12000,
-
-                        "Subscription verification timed out."
-
-                    );
+            let lastError =
+                null;
 
 
-                subscriptionVerified =
-                    true;
-
-            }
-
-            catch (subscriptionError) {
-
-                console.warn(
-                    "⚠️ First subscription check failed:",
-                    subscriptionError
-                );
-
-
-                /*
-                 * SECOND ATTEMPT
-                 *
-                 * This is important for temporary
-                 * Firebase/network delays.
-                 */
+            for (
+                let attempt = 1;
+                attempt <= 3;
+                attempt++
+            ) {
 
                 try {
 
-                    showLoginLoader(
-                        "Rechecking your subscription..."
-                    );
-
-
-                    await new Promise(
-                        resolve =>
-                            setTimeout(
-                                resolve,
-                                500
-                            )
+                    console.log(
+                        `💳 Subscription check ${attempt}/3`
                     );
 
 
                     accessAllowed =
-                        await withTimeout(
+                        await window.withTimeout(
 
                             Promise.resolve(
-                                checkSubscriptionAccess()
+                                window.checkSubscriptionAccess()
                             ),
 
-                            12000,
+                            30000,
 
                             "Subscription verification timed out."
 
@@ -22562,42 +22687,73 @@ window.login = async function () {
                     subscriptionVerified =
                         true;
 
+
+                    console.log(
+                        "✅ Subscription verified."
+                    );
+
+
+                    break;
+
                 }
 
-                catch (secondSubscriptionError) {
+                catch (error) {
 
-                    console.error(
-                        "❌ Subscription verification unavailable:",
-                        secondSubscriptionError
+                    lastError =
+                        error;
+
+
+                    console.warn(
+                        `⚠️ Subscription attempt ${attempt} failed:`,
+                        error
                     );
 
 
-                    /*
-                     * IMPORTANT SECURITY RULE:
-                     *
-                     * We do NOT convert a timeout/network
-                     * problem into SUBSCRIPTION_RESTRICTED.
-                     *
-                     * Restricted means the subscription
-                     * was actually checked and returned false.
-                     */
+                    if (
+                        attempt < 3
+                    ) {
 
-                    throw new Error(
-                        "SUBSCRIPTION_CHECK_FAILED"
-                    );
+                        window.setLoginLoading(
+                            true,
+                            "Connection is slow. Retrying..."
+                        );
+
+
+                        await new Promise(
+                            resolve =>
+                                setTimeout(
+                                    resolve,
+                                    2000
+                                )
+                        );
+
+                    }
 
                 }
 
             }
 
 
-            /*
-             * ONLY AN EXPLICIT FALSE RESULT
-             * MEANS SUBSCRIPTION IS RESTRICTED.
-             */
+            if (
+                !subscriptionVerified
+            ) {
+
+                const error =
+                    new Error(
+                        "SUBSCRIPTION_CHECK_FAILED"
+                    );
+
+
+                error.originalError =
+                    lastError;
+
+
+                throw error;
+
+            }
+
 
             if (
-                subscriptionVerified &&
                 accessAllowed === false
             ) {
 
@@ -22611,15 +22767,14 @@ window.login = async function () {
 
 
         /* ====================================================
-           🚀 EVERYTHING VERIFIED
-           ==================================================== */
+           🚀 LOGIN SUCCESS
+        ==================================================== */
 
-        hideLoginLoader();
+        window.setLoginLoading(
+            true,
+            "Opening RASM 360..."
+        );
 
-
-        /* ====================================================
-           🔐 HIDE AUTH SECTION
-           ==================================================== */
 
         const authSection =
             document.getElementById(
@@ -22646,28 +22801,11 @@ window.login = async function () {
             app.style.display =
                 "block";
 
-
             app.style.opacity =
-                "0";
-
-
-            requestAnimationFrame(() => {
-
-                app.style.transition =
-                    "opacity .25s ease";
-
-
-                app.style.opacity =
-                    "1";
-
-            });
+                "1";
 
         }
 
-
-        /* ====================================================
-           🏫 SCHOOL NAME DISPLAY
-           ==================================================== */
 
         const schoolDisplay =
             document.getElementById(
@@ -22685,7 +22823,7 @@ window.login = async function () {
 
         /* ====================================================
            🎉 SUCCESS
-           ==================================================== */
+        ==================================================== */
 
         await Swal.fire({
 
@@ -22697,9 +22835,7 @@ window.login = async function () {
 
             html: `
 
-                <div style="
-                    text-align:center;
-                ">
+                <div style="text-align:center">
 
                     <div style="
                         font-size:42px;
@@ -22713,9 +22849,12 @@ window.login = async function () {
                         font-weight:700;
                         color:#2563eb;
                     ">
-                        ${escapeHTMLSafe(
-                            schoolName
-                        )}
+                        ${window.escapeHTMLSafe
+                            ? window.escapeHTMLSafe(
+                                schoolName
+                            )
+                            : String(schoolName)
+                        }
                     </div>
 
                     <p style="
@@ -22736,9 +22875,6 @@ window.login = async function () {
             confirmButtonColor:
                 "#2563eb",
 
-            allowEnterKey:
-                true,
-
             width:
                 500
 
@@ -22746,24 +22882,24 @@ window.login = async function () {
 
 
         /* ====================================================
-           🚀 START APPLICATION SYSTEMS
-           ==================================================== */
+           WATCHERS
+        ==================================================== */
 
         if (
-            typeof startSubscriptionWatcher ===
+            typeof window.startSubscriptionWatcher ===
             "function"
         ) {
 
             try {
 
-                startSubscriptionWatcher();
+                window.startSubscriptionWatcher();
 
             }
 
             catch (error) {
 
                 console.warn(
-                    "Subscription watcher failed to start:",
+                    "Subscription watcher:",
                     error
                 );
 
@@ -22773,20 +22909,20 @@ window.login = async function () {
 
 
         if (
-            typeof startSubscriptionUI ===
+            typeof window.startSubscriptionUI ===
             "function"
         ) {
 
             try {
 
-                startSubscriptionUI();
+                window.startSubscriptionUI();
 
             }
 
             catch (error) {
 
                 console.warn(
-                    "Subscription UI failed to start:",
+                    "Subscription UI:",
                     error
                 );
 
@@ -22795,14 +22931,20 @@ window.login = async function () {
         }
 
 
+        /* ====================================================
+           LOAD APPLICATION
+        ==================================================== */
+
         if (
-            typeof loadAll ===
+            typeof window.loadAll ===
             "function"
         ) {
 
             try {
 
-                loadAll();
+                await Promise.resolve(
+                    window.loadAll()
+                );
 
             }
 
@@ -22817,8 +22959,8 @@ window.login = async function () {
 
         }
 
-
     }
+
 
     catch (error) {
 
@@ -22828,12 +22970,17 @@ window.login = async function () {
         );
 
 
-        hideLoginLoader();
+        if (
+            error?.originalError
+        ) {
 
+            console.error(
+                "Original error:",
+                error.originalError
+            );
 
-        /* ====================================================
-           🔐 ERROR VARIABLES
-           ==================================================== */
+        }
+
 
         let title =
             "Login Failed";
@@ -22847,549 +22994,413 @@ window.login = async function () {
             "error";
 
 
-        const errorMessage =
+        const code =
             String(
-                error?.message ||
-                ""
+                error?.code || ""
             );
 
 
-        const errorCode =
-            error?.code ||
-            "";
+        const errorMessage =
+            String(
+                error?.message || ""
+            );
 
 
         /* ====================================================
            FIREBASE AUTH ERRORS
-           ==================================================== */
+        ==================================================== */
 
-        switch (errorCode) {
+        if (
 
+            code ===
+            "auth/invalid-login-credentials" ||
 
-            case "auth/invalid-login-credentials":
+            code ===
+            "auth/wrong-password" ||
 
-            case "auth/wrong-password":
+            code ===
+            "auth/user-not-found" ||
 
-            case "auth/user-not-found":
+            code ===
+            "auth/invalid-credential"
 
-            case "auth/invalid-credential":
+        ) {
 
-                title =
-                    "Invalid Login";
+            title =
+                "Invalid Login";
 
-                message =
-                    "The email or password is incorrect.";
+            message =
+                "The email or password is incorrect.";
 
-                icon =
-                    "warning";
+            icon =
+                "warning";
 
-                break;
+        }
 
 
-            case "auth/invalid-email":
+        else if (
+            code === "auth/invalid-email"
+        ) {
 
-                title =
-                    "Invalid Email";
+            title =
+                "Invalid Email";
 
-                message =
-                    "Please enter a valid email address.";
+            message =
+                "Please enter a valid email address.";
 
-                icon =
-                    "warning";
+            icon =
+                "warning";
 
-                break;
+        }
 
 
-            case "auth/network-request-failed":
+        else if (
+            code === "auth/network-request-failed"
+        ) {
 
-                title =
-                    "Connection Problem";
+            title =
+                "Connection Problem";
 
-                message =
-                    "RASM 360 could not connect to Firebase. Please check your internet connection and try again.";
+            message =
+                "Firebase could not be reached. Please check your Wi-Fi or internet connection and try again.";
 
-                icon =
-                    "warning";
+            icon =
+                "warning";
 
-                break;
+        }
 
 
-            case "auth/too-many-requests":
+        else if (
+            code === "auth/too-many-requests"
+        ) {
 
-                title =
-                    "Too Many Attempts";
+            title =
+                "Too Many Attempts";
 
-                message =
-                    "Too many unsuccessful login attempts. Please wait a while and try again.";
+            message =
+                "Too many unsuccessful login attempts. Please wait and try again.";
 
-                icon =
-                    "warning";
+            icon =
+                "warning";
 
-                break;
+        }
 
 
-            case "auth/user-disabled":
+        else if (
+            code === "auth/user-disabled"
+        ) {
 
-                title =
-                    "Account Disabled";
+            title =
+                "Account Disabled";
 
-                message =
-                    "This user account has been disabled.";
+            message =
+                "This user account has been disabled.";
 
-                break;
-
-
-            default:
-
-                /* ==========================================
-                   CUSTOM APPLICATION ERRORS
-                   ========================================== */
-
-                switch (errorMessage) {
-
-
-                    case "USER_PROFILE_NOT_FOUND":
-
-                        title =
-                            "Account Setup Error";
-
-                        message =
-                            "Your login was successful, but your RASM 360 user profile could not be found. Please contact your school administrator.";
-
-                        icon =
-                            "warning";
-
-                        break;
-
-
-                    case "NO_SCHOOL_ASSIGNED":
-
-                        title =
-                            "School Not Assigned";
-
-                        message =
-                            "This account has not been assigned to a school.";
-
-                        icon =
-                            "warning";
-
-                        break;
-
-
-                    case "SCHOOL_NOT_FOUND":
-
-                        title =
-                            "School Not Found";
-
-                        message =
-                            "The school linked to this account could not be found.";
-
-                        icon =
-                            "warning";
-
-                        break;
-
-
-                    case "SCHOOL_MISMATCH":
-
-                        title =
-                            "Security Error";
-
-                        message =
-                            "This account is not authorized to access this school.";
-
-                        icon =
-                            "error";
-
-                        break;
-
-
-                    case "SCHOOL_DELETED":
-
-                        title =
-                            "School Account Deleted";
-
-                        message =
-                            "This school account is no longer available.";
-
-                        icon =
-                            "warning";
-
-                        break;
-
-
-                    case "SCHOOL_LOCKED":
-
-                        title =
-                            "School Account Locked";
-
-                        message =
-                            "This school account is currently locked.";
-
-                        icon =
-                            "warning";
-
-                        break;
-
-
-                    case "SCHOOL_INACTIVE":
-
-                        title =
-                            "School Account Inactive";
-
-                        message =
-                            "This school account is currently inactive.";
-
-                        icon =
-                            "warning";
-
-                        break;
-
-
-                    case "SUBSCRIPTION_RESTRICTED":
-
-                        title =
-                            "Access Restricted";
-
-                        message =
-                            "Your school subscription does not currently allow access to RASM 360.";
-
-                        icon =
-                            "warning";
-
-                        break;
-
-
-                    case "SUBSCRIPTION_CHECK_FAILED":
-
-                    case "SCHOOL_CONNECTION_FAILED":
-
-                        title =
-                            "Connection Problem";
-
-                        message =
-                            "We could not verify your school or subscription because the server connection was temporarily unavailable. Your account was not blocked. Please try again.";
-
-                        icon =
-                            "warning";
-
-                        break;
-
-
-                    default:
-
-                        if (
-                            errorMessage
-                                .toLowerCase()
-                                .includes("timeout")
-                        ) {
-
-                            title =
-                                "Connection Timeout";
-
-                            message =
-                                "The server took too long to respond. Please check your internet connection and try again.";
-
-                            icon =
-                                "warning";
-
-                        }
-
-                        else if (
-                            !navigator.onLine
-                        ) {
-
-                            title =
-                                "No Internet Connection";
-
-                            message =
-                                "Your device appears to be offline. Please reconnect to the internet and try again.";
-
-                            icon =
-                                "warning";
-
-                        }
-
-                        else {
-
-                            message =
-                                errorMessage ||
-                                "Something went wrong while signing you in. Please try again.";
-
-                        }
-
-                        break;
-
-                }
-
-                break;
+            icon =
+                "warning";
 
         }
 
 
         /* ====================================================
-           SHOW ERROR
-           ==================================================== */
+           CUSTOM ERRORS
+        ==================================================== */
 
-        await Swal.fire({
+        else if (
+            errorMessage ===
+            "AUTH_USER_NOT_RETURNED"
+        ) {
 
-            icon,
+            title =
+                "Authentication Problem";
 
-            title,
+            message =
+                "Firebase did not return your account. Please try again.";
 
-            text:
-                message,
+            icon =
+                "warning";
 
-            confirmButtonText:
-                "OK",
+        }
 
-            confirmButtonColor:
-                "#2563eb",
 
-            background:
-                "#ffffff",
+        else if (
+            errorMessage ===
+            "USER_PROFILE_CONNECTION_FAILED"
+        ) {
 
-            color:
-                "#0f172a",
+            title =
+                "Connection Problem";
 
-            customClass: {
+            message =
+                "Your password was accepted, but RASM 360 could not load your user profile. Please check your Wi-Fi connection and try again.";
 
-                popup:
-                    "rounded-2xl shadow-xl"
+            icon =
+                "warning";
 
-            }
+        }
 
-        });
+
+        else if (
+            errorMessage ===
+            "USER_PROFILE_NOT_FOUND"
+        ) {
+
+            title =
+                "Account Setup Error";
+
+            message =
+                "Your login was accepted, but your RASM 360 user profile could not be found.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "NO_SCHOOL_ASSIGNED"
+        ) {
+
+            title =
+                "School Not Assigned";
+
+            message =
+                "This account has not been assigned to a school.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SCHOOL_CONNECTION_FAILED"
+        ) {
+
+            title =
+                "Connection Problem";
+
+            message =
+                "Your account was authenticated, but RASM 360 could not verify your school. The Wi-Fi connection may be slow.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SCHOOL_NOT_FOUND"
+        ) {
+
+            title =
+                "School Not Found";
+
+            message =
+                "The school linked to this account could not be found.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SCHOOL_MISMATCH"
+        ) {
+
+            title =
+                "Security Error";
+
+            message =
+                "This account is not authorized to access this school.";
+
+            icon =
+                "error";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SCHOOL_DELETED"
+        ) {
+
+            title =
+                "School Deleted";
+
+            message =
+                "This school account is no longer available.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SCHOOL_LOCKED"
+        ) {
+
+            title =
+                "School Locked";
+
+            message =
+                "This school account is currently locked.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SCHOOL_INACTIVE"
+        ) {
+
+            title =
+                "School Inactive";
+
+            message =
+                "This school account is currently inactive.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SUBSCRIPTION_RESTRICTED"
+        ) {
+
+            title =
+                "Access Restricted";
+
+            message =
+                "Your school subscription does not currently allow access to RASM 360.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SUBSCRIPTION_CHECK_FAILED"
+        ) {
+
+            title =
+                "Connection Problem";
+
+            message =
+                "Your account was authenticated, but RASM 360 could not verify the subscription. Please check your internet connection and try again.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else if (
+            window.isNetworkError(error)
+        ) {
+
+            title =
+                "Connection Problem";
+
+            message =
+                "The internet connection was too slow or temporarily unavailable while verifying your account.";
+
+            icon =
+                "warning";
+
+        }
+
+
+        else {
+
+            message =
+                errorMessage ||
+                "Something went wrong while signing you in.";
+
+        }
+
+
+        /* ====================================================
+           SWEETALERT
+        ==================================================== */
+
+        try {
+
+            await Swal.fire({
+
+                icon,
+
+                title,
+
+                text:
+                    message,
+
+                confirmButtonText:
+                    "Try Again",
+
+                confirmButtonColor:
+                    "#2563eb",
+
+                background:
+                    "#ffffff",
+
+                color:
+                    "#0f172a"
+
+            });
+
+        }
+
+        catch (swalError) {
+
+            console.error(
+                "SweetAlert error:",
+                swalError
+            );
+
+        }
 
     }
 
+
     finally {
 
-        hideLoginLoader();
-
-        setLoginLoading(
+        window.setLoginLoading(
             false
         );
 
+
         window.__loggingIn =
             false;
+
+
+        console.log(
+            "🔓 RASM: Login process unlocked."
+        );
 
     }
 
 };
 
 
-/* ============================================================
-   🎨 LOGIN STYLES
-   ============================================================ */
-
-if (
-    !document.getElementById(
-        "rasmLoginStyles"
-    )
-) {
-
-    const style =
-        document.createElement(
-            "style"
-        );
-
-
-    style.id =
-        "rasmLoginStyles";
-
-
-    style.textContent = `
-
-        .login-btn-loading {
-
-            display:flex;
-
-            align-items:center;
-
-            justify-content:center;
-
-            gap:9px;
-
-        }
-
-
-        .spinner {
-
-            width:18px;
-
-            height:18px;
-
-            border:3px solid
-                rgba(255,255,255,.35);
-
-            border-top-color:#fff;
-
-            border-radius:50%;
-
-            animation:
-                rasmSpin .7s linear infinite;
-
-        }
-
-
-        @keyframes rasmSpin {
-
-            to {
-
-                transform:
-                    rotate(360deg);
-
-            }
-
-        }
-
-
-        #modernLoginLoader {
-
-            position:fixed;
-
-            inset:0;
-
-            display:none;
-
-            align-items:center;
-
-            justify-content:center;
-
-            background:
-                rgba(15,23,42,.48);
-
-            -webkit-backdrop-filter:
-                blur(4px);
-
-            backdrop-filter:
-                blur(4px);
-
-            z-index:999999;
-
-        }
-
-
-        .modern-loader-box {
-
-            min-width:260px;
-
-            padding:28px 36px;
-
-            border-radius:20px;
-
-            background:#fff;
-
-            box-shadow:
-                0 20px 60px
-                rgba(0,0,0,.22);
-
-            display:flex;
-
-            flex-direction:column;
-
-            align-items:center;
-
-            gap:16px;
-
-        }
-
-
-        .modern-dots {
-
-            display:flex;
-
-            gap:9px;
-
-        }
-
-
-        .modern-dots span {
-
-            width:12px;
-
-            height:12px;
-
-            border-radius:50%;
-
-            background:#2563eb;
-
-            animation:
-                rasmBounce .65s infinite
-                alternate;
-
-        }
-
-
-        .modern-dots span:nth-child(2) {
-
-            animation-delay:
-                .15s;
-
-        }
-
-
-        .modern-dots span:nth-child(3) {
-
-            animation-delay:
-                .30s;
-
-        }
-
-
-        @keyframes rasmBounce {
-
-            from {
-
-                transform:
-                    translateY(0);
-
-                opacity:
-                    .45;
-
-            }
-
-            to {
-
-                transform:
-                    translateY(-9px);
-
-                opacity:
-                    1;
-
-            }
-
-        }
-
-
-        .modern-loader-text {
-
-            color:#0f172a;
-
-            font-size:14px;
-
-            font-weight:600;
-
-            text-align:center;
-
-        }
-
-    `;
-
-
-    document.head.appendChild(
-        style
-    );
-
-}
-
-
 console.log(
-    "🚀 RASM 360 Production Login Engine Activated"
+    "🚀 RASM 360 Stable Login Engine Activated"
 );
-
-
 /* =========================================================
    🔥 SMART AGE + ULTRA FAST ADMISSION GENERATOR
    ========================================================= */
@@ -119850,7 +119861,17 @@ function getCBCGradeResult(score, grade) {
     section.innerHTML=`
       <div class="rasm-analysis-shell">
         <div class="rasm-analysis-head">
-          <h2>🧠 Whole-School Examination Analysis</h2>
+       <h2 style="
+    background: #dc2626;
+    color: #ffffff;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-weight: 800;
+    display: inline-block;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+">
+    🧠 Whole-School Examination Analysis
+</h2>
           <p>Automated comparison of the selected term against the two preceding school terms. The report covers participation, overall performance, grades, subjects, CBC levels, top performers, improvement, concern areas and senior-management recommendations.</p>
         </div>
         <div class="rasm-analysis-toolbar">
@@ -120096,7 +120117,17 @@ function getCBCGradeResult(score, grade) {
         </div>
 
         <div class="rasm-analysis-grid">
-          <div class="rasm-analysis-panel"><h3>🎓 Grade-by-Grade Comparison</h3><div class="rasm-analysis-table-wrap"><table class="rasm-analysis-table"><thead><tr><th>Grade</th>${termData.map(t=>`<th>${esc(t.label)}</th><th>Learners</th>`).join('')}</tr></thead><tbody>${gradeTable||'<tr><td colspan="10">No grade data</td></tr>'}</tbody></table></div></div>
+          <div class="rasm-analysis-panel"><h3 style="
+    background: #dc2626;
+    color: #ffffff;
+    padding: 10px 16px;
+    border-radius: 7px;
+    font-weight: 800;
+    display: inline-block;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+">
+    🎓 Grade-by-Grade Comparison
+</h3><div class="rasm-analysis-table-wrap"><table class="rasm-analysis-table"><thead><tr><th>Grade</th>${termData.map(t=>`<th>${esc(t.label)}</th><th>Learners</th>`).join('')}</tr></thead><tbody>${gradeTable||'<tr><td colspan="10">No grade data</td></tr>'}</tbody></table></div></div>
           <div class="rasm-analysis-panel"><h3>📚 Subject Performance</h3><div class="rasm-analysis-table-wrap"><table class="rasm-analysis-table"><thead><tr><th>Subject</th><th>Current Avg</th><th>Entries</th><th>Previous Avg</th><th>Change</th><th>Performance</th></tr></thead><tbody>${subjectTable||'<tr><td colspan="6">No subject data</td></tr>'}</tbody></table></div></div>
         </div>
 
@@ -120737,126 +120768,261 @@ const subjectSections = subjectGrades.map(g => {
         `;
     }
 
-    /* ---------------------------------------------
-       FINAL GRADE SUBJECT SECTION
-    --------------------------------------------- */
-    return `
+  /* ---------------------------------------------
+   FINAL GRADE SUBJECT SECTION
+   MIXED YELLOW + GREEN + BLUE FOR BALANCE
+--------------------------------------------- */
+return `
 
-        <div class="rasm-grade-subject-block">
+    <div class="rasm-grade-subject-block"
+         style="
+            border:1px solid #dbeafe;
+            border-radius:12px;
+            padding:16px;
+            margin-bottom:20px;
+            background:#ffffff;
+            box-shadow:0 3px 10px rgba(0,0,0,0.06);
+         ">
 
-            <h3>
-                Grade ${escX(g)} — Subject Analysis
-            </h3>
+        <!-- GRADE SUBJECT TITLE -->
+        <h3 style="
+            display:inline-block;
+            background:#fff3a3;
+            color:#111827;
+            padding:10px 16px;
+            margin:0 0 14px 0;
+            border-radius:8px;
+            border-left:5px solid #facc15;
+            font-weight:900;
+        ">
+            Grade ${escX(g)} — Subject Analysis
+        </h3>
 
-            <div class="rasm-mini-summary">
 
-                <span>
-                    <b>Best Current Subject:</b>
-                    ${
-                        best
-                            ? escX(best.subject) +
-                              " (" +
-                              pctX(best.currentAvg) +
-                              ")"
-                            : "—"
-                    }
-                </span>
+        <!-- SUMMARY -->
+        <div class="rasm-mini-summary"
+             style="
+                display:flex;
+                flex-wrap:wrap;
+                gap:10px;
+                margin-bottom:14px;
+             ">
 
-                <span>
-                    <b>Weakest Current Subject:</b>
-                    ${
-                        worst
-                            ? escX(worst.subject) +
-                              " (" +
-                              pctX(worst.currentAvg) +
-                              ")"
-                            : "—"
-                    }
-                </span>
-
-                <span>
-                    <b>Subjects:</b>
-                    ${comparisonSubjects.length}
-                </span>
-
-            </div>
-
-            ${comparisonSummary}
-
-            <div style="
-                overflow-x:auto;
-                width:100%;
+            <!-- BEST SUBJECT -->
+            <span style="
+                display:inline-block;
+                background:#dcfce7;
+                color:#166534;
+                padding:9px 12px;
+                border-radius:7px;
+                border-left:4px solid #22c55e;
+                font-weight:800;
             ">
+                <b>Best Current Subject:</b>
+                ${
+                    best
+                        ? escX(best.subject) +
+                          " (" +
+                          pctX(best.currentAvg) +
+                          ")"
+                        : "—"
+                }
+            </span>
 
-                <table class="rasm-report-table">
 
-                    <thead>
+            <!-- WEAKEST SUBJECT -->
+            <span style="
+                display:inline-block;
+                background:#dbeafe;
+                color:#1e3a8a;
+                padding:9px 12px;
+                border-radius:7px;
+                border-left:4px solid #3b82f6;
+                font-weight:800;
+            ">
+                <b>Weakest Current Subject:</b>
+                ${
+                    worst
+                        ? escX(worst.subject) +
+                          " (" +
+                          pctX(worst.currentAvg) +
+                          ")"
+                        : "—"
+                }
+            </span>
 
-                        <tr>
 
-                            <th>#</th>
-
-                            <th>Subject</th>
-
-                            <th>
-                                Current Exam
-                                <br>
-                                Average
-                            </th>
-
-                            <th>
-                                Previous Exam
-                                <br>
-                                Average
-                            </th>
-
-                            <th>
-                                Deviation
-                            </th>
-
-                            <th>
-                                Direction
-                            </th>
-
-                            <th>
-                                Current Entries
-                            </th>
-
-                            <th>
-                                Performance
-                            </th>
-
-                        </tr>
-
-                    </thead>
-
-                    <tbody>
-
-                        ${
-                            rows ||
-                            `
-                            <tr>
-                                <td colspan="8">
-                                    No subject marks recorded
-                                    for Grade ${escX(g)}.
-                                </td>
-                            </tr>
-                            `
-                        }
-
-                    </tbody>
-
-                </table>
-
-            </div>
+            <!-- SUBJECT COUNT -->
+            <span style="
+                display:inline-block;
+                background:#fff3a3;
+                color:#111827;
+                padding:9px 12px;
+                border-radius:7px;
+                border-left:4px solid #facc15;
+                font-weight:800;
+            ">
+                <b>Subjects:</b>
+                ${comparisonSubjects.length}
+            </span>
 
         </div>
 
-    `;
+
+        <!-- COMPARISON SUMMARY -->
+        <div style="
+            background:#eff6ff;
+            color:#1e3a8a;
+            border-left:5px solid #2563eb;
+            padding:11px 14px;
+            border-radius:8px;
+            margin-bottom:15px;
+            font-weight:800;
+        ">
+            ${comparisonSummary}
+        </div>
+
+
+        <!-- SUBJECT TABLE -->
+        <div style="
+            overflow-x:auto;
+            width:100%;
+        ">
+
+            <table class="rasm-report-table"
+                   style="
+                       width:100%;
+                       border-collapse:collapse;
+                   ">
+
+                <thead>
+
+                    <tr>
+
+                        <th style="
+                            background:#fff3a3 !important;
+                            color:#111827 !important;
+                            font-weight:900;
+                            padding:10px;
+                        ">
+                            #
+                        </th>
+
+                        <th style="
+                            background:#fff3a3 !important;
+                            color:#111827 !important;
+                            font-weight:900;
+                            padding:10px;
+                        ">
+                            Subject
+                        </th>
+
+                        <th style="
+                            background:#dbeafe !important;
+                            color:#1e3a8a !important;
+                            font-weight:900;
+                            padding:10px;
+                        ">
+                            Current Exam<br>Average
+                        </th>
+
+                        <th style="
+                            background:#dbeafe !important;
+                            color:#1e3a8a !important;
+                            font-weight:900;
+                            padding:10px;
+                        ">
+                            Previous Exam<br>Average
+                        </th>
+
+                        <th style="
+                            background:#dcfce7 !important;
+                            color:#166534 !important;
+                            font-weight:900;
+                            padding:10px;
+                        ">
+                            Deviation
+                        </th>
+
+                        <th style="
+                            background:#dcfce7 !important;
+                            color:#166534 !important;
+                            font-weight:900;
+                            padding:10px;
+                        ">
+                            Direction
+                        </th>
+
+                        <th style="
+                            background:#fff3a3 !important;
+                            color:#111827 !important;
+                            font-weight:900;
+                            padding:10px;
+                        ">
+                            Current Entries
+                        </th>
+
+                        <th style="
+                            background:#dbeafe !important;
+                            color:#1e3a8a !important;
+                            font-weight:900;
+                            padding:10px;
+                        ">
+                            Performance
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    ${
+                        rows ||
+                        `
+                        <tr>
+
+                            <td
+                                colspan="8"
+                                style="
+                                    background:#fff3a3;
+                                    color:#111827;
+                                    font-weight:800;
+                                    text-align:center;
+                                    padding:12px;
+                                "
+                            >
+                                No subject marks recorded
+                                for Grade ${escX(g)}.
+                            </td>
+
+                        </tr>
+                        `
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+`;
 
 }).join("") ||
+
 `
-    <div class="rasm-analysis-note">
+    <div class="rasm-analysis-note"
+         style="
+            background:#dbeafe;
+            color:#1e3a8a;
+            border-left:5px solid #2563eb;
+            padding:12px 15px;
+            border-radius:8px;
+            font-weight:800;
+        ">
         No grade-specific subject data is available.
     </div>
 `;
@@ -120880,13 +121046,78 @@ const subjectSections = subjectGrades.map(g => {
       </tbody></table></div>`;
     }).join("");
 
-    return [
-      reportShellX("rasmWholeSchoolReport","🧠 Whole-School Examination Analysis","School-wide examination performance and overall deviation.",wholeBody),
-      reportShellX("rasmGradeComparisonReport","🎓 Grade-by-Grade Comparison","Every grade is compared separately, with positive and negative deviation clearly shown.",gradeBody),
-      reportShellX("rasmSubjectReport","📚 Subject Performance — Grade-by-Grade","Every grade has its own subject performance analysis.",subjectSections),
-      reportShellX("rasmTop10Report","🏆 Current Top 10 Learners — Grade Wise","Top 10 learners are shown separately for Grades 1–3, 4–6, 7–9 and 10–12.",topBody),
-      reportShellX("rasmAttentionReport","🛟 Learners Requiring Academic Attention — Grade Wise","Learners below 50% are grouped separately by Grades 1–3, 4–6, 7–9 and 10–12.",attentionBody)
-    ].join("");
+   return [
+    reportShellX(
+        "rasmWholeSchoolReport",
+        `<span style="
+            display:inline-block;
+            background:#dc2626;
+            color:#ffffff;
+            padding:10px 16px;
+            border-radius:8px;
+            font-weight:800;
+        ">🧠 Whole-School Examination Analysis</span>`,
+        "School-wide examination performance and overall deviation.",
+        wholeBody
+    ),
+
+    reportShellX(
+        "rasmGradeComparisonReport",
+        `<span style="
+            display:inline-block;
+            background:#dc2626;
+            color:#ffffff;
+            padding:10px 16px;
+            border-radius:8px;
+            font-weight:800;
+        ">🎓 Grade-by-Grade Comparison</span>`,
+        "Every grade is compared separately, with positive and negative deviation clearly shown.",
+        gradeBody
+    ),
+
+    reportShellX(
+        "rasmSubjectReport",
+        `<span style="
+            display:inline-block;
+            background:#dc2626;
+            color:#ffffff;
+            padding:10px 16px;
+            border-radius:8px;
+            font-weight:800;
+        ">📚 Subject Performance — Grade-by-Grade</span>`,
+        "Every grade has its own subject performance analysis.",
+        subjectSections
+    ),
+
+    reportShellX(
+        "rasmTop10Report",
+        `<span style="
+            display:inline-block;
+            background:#dc2626;
+            color:#ffffff;
+            padding:10px 16px;
+            border-radius:8px;
+            font-weight:800;
+        ">🏆 Current Top 10 Learners — Grade Wise</span>`,
+        "Top 10 learners are shown separately for Grades 1–3, 4–6, 7–9 and 10–12.",
+        topBody
+    ),
+
+    reportShellX(
+        "rasmAttentionReport",
+        `<span style="
+            display:inline-block;
+            background:#dc2626;
+            color:#ffffff;
+            padding:10px 16px;
+            border-radius:8px;
+            font-weight:800;
+        ">🛟 Learners Requiring Academic Attention — Grade Wise</span>`,
+        "Learners below 50% are grouped separately by Grades 1–3, 4–6, 7–9 and 10–12.",
+        attentionBody
+    )
+
+].join("");
   }
 
   function buildSeparateSectionX(){
