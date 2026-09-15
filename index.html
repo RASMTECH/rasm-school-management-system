@@ -6,7 +6,7 @@
 
   <title>RASM 360 SaaS ERP</title>
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 
   <!-- ================= PWA ================= -->
 
@@ -35092,9 +35092,6 @@ Printed on ${generated}
 
 </div>
 
-</body>
-
-</html>
 
 `);
 
@@ -63426,10 +63423,38 @@ window.loadAttendance = async function () {
                 });
 
                 attendanceMap[id] = {
-                    status: "Present"
+                    status: "x",
+                    percent: 100
                 };
             }
         });
+
+        // Load the saved attendance for THIS grade + date so the register
+        // never resets marked learners back to Present when the report loads.
+        try {
+            const attendanceSnap = await fastGet(schoolRef("attendance"));
+            if (attendanceSnap.exists()) {
+                let latest = null;
+                attendanceSnap.forEach(child => {
+                    const rec = child.val() || {};
+                    if (String(rec.date || "") !== String(date)) return;
+                    if (String(rec.grade || "").trim().toLowerCase() !== String(grade).trim().toLowerCase()) return;
+                    if (!latest || Number(rec.updatedAt || rec.createdAt || 0) >= Number(latest.updatedAt || latest.createdAt || 0)) {
+                        latest = rec;
+                    }
+                });
+                if (latest && Array.isArray(latest.records)) {
+                    latest.records.forEach(r => {
+                        if (!r || !r.studentId || !attendanceMap[r.studentId]) return;
+                        const raw = String(r.status || "x").trim().toLowerCase();
+                        const status = (raw === "00" || raw === "0" || raw === "absent") ? "00" : "x";
+                        attendanceMap[r.studentId] = { status, percent: status === "00" ? 0 : 100 };
+                    });
+                }
+            }
+        } catch (savedErr) {
+            console.warn("Could not restore saved attendance:", savedErr);
+        }
 
         renderAttendanceTable();
 
@@ -63874,7 +63899,7 @@ window.renderNextAttendanceBatch = function () {
         const realIndex = start + index;
 
         const status =
-            attendanceMap[s.id]?.status || "Present";
+            attendanceMap[s.id]?.status || "x";
 
         let percent =
             attendanceMap[s.id]?.percent || 100;
@@ -63890,7 +63915,7 @@ window.renderNextAttendanceBatch = function () {
 
         let badge = "";
 
-        if (status === "Present") {
+        if (status === "x" || status === "Present") {
 
             badge = `
                 <span style="
@@ -63906,7 +63931,7 @@ window.renderNextAttendanceBatch = function () {
                 </span>
             `;
         }
-        else if (status === "Absent") {
+        else if (status === "00" || status === "Absent") {
 
             badge = `
                 <span style="
@@ -64011,19 +64036,14 @@ window.renderNextAttendanceBatch = function () {
                             min-width:80px;
                         "
                     >
-                        <option value="Present"
-                            ${status === "Present" ? "selected" : ""}>
-                            Present
+                        <option value="x"
+                            ${status === "x" ? "selected" : ""}>
+                            x — Present
                         </option>
 
-                        <option value="Absent"
-                            ${status === "Absent" ? "selected" : ""}>
-                            Absent
-                        </option>
-
-                        <option value="Late"
-                            ${status === "Late" ? "selected" : ""}>
-                            Late
+                        <option value="00"
+                            ${status === "00" ? "selected" : ""}>
+                            00 — Absent
                         </option>
                     </select>
 
@@ -64046,23 +64066,12 @@ window.renderNextAttendanceBatch = function () {
 
 // ================= SET STATUS =================
 window.setAttendance = function (id, status) {
-
-    // ================= SMART COLOR PERCENT =================
-    let percent = 100;
-
-    if (status === "Absent") {
-        percent = 40;
-    }
-    else if (status === "Late") {
-        percent = 75;
-    }
-
+    const normalized = String(status || "x").trim().toLowerCase();
+    const finalStatus = (normalized === "00" || normalized === "0" || normalized === "absent") ? "00" : "x";
     attendanceMap[id] = {
-        status,
-        percent
+        status: finalStatus,
+        percent: finalStatus === "00" ? 0 : 100
     };
-
-    // 🔥 AUTO REFRESH COLORS
     renderAttendanceTable();
 };
 
@@ -64084,22 +64093,33 @@ window.saveAttendance = async function () {
 
     try {
 
-        const records = attendanceCache.map(s => ({
-            studentId: s.id,
-            name: s.name,
-            grade: s.grade,
-            date,
-            status: attendanceMap[s.id]?.status || "Present",
-            percent: attendanceMap[s.id]?.percent || 100
-        }));
+        const records = attendanceCache.map(s => {
+            const raw = String(attendanceMap[s.id]?.status || "x").trim().toLowerCase();
+            const status = (raw === "00" || raw === "0" || raw === "absent") ? "00" : "x";
+            return {
+                studentId: s.id,
+                name: s.name,
+                grade: s.grade,
+                date,
+                status,
+                percent: status === "00" ? 0 : 100
+            };
+        });
 
-        const attendanceWrite = rasmBackgroundPush(schoolRef("attendance"), {
-            grade, date, records, createdAt: Date.now()
+        // One deterministic record per grade/date. This prevents duplicate
+        // attendance records and makes an update immediately replace the old one.
+        const safeGradeKey = String(grade).replace(/[.#$\[\]/]/g, "_");
+        const attendanceKey = `attendance_${date}_${safeGradeKey}`;
+        const attendanceRef = schoolRef(`attendance/${attendanceKey}`);
+        await rasmBackgroundUpdate(attendanceRef, {
+            grade, date, records, updatedAt: Date.now(), createdAt: Date.now()
         });
-        attendanceWrite.promise.catch(err => {
-            console.error("Attendance save failed:", err);
-            Swal.fire("Save Failed", err.message || "Attendance could not be saved.", "error");
-        });
+
+        // Invalidate the report cache immediately so the next report reads
+        // the just-saved attendance instead of an old snapshot.
+        if (window.__attendanceRegisterCache) {
+            delete window.__attendanceRegisterCache.attendanceSnap;
+        }
 
         // ================= SUCCESS =================
         Swal.fire({
@@ -64377,107 +64397,50 @@ window.viewAttendanceReport = async function () {
 
         // ====================================================
         // 📋 MASTER ATTENDANCE MAP
+        // Use only the latest saved register for each DATE + GRADE.
+        // This prevents duplicate/older registers from changing totals.
         // ====================================================
 
         const masterAttendanceMap = {};
-
         const capturedDays = {};
+        const latestAttendanceByDateGrade = {};
 
+        attendanceSnap.forEach(item => {
+            const data = item.val() || {};
+            if (!data.date || !Array.isArray(data.records)) return;
+            if (data.date < startDate || data.date > endDate) return;
 
-        attendanceSnap.forEach(
-            item => {
+            const dateObj = new Date(data.date);
+            const dayName = dayNames[dateObj.getDay()];
+            if (!weekOrder.includes(dayName)) return;
 
-                const data =
-                    item.val();
+            const recordGrade = String(data.grade || selectedGrade || "")
+                .trim().toLowerCase();
+            const key = `${data.date}__${recordGrade}`;
+            const updatedAt = Number(data.updatedAt || data.createdAt || 0);
+            const existing = latestAttendanceByDateGrade[key];
 
-
-                if (
-                    !data.date ||
-                    !Array.isArray(data.records)
-                ) {
-
-                    return;
-
-                }
-
-
-                // --------------------------------------------
-                // DATE FILTER
-                // --------------------------------------------
-
-                if (
-                    data.date < startDate ||
-                    data.date > endDate
-                ) {
-
-                    return;
-
-                }
-
-
-                const dateObj =
-                    new Date(data.date);
-
-
-                const dayName =
-                    dayNames[
-                        dateObj.getDay()
-                    ];
-
-
-                if (
-                    !weekOrder.includes(
-                        dayName
-                    )
-                ) {
-
-                    return;
-
-                }
-
-
-                capturedDays[
-                    dayName
-                ] = true;
-
-
-                data.records.forEach(
-                    record => {
-
-                        if (
-                            !record?.studentId
-                        ) {
-
-                            return;
-
-                        }
-
-
-                        if (
-                            !masterAttendanceMap[
-                                record.studentId
-                            ]
-                        ) {
-
-                            masterAttendanceMap[
-                                record.studentId
-                            ] = {};
-
-                        }
-
-
-                        masterAttendanceMap[
-                            record.studentId
-                        ][
-                            dayName
-                        ] =
-                            record.status;
-
-                    }
-                );
-
+            if (!existing || updatedAt >= existing.updatedAt) {
+                latestAttendanceByDateGrade[key] = { data, dayName, updatedAt };
             }
-        );
+        });
+
+        Object.values(latestAttendanceByDateGrade).forEach(({ data, dayName }) => {
+            capturedDays[dayName] = true;
+
+            data.records.forEach(record => {
+                if (!record?.studentId) return;
+                if (!masterAttendanceMap[record.studentId]) {
+                    masterAttendanceMap[record.studentId] = {};
+                }
+
+                const normalizedStatus = String(record.status || "")
+                    .trim().toLowerCase();
+
+                masterAttendanceMap[record.studentId][dayName] =
+                    (["00", "0", "absent"].includes(normalizedStatus)) ? "00" : "x";
+            });
+        });
 
 
         // ====================================================
@@ -64524,10 +64487,9 @@ window.viewAttendanceReport = async function () {
                             ];
 
 
-                        if (
-                            status === "Present" ||
-                            status === "Late"
-                        ) {
+                        if (String(status || "").trim().toLowerCase() === "x" ||
+                            String(status || "").trim().toLowerCase() === "present" ||
+                            String(status || "").trim().toLowerCase() === "late") {
 
                             gradeDailyTotals[
                                 day
@@ -64544,17 +64506,7 @@ window.viewAttendanceReport = async function () {
                 );
 
 
-                gradeDailyTotals[
-                    day
-                ].total =
-
-                    gradeDailyTotals[
-                        day
-                    ].morning +
-
-                    gradeDailyTotals[
-                        day
-                    ].evening;
+                gradeDailyTotals[day].total = gradeDailyTotals[day].morning;
 
             }
         );
@@ -64744,8 +64696,11 @@ window.viewAttendanceReport = async function () {
                             ) || 0;
 
 
+                        // Total is the actual number present that day.
+                        // Morning and evening are the same attendance count;
+                        // do not add them together.
                         const t =
-                            m + e;
+                            Number(gradeDailyTotals[day]?.total) || m;
 
 
                         html += `
@@ -64855,9 +64810,13 @@ window.viewAttendanceReport = async function () {
             );
 
 
-            const grandTotal =
-                grandMorning +
-                grandEvening;
+            // Morning/evening are not separate attendance populations.
+            // GRAND TOTAL must therefore be the actual learners present,
+            // not morning + evening (which would double the count).
+            const grandTotal = gradeDays.reduce(
+                (sum, day) => sum + (Number(gradeDailyTotals[day]?.total) || 0),
+                0
+            );
 
 
             html += `
@@ -65176,6 +65135,9 @@ window.viewAttendanceReport = async function () {
                 students.forEach(
                     (student, index) => {
 
+                        // Each present day contributes 02 points to Total:
+                        // 1 day = 02, 2 days = 04, 3 days = 06,
+                        // 4 days = 08, 5 days = 10.
                         let attendedDays = 0;
 
 
@@ -65288,31 +65250,32 @@ window.viewAttendanceReport = async function () {
                                 let display = "-";
 
 
+                                const normalizedStatus = String(status || "").trim().toLowerCase();
+
                                 if (
-                                    status === "Present"
+                                    normalizedStatus === "x" ||
+                                    normalizedStatus === "present"
                                 ) {
 
-                                    display = "X";
+                                    display = "x";
 
                                     attendedDays++;
 
                                 }
 
                                 else if (
-                                    status === "Late"
+                                    normalizedStatus === "late"
                                 ) {
 
-                                    display = "L";
+                                    display = "x";
 
                                     attendedDays++;
 
                                 }
 
-                                else if (
-                                    status === "Absent"
-                                ) {
+                                else if (["00", "0", "absent"].includes(normalizedStatus)) {
 
-                                    display = "0";
+                                    display = "00";
 
                                 }
 
@@ -65353,7 +65316,7 @@ window.viewAttendanceReport = async function () {
                                 ">
 
                                     ${String(
-                                        attendedDays * 2
+                                        Math.min(attendedDays * 2, orderedDays.length * 2)
                                     ).padStart(2,"0")}
 
                                 </td>
@@ -65365,6 +65328,26 @@ window.viewAttendanceReport = async function () {
                     }
                 );
 
+
+                // =================================================
+                // ACTUAL GENDER DAILY COUNTS
+                // Morning/evening are not separate populations.
+                // Count only the learners in this boys/girls report.
+                // =================================================
+                const genderPresentByDay = {};
+                orderedDays.forEach(day => {
+                    genderPresentByDay[day] = students.reduce((count, student) => {
+                        const normalizedStatus = String(
+                            masterAttendanceMap[student.id]?.[day] || ""
+                        ).trim().toLowerCase();
+                        return count + (
+                            normalizedStatus === "x" ||
+                            normalizedStatus === "present" ||
+                            normalizedStatus === "late"
+                                ? 1 : 0
+                        );
+                    }, 0);
+                });
 
                 // =================================================
                 // MORNING SUMMARY
@@ -65405,9 +65388,7 @@ window.viewAttendanceReport = async function () {
                             ">
 
                                 ${String(
-                                    gradeDailyTotals[
-                                        day
-                                    ]?.morning || 0
+                                    genderPresentByDay[day] || 0
                                 ).padStart(
                                     2,
                                     "0"
@@ -65471,9 +65452,7 @@ window.viewAttendanceReport = async function () {
                             ">
 
                                 ${String(
-                                    gradeDailyTotals[
-                                        day
-                                    ]?.evening || 0
+                                    genderPresentByDay[day] || 0
                                 ).padStart(
                                     2,
                                     "0"
@@ -65720,9 +65699,10 @@ window.calculateAttendanceIntelligence = async function (grade) {
 
             s.total++;
 
-            if (r.status === "Present") s.present++;
-            else if (r.status === "Absent") s.absent++;
-            else if (r.status === "Late") s.late++;
+            const normalizedStatus = String(r.status || "").trim().toLowerCase();
+            if (normalizedStatus === "x" || normalizedStatus === "present") s.present++;
+            else if (normalizedStatus === "00" || normalizedStatus === "0" || normalizedStatus === "absent") s.absent++;
+            else if (normalizedStatus === "late") s.late++;
         });
     });
 
@@ -66167,13 +66147,7 @@ function renderGradeSummary(
 
 
         const total =
-            Number(
-                dayData.total
-            ) ||
-            (
-                morning +
-                evening
-            );
+            Number(dayData.total) || morning;
 
 
         html += `
@@ -66266,13 +66240,7 @@ function renderGradeSummary(
 
 
         const total =
-            Number(
-                dayData.total
-            ) ||
-            (
-                morning +
-                evening
-            );
+            Number(dayData.total) || morning;
 
 
         grandMorning += morning;
@@ -73117,155 +73085,102 @@ window.markTransportFeePaid = async function (busId, studentName) {
 ========================================================= */
 
 window.manageTransportFees = async function (busId) {
-
   try {
+    const [feeSnap, studentSnap] = await Promise.all([
+      fastGet(schoolRef(`transport/${busId}/fees`)),
+      fastGet(schoolRef("students"))
+    ]);
 
-    const snap =
-      await fastGet(
-        schoolRef(`transport/${busId}/fees`)
-      );
-
-    if (!snap.exists()) {
-
-      Swal.fire(
-        "No Records",
-        "No fee records found.",
-        "info"
-      );
-
+    if (!feeSnap.exists()) {
+      Swal.fire("No Records", "No fee records found.", "info");
       return;
-
     }
 
-    let html = `
-    <div style="
-      max-height:500px;
-      overflow:auto;
-      text-align:left;
-    ">
-    `;
+    const studentInfo = {};
+    if (studentSnap.exists()) {
+      studentSnap.forEach(child => {
+        const st = child.val() || {};
+        if (st.name) {
+          studentInfo[String(st.name).trim().toLowerCase()] = {
+            grade: st.grade || st.class || "",
+            year: String(st.year || st.admissionYear || "").trim()
+          };
+        }
+      });
+    }
 
-    Object.entries(snap.val()).forEach(([student,data])=>{
-
-      const fee = Number(data.fee || 0);
-      const paid = Number(data.paidAmount || 0);
-      const balance = fee - paid;
-
-      let color = "#dc2626";
-      let status = "🔴 Pending";
-
-      if(balance <= 0){
-
-        color="#16a34a";
-        status="🟢 Paid";
-
-      }
-
-      else if(paid > 0){
-
-        color="#f59e0b";
-        status="🟡 Partial";
-
-      }
-
-      html += `
-
-      <div style="
-        border:1px solid #e5e7eb;
-        border-radius:12px;
-        padding:15px;
-        margin-bottom:15px;
-        background:white;
-      ">
-
-        <div style="
-          font-size:16px;
-          font-weight:bold;
-          color:#111827;
-        ">
-          👨‍🎓 ${student}
-        </div>
-
-        <hr>
-
-        <div>
-          💰 Required Fee:
-          <b>KES ${fee.toLocaleString()}</b>
-        </div>
-
-        <div style="color:green;">
-          ✅ Paid:
-          <b>KES ${paid.toLocaleString()}</b>
-        </div>
-
-        <div style="color:red;">
-          Balance:
-          <b>KES ${balance.toLocaleString()}</b>
-        </div>
-
-        <div style="
-          margin-top:8px;
-          color:${color};
-          font-weight:bold;
-        ">
-          ${status}
-        </div>
-
-        <button
-
-          onclick="markTransportFeePaid('${busId}','${student}')"
-
-          style="
-            margin-top:12px;
-            background:#2563eb;
-            color:white;
-            border:none;
-            padding:8px 15px;
-            border-radius:8px;
-            cursor:pointer;
-          "
-
-        >
-
-          💵 Record Payment
-
-        </button>
-
-      </div>
-
-      `;
-
+    const feeEntries = Object.entries(feeSnap.val()).map(([student, data]) => {
+      const info = studentInfo[String(student).trim().toLowerCase()] || {};
+      const timestampYear = data.updatedAt ? new Date(Number(data.updatedAt)).getFullYear() : new Date().getFullYear();
+      return {
+        student,
+        data: data || {},
+        grade: data.grade || info.grade || "",
+        year: String(data.year || info.year || timestampYear)
+      };
     });
 
-    html += "</div>";
+    const years = [...new Set(feeEntries.map(x => x.year).filter(Boolean))].sort((a,b) => Number(b)-Number(a));
+    const grades = [...new Set(feeEntries.map(x => x.grade).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric:true}));
+
+    const render = (selectedYear="", selectedGrade="") => {
+      const filtered = feeEntries.filter(x =>
+        (!selectedYear || x.year === selectedYear) &&
+        (!selectedGrade || String(x.grade).toLowerCase() === String(selectedGrade).toLowerCase())
+      );
+
+      let body = filtered.map(({student,data,grade,year}) => {
+        const fee = Number(data.fee || 0);
+        const paid = Number(data.paidAmount || 0);
+        const balance = Math.max(fee - paid, 0);
+        const color = balance <= 0 ? "#16a34a" : paid > 0 ? "#f59e0b" : "#dc2626";
+        const status = balance <= 0 ? "🟢 Paid" : paid > 0 ? "🟡 Partial" : "🔴 Pending";
+        return `<div style="border:1px solid #e5e7eb;border-radius:12px;padding:15px;margin-bottom:12px;background:#fff;">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:800;color:#111827;">
+            <span>👨‍🎓 ${student}</span><span style="color:#64748b;font-size:12px;">Grade ${grade || "-"} • ${year || "-"}</span>
+          </div><hr>
+          <div>💰 Required Fee: <b>KES ${fee.toLocaleString()}</b></div>
+          <div style="color:green;">✅ Paid: <b>KES ${paid.toLocaleString()}</b></div>
+          <div style="color:red;">Balance: <b>KES ${balance.toLocaleString()}</b></div>
+          <div style="margin-top:8px;color:${color};font-weight:bold;">${status}</div>
+          <button onclick="markTransportFeePaid('${busId}',${JSON.stringify(student)})" style="margin-top:12px;background:#2563eb;color:white;border:none;padding:8px 15px;border-radius:8px;cursor:pointer;">💵 Record Payment</button>
+        </div>`;
+      }).join("") || `<div style="padding:25px;text-align:center;color:#64748b;font-weight:700;">No transport fee records match the selected filters.</div>`;
+
+      const host = document.getElementById("rasmTransportFeesList");
+      if (host) host.innerHTML = body;
+      const count = document.getElementById("rasmTransportFeeCount");
+      if (count) count.textContent = `${filtered.length} learner${filtered.length === 1 ? "" : "s"}`;
+    };
+
+    const yearOptions = years.map(y => `<option value="${y}">${y}</option>`).join("");
+    const gradeOptions = grades.map(g => `<option value="${String(g).replace(/"/g,'&quot;')}">${g}</option>`).join("");
 
     Swal.fire({
-
-      title:"🚌 Transport Fees",
-
-      html:html,
-
-      width:750,
-
-      confirmButtonText:"Close"
-
+      title: "🚌 Transport Fees",
+      width: 820,
+      html: `<div style="text-align:left;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <select id="rasmTransportFeeYear" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;"><option value="">📅 All Years</option>${yearOptions}</select>
+          <select id="rasmTransportFeeGrade" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;"><option value="">🎓 All Grades</option>${gradeOptions}</select>
+        </div>
+        <div id="rasmTransportFeeCount" style="font-weight:800;color:#475569;margin-bottom:10px;"></div>
+        <div id="rasmTransportFeesList" style="max-height:500px;overflow:auto;"></div>
+      </div>`,
+      confirmButtonText: "Close",
+      didOpen: () => {
+        const y = document.getElementById("rasmTransportFeeYear");
+        const g = document.getElementById("rasmTransportFeeGrade");
+        const refresh = () => render(y.value, g.value);
+        y.onchange = refresh; g.onchange = refresh; refresh();
+      }
     });
-
-  }
-
-  catch(error){
-
+  } catch(error) {
     console.error(error);
-
-    Swal.fire(
-      "Error",
-      error.message,
-      "error"
-    );
-
+    Swal.fire("Error", error.message || "Unable to load transport fees.", "error");
   }
-
-};window.toggleActionPanel = function (id) {
+};
+window.toggleActionPanel = function (id) {
 
   const panel = document.getElementById(`panel-${id}`);
 
@@ -74015,28 +73930,38 @@ window.setTransportFee = async function (busId, studentName) {
 
   const fees = bus.fees || {};
 
+  // Store grade + year with the fee so Transport Fees can filter reliably.
+  let learnerGrade = "";
+  try {
+    const studentsSnap = await fastGet(schoolRef("students"));
+    if (studentsSnap.exists()) {
+      studentsSnap.forEach(child => {
+        const st = child.val() || {};
+        if (String(st.name || "").trim().toLowerCase() === String(studentName).trim().toLowerCase()) {
+          learnerGrade = st.grade || st.class || "";
+        }
+      });
+    }
+  } catch (e) {
+    console.warn("Could not read learner grade for transport fee:", e);
+  }
+
+  const now = Date.now();
   fees[studentName] = {
-
     student: studentName,
-
+    grade: learnerGrade,
+    year: String(new Date(now).getFullYear()),
     fee: Number(fee),
-
     paid: false,
-
     paidAmount: 0,
-
+    balance: Number(fee),
     paidDate: "",
-
-    updatedAt: Date.now()
-
+    updatedAt: now
   };
 
-  rasmBackgroundUpdate(busRef, {
-
+  await rasmBackgroundUpdate(busRef, {
     fees: fees,
-
-    lastUpdated: Date.now()
-
+    lastUpdated: now
   });
 
   Swal.fire({
@@ -120401,9 +120326,9 @@ function getCBCGradeResult(score, grade) {
 
     /* WHOLE SCHOOL */
     const wholeBody=`
-      <div class="rasm-report-meta"><b>Current examination:</b> ${escX(current.period)} &nbsp; | &nbsp; <b>Previous:</b> ${escX(previous?.period||"Not available")}</div>
+      <div class="rasm-report-meta"><b>Examination:</b> ${escX(current.period)} &nbsp; | &nbsp; <b>Comparison exam:</b> ${escX(previous?.period||"Not available")}</div>
       <div class="rasm-report-cards">
-        <div><b>Current School Average</b><strong>${pctX(current.stats.avg)}</strong></div>
+        <div><b>${escX(current.period)} Average</b><strong>${pctX(current.stats.avg)}</strong></div>
         <div><b>Learners Analysed</b><strong>${current.stats.count}</strong><small>of ${enrolled}</small></div>
         <div><b>School Deviation</b><strong>${schoolDeviation===null?"—":devHtmlX(schoolDeviation)}</strong><small>${statusX(schoolDeviation)}</small></div>
         <div><b>Coverage</b><strong>${enrolled?pctX(current.stats.count/enrolled*100):"—"}</strong></div>
@@ -120428,7 +120353,7 @@ function getCBCGradeResult(score, grade) {
       const d=ca!==null&&pa!==null?ca-pa:null;
       return {g,c,p,ca,pa,d};
     }).filter(x=>x.ca!==null);
-    const gradeBody=`<table class="rasm-report-table"><thead><tr><th>Grade</th><th>Current Average</th><th>Previous Average</th><th>Deviation</th><th>Direction</th><th>Learners</th></tr></thead><tbody>
+    const gradeBody=`<table class="rasm-report-table"><thead><tr><th>Grade</th><th>${escX(current.period)}</th><th>${escX(previous?.period || "No Previous Exam")}</th><th>Deviation</th><th>Direction</th><th>Learners</th></tr></thead><tbody>
       ${gradeRows.map(x=>`<tr><td><b>${escX(x.g)}</b></td><td>${pctX(x.ca)}</td><td>${pctX(x.pa)}</td><td>${devHtmlX(x.d)}</td><td class="${x.d>0.05?"dev-positive":x.d<-0.05?"dev-negative":""}">${escX(statusX(x.d))}</td><td>${x.c.length}</td></tr>`).join("") || `<tr><td colspan="6">No grade data available.</td></tr>`}
     </tbody></table>
     <div class="rasm-analysis-note"><b>Deviation rule:</b> Positive = improvement; Negative = decline; 0.0 = no change. Deviation is calculated as Current Average − Previous Average.</div>`;
@@ -120818,7 +120743,7 @@ return `
                 border-left:4px solid #22c55e;
                 font-weight:800;
             ">
-                <b>Best Current Subject:</b>
+                <b>Best Subject (${escX(current.period)}):</b>
                 ${
                     best
                         ? escX(best.subject) +
@@ -120840,7 +120765,7 @@ return `
                 border-left:4px solid #3b82f6;
                 font-weight:800;
             ">
-                <b>Weakest Current Subject:</b>
+                <b>Weakest Subject (${escX(current.period)}):</b>
                 ${
                     worst
                         ? escX(worst.subject) +
@@ -120848,6 +120773,56 @@ return `
                           pctX(worst.currentAvg) +
                           ")"
                         : "—"
+                }
+            </span>
+
+
+            <!-- CURRENT CLASS MEAN -->
+            <span style="
+                display:inline-block;
+                background:#fef3c7;
+                color:#92400e;
+                padding:9px 12px;
+                border-radius:7px;
+                border-left:4px solid #f59e0b;
+                font-weight:800;
+            ">
+                <b>Class Mean (${escX(current.period)}):</b>
+                ${currentAvailable.length ? pctX(currentAvailable.reduce((sum,s)=>sum + s.currentAvg,0) / currentAvailable.length) : "—"}
+            </span>
+
+            <!-- PREVIOUS CLASS MEAN -->
+            <span style="
+                display:inline-block;
+                background:#e0e7ff;
+                color:#3730a3;
+                padding:9px 12px;
+                border-radius:7px;
+                border-left:4px solid #6366f1;
+                font-weight:800;
+            ">
+                <b>Class Mean (${escX(previous?.period || "No Previous Exam")}):</b>
+                ${previousSubs.length ? pctX(previousSubs.reduce((sum,s)=>sum + s.avg,0) / previousSubs.length) : "—"}
+            </span>
+
+            <!-- CLASS MEAN CHANGE -->
+            <span style="
+                display:inline-block;
+                background:#f3f4f6;
+                color:#374151;
+                padding:9px 12px;
+                border-radius:7px;
+                border-left:4px solid #6b7280;
+                font-weight:800;
+            ">
+                <b>Class Mean Change:</b>
+                ${
+                    currentAvailable.length && previousSubs.length
+                    ? devHtmlX(
+                        (currentAvailable.reduce((sum,s)=>sum + s.currentAvg,0) / currentAvailable.length) -
+                        (previousSubs.reduce((sum,s)=>sum + s.avg,0) / previousSubs.length)
+                      )
+                    : "—"
                 }
             </span>
 
@@ -120923,7 +120898,7 @@ return `
                             font-weight:900;
                             padding:10px;
                         ">
-                            Current Exam<br>Average
+                            ${escX(current.period)}<br>Average
                         </th>
 
                         <th style="
@@ -120932,7 +120907,7 @@ return `
                             font-weight:900;
                             padding:10px;
                         ">
-                            Previous Exam<br>Average
+                            ${escX(previous?.period || "No Previous Exam")}<br>Average
                         </th>
 
                         <th style="
@@ -121145,12 +121120,44 @@ return `
     return section;
   }
 
+  function showRasmAnalysisLoader(message="Reading examination records and generating report…"){
+    let el=document.getElementById("rasmAnalysisGeneratingLoader");
+    if(!el){
+      el=document.createElement("div");
+      el.id="rasmAnalysisGeneratingLoader";
+      el.innerHTML=`
+        <div class="rasm-analysis-loader-card" role="status" aria-live="polite">
+          <div class="rasm-analysis-spinner"></div>
+          <div class="rasm-analysis-loader-title">Generating Examination Analysis</div>
+          <div class="rasm-analysis-loader-text" id="rasmAnalysisLoaderText"></div>
+          <div class="rasm-analysis-progress"><i></i></div>
+          <small>Please wait while RASM 360 reads the school examination records.</small>
+        </div>`;
+      document.body.appendChild(el);
+    }
+    const msg=document.getElementById("rasmAnalysisLoaderText");
+    if(msg) msg.textContent=message;
+    el.classList.add("show");
+    document.body.classList.add("rasm-analysis-busy");
+    return el;
+  }
+
+  function hideRasmAnalysisLoader(){
+    const el=document.getElementById("rasmAnalysisGeneratingLoader");
+    if(el) el.classList.remove("show");
+    document.body.classList.remove("rasm-analysis-busy");
+  }
+
   async function runSeparateAnalysisX(){
     const status=document.getElementById("rasmSeparateStatus");
     const out=document.getElementById("rasmSeparateReports");
+    if(!status || !out) return;
+    showRasmAnalysisLoader("Reading learners, examinations, subjects and class means…");
+    status.textContent="⏳ Generating whole-school examination analysis…";
     try{
-      status.textContent="⏳ Reading examination records…";
       const data=await collectAnalysisX();
+      showRasmAnalysisLoader("Building grade, subject, class-mean and learner comparison tables…");
+      await new Promise(requestAnimationFrame);
       document.getElementById("rasmSeparateLoadedExam").textContent=data.current.period||data.current.label;
       out.innerHTML=buildSeparateAnalysisX(data);
       window.__rasmSeparateAnalysisData=data;
@@ -121159,6 +121166,8 @@ return `
       console.error("Separate examination analysis:",err);
       status.innerHTML=`❌ <b>Analysis could not be completed.</b> ${escX(err.message||"Unknown error")}`;
       out.innerHTML="";
+    }finally{
+      hideRasmAnalysisLoader();
     }
   }
 
@@ -121197,7 +121206,12 @@ return `
       </style></head><body>
       ${schoolHeaderX(title)}
       ${body}
-      </body></html>`);
+      </body>
+
+</html>
+
+
+</body></html>`);
     win.document.close(); win.focus(); setTimeout(()=>win.print(),350);
   };
 
@@ -121274,3 +121288,450 @@ return `
   else setTimeout(initSeparateX,0);
 })();
 </script>
+<!-- =========================================================
+     RASM 360 — MOBILE APP / PHONE UX FINAL PATCH
+     Safe appended patch: improves touch targets, off-canvas
+     navigation, safe-area spacing, responsive cards/tables,
+     analysis loader and app-like phone behaviour.
+========================================================= -->
+<style id="rasm360-mobile-app-final">
+:root{
+  --rasm-blue:#2563eb;
+  --rasm-dark:#0f172a;
+  --rasm-green:#16a34a;
+  --rasm-border:#e5e7eb;
+  --rasm-safe-top:env(safe-area-inset-top,0px);
+  --rasm-safe-bottom:env(safe-area-inset-bottom,0px);
+}
+
+html{
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+  touch-action:manipulation;
+}
+
+body{
+  min-height:100dvh;
+  padding-bottom:var(--rasm-safe-bottom);
+  -webkit-tap-highlight-color:transparent;
+}
+
+button,
+input,
+select,
+textarea{
+  font:inherit;
+}
+
+button,
+.sidebar button,
+.primary-btn,
+.secondary-btn,
+.action-bar button{
+  touch-action:manipulation;
+}
+
+#rasmAnalysisGeneratingLoader{
+  position:fixed;
+  inset:0;
+  z-index:2147483646;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:rgba(15,23,42,.62);
+  backdrop-filter:blur(5px);
+  -webkit-backdrop-filter:blur(5px);
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity .18s ease,visibility .18s ease;
+}
+#rasmAnalysisGeneratingLoader.show{
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+}
+.rasm-analysis-loader-card{
+  width:min(440px,100%);
+  background:#fff;
+  border-radius:20px;
+  padding:28px 22px;
+  text-align:center;
+  box-shadow:0 24px 70px rgba(0,0,0,.28);
+}
+.rasm-analysis-spinner{
+  width:58px;
+  height:58px;
+  margin:0 auto 16px;
+  border:6px solid #e5e7eb;
+  border-top-color:#2563eb;
+  border-radius:50%;
+  animation:rasmAnalysisSpin .8s linear infinite;
+}
+.rasm-analysis-loader-title{
+  font-size:18px;
+  font-weight:900;
+  color:#111827;
+}
+.rasm-analysis-loader-text{
+  margin-top:7px;
+  font-size:13px;
+  line-height:1.5;
+  color:#475569;
+}
+.rasm-analysis-progress{
+  height:6px;
+  margin:17px 0 12px;
+  border-radius:999px;
+  overflow:hidden;
+  background:#e5e7eb;
+}
+.rasm-analysis-progress i{
+  display:block;
+  width:38%;
+  height:100%;
+  border-radius:999px;
+  background:#2563eb;
+  animation:rasmAnalysisProgress 1.15s ease-in-out infinite;
+}
+.rasm-analysis-loader-card small{
+  color:#64748b;
+  line-height:1.45;
+}
+@keyframes rasmAnalysisSpin{to{transform:rotate(360deg)}}
+@keyframes rasmAnalysisProgress{
+  0%{transform:translateX(-120%)}
+  100%{transform:translateX(330%)}
+}
+
+@media(max-width:768px){
+  body{
+    overflow-x:hidden;
+    padding-top:0;
+  }
+
+  /* App-like fixed top navigation */
+  .topbar{
+    position:fixed !important;
+    top:0 !important;
+    left:0 !important;
+    right:0 !important;
+    z-index:1100 !important;
+    min-height:58px !important;
+    margin:0 !important;
+    padding:calc(8px + var(--rasm-safe-top)) 12px 8px !important;
+    display:flex !important;
+    align-items:center !important;
+    background:rgba(255,255,255,.96) !important;
+    border-bottom:1px solid #e5e7eb !important;
+    box-shadow:0 3px 16px rgba(15,23,42,.10) !important;
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+  }
+
+  #menuToggle{
+    position:relative !important;
+    left:auto !important;
+    top:auto !important;
+    width:44px !important;
+    height:44px !important;
+    min-width:44px !important;
+    margin:0 !important;
+    border-radius:12px !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    font-size:20px !important;
+    line-height:1 !important;
+  }
+
+  .rasm-motto-bar{
+    margin-top:58px !important;
+  }
+
+  .main{
+    width:100% !important;
+    max-width:100% !important;
+    min-height:100dvh !important;
+    margin-left:0 !important;
+    padding:14px !important;
+    padding-top:16px !important;
+    padding-bottom:calc(28px + var(--rasm-safe-bottom)) !important;
+  }
+
+  /* Off-canvas sidebar */
+  .sidebar{
+    width:min(310px,88vw) !important;
+    max-width:310px !important;
+    left:-110% !important;
+    right:auto !important;
+    z-index:1200 !important;
+    padding-top:var(--rasm-safe-top) !important;
+    transition:left .22s ease,box-shadow .22s ease !important;
+    box-shadow:14px 0 38px rgba(0,0,0,.28) !important;
+  }
+  .sidebar:not(.closed){
+    left:0 !important;
+  }
+  .sidebar.closed{
+    left:-110% !important;
+  }
+
+  .sidebar button,
+  .submenu button{
+    min-height:50px !important;
+    font-size:14px !important;
+    padding:13px 14px !important;
+  }
+
+  .sidebar-footer{
+    padding-bottom:calc(12px + var(--rasm-safe-bottom)) !important;
+  }
+
+  /* Avoid global form widths causing horizontal overflow */
+  input,select,textarea{
+    max-width:100% !important;
+    width:100%;
+    min-height:44px;
+    margin:4px 0;
+  }
+
+  .action-bar{
+    width:100%;
+    align-items:stretch;
+  }
+  .action-bar > *,
+  .primary-btn,
+  .secondary-btn,
+  button.primary{
+    min-height:46px !important;
+  }
+
+  /* Analysis is phone-first; tables scroll inside their own panels. */
+  #examAnalysisSection{
+    padding:8px 0 30px !important;
+  }
+  .rasm-separate-shell,
+  .rasm-analysis-shell{
+    border-radius:14px !important;
+    overflow:visible !important;
+  }
+  .rasm-separate-shell .rasm-analysis-head,
+  .rasm-analysis-head{
+    padding:18px 15px !important;
+    border-radius:14px 14px 0 0;
+  }
+  .rasm-separate-shell .rasm-analysis-head h2,
+  .rasm-analysis-head h2{
+    font-size:20px !important;
+    line-height:1.25 !important;
+  }
+  .rasm-analysis-toolbar{
+    position:sticky;
+    top:58px;
+    z-index:500;
+    padding:10px !important;
+    align-items:stretch !important;
+    flex-direction:column !important;
+  }
+  .rasm-analysis-toolbar > *,
+  .rasm-analysis-toolbar button{
+    width:100% !important;
+    min-height:46px !important;
+  }
+  .rasm-analysis-content{
+    padding:10px !important;
+  }
+  .rasm-separate-body{
+    padding:10px !important;
+  }
+  .rasm-report-cards,
+  .rasm-analysis-cards{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:8px !important;
+  }
+  .rasm-report-cards>div,
+  .rasm-analysis-card{
+    min-width:0 !important;
+    padding:10px !important;
+  }
+  .rasm-report-cards strong,
+  .rasm-analysis-card .v{
+    font-size:18px !important;
+  }
+  .rasm-analysis-grid{
+    grid-template-columns:1fr !important;
+    gap:10px !important;
+  }
+  .rasm-analysis-panel{
+    padding:11px !important;
+    border-radius:12px !important;
+  }
+  .rasm-analysis-table-wrap,
+  .rasm-separate-body{
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    scrollbar-width:thin;
+  }
+  .rasm-analysis-table,
+  .rasm-report-table{
+    min-width:680px;
+    font-size:11px !important;
+  }
+  .rasm-analysis-table th,
+  .rasm-analysis-table td,
+  .rasm-report-table th,
+  .rasm-report-table td{
+    padding:8px !important;
+  }
+
+  /* Grade subject cards */
+  .rasm-grade-subject-block{
+    padding:11px !important;
+    margin-bottom:13px !important;
+    border-radius:12px !important;
+  }
+  .rasm-grade-subject-block h3{
+    display:block !important;
+    width:100% !important;
+    font-size:17px !important;
+    line-height:1.3 !important;
+    margin-bottom:10px !important;
+  }
+  .rasm-mini-summary{
+    display:grid !important;
+    grid-template-columns:1fr !important;
+    gap:7px !important;
+  }
+  .rasm-mini-summary > span{
+    width:100% !important;
+    box-sizing:border-box !important;
+  }
+
+  /* Existing wide marks/learner tables remain horizontally scrollable,
+     never forcing the entire phone page to become wider. */
+  .learners-table-wrapper,
+  .marks-table-wrapper,
+  .table-wrapper,
+  .table-responsive,
+  .table-container{
+    max-width:100vw !important;
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+  }
+
+  /* Better mobile cards and headings throughout the app */
+  .report-card{
+    min-width:0 !important;
+  }
+  .section,
+  .card,
+  .panel,
+  .container{
+    max-width:100% !important;
+  }
+
+  /* Hide decorative desktop-only floating controls where they compete
+     with the phone navigation. */
+  #floatingSchoolsCounter{
+    top:64px !important;
+    right:10px !important;
+    transform:scale(.9);
+    transform-origin:top right;
+  }
+
+  /* Make the app easier to operate with a thumb */
+  button,
+  a,
+  select,
+  input[type="checkbox"],
+  input[type="radio"]{
+    -webkit-user-select:none;
+    user-select:none;
+  }
+}
+
+@media(max-width:460px){
+  .main{
+    padding:10px !important;
+  }
+  .rasm-analysis-cards,
+  .rasm-report-cards{
+    grid-template-columns:1fr !important;
+  }
+  .rasm-analysis-head p{
+    font-size:12px !important;
+  }
+  .rasm-analysis-table,
+  .rasm-report-table{
+    min-width:620px;
+  }
+}
+
+/* Prevent accidental horizontal page scrolling at every breakpoint. */
+html,body,#app,.main{
+  max-width:100%;
+}
+</style>
+
+<script>
+/* RASM 360 mobile sidebar overlay + safe navigation */
+(function(){
+  function setupMobileNav(){
+    const sidebar=document.querySelector(".sidebar");
+    const toggle=document.getElementById("menuToggle");
+    if(!sidebar || !toggle || document.getElementById("rasmMobileBackdrop")) return;
+
+    const backdrop=document.createElement("div");
+    backdrop.id="rasmMobileBackdrop";
+    backdrop.setAttribute("aria-hidden","true");
+    backdrop.addEventListener("click",function(){
+      if(!sidebar.classList.contains("closed") && window.innerWidth<=768){
+        if(typeof window.toggleSidebar==="function") window.toggleSidebar();
+        else sidebar.classList.add("closed");
+      }
+    });
+    document.body.appendChild(backdrop);
+
+    const style=document.createElement("style");
+    style.textContent=`
+      #rasmMobileBackdrop{
+        display:none;
+        position:fixed;
+        inset:0;
+        z-index:1150;
+        background:rgba(15,23,42,.45);
+        backdrop-filter:blur(2px);
+      }
+      @media(max-width:768px){
+        .sidebar:not(.closed) ~ #rasmMobileBackdrop{display:block}
+        #rasmMobileBackdrop{pointer-events:auto}
+      }
+    `;
+    document.head.appendChild(style);
+
+    const sync=function(){
+      if(window.innerWidth<=768){
+        backdrop.style.display=sidebar.classList.contains("closed")?"none":"block";
+        toggle.innerHTML=sidebar.classList.contains("closed")?"☰":"✕";
+        document.body.classList.toggle("rasm-sidebar-open",!sidebar.classList.contains("closed"));
+      }else{
+        backdrop.style.display="none";
+        document.body.classList.remove("rasm-sidebar-open");
+      }
+    };
+
+    const observer=new MutationObserver(sync);
+    observer.observe(sidebar,{attributes:true,attributeFilter:["class"]});
+    window.addEventListener("resize",sync,{passive:true});
+    sync();
+  }
+
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",setupMobileNav);
+  else setTimeout(setupMobileNav,0);
+})();
+</script>
+
+
+
