@@ -10074,7 +10074,7 @@ font-weight:bold;
     position:relative;
     overflow:hidden;
 
-    background-image:url('https://imgur.com/a/o80mK1Y');
+    background-image:url('https://i.imgur.com/zqCdOsB.jpeg');
 
     background-size:cover;
     background-position:center;
@@ -63423,38 +63423,10 @@ window.loadAttendance = async function () {
                 });
 
                 attendanceMap[id] = {
-                    status: "x",
-                    percent: 100
+                    status: "Present"
                 };
             }
         });
-
-        // Load the saved attendance for THIS grade + date so the register
-        // never resets marked learners back to Present when the report loads.
-        try {
-            const attendanceSnap = await fastGet(schoolRef("attendance"));
-            if (attendanceSnap.exists()) {
-                let latest = null;
-                attendanceSnap.forEach(child => {
-                    const rec = child.val() || {};
-                    if (String(rec.date || "") !== String(date)) return;
-                    if (String(rec.grade || "").trim().toLowerCase() !== String(grade).trim().toLowerCase()) return;
-                    if (!latest || Number(rec.updatedAt || rec.createdAt || 0) >= Number(latest.updatedAt || latest.createdAt || 0)) {
-                        latest = rec;
-                    }
-                });
-                if (latest && Array.isArray(latest.records)) {
-                    latest.records.forEach(r => {
-                        if (!r || !r.studentId || !attendanceMap[r.studentId]) return;
-                        const raw = String(r.status || "x").trim().toLowerCase();
-                        const status = (raw === "00" || raw === "0" || raw === "absent") ? "00" : "x";
-                        attendanceMap[r.studentId] = { status, percent: status === "00" ? 0 : 100 };
-                    });
-                }
-            }
-        } catch (savedErr) {
-            console.warn("Could not restore saved attendance:", savedErr);
-        }
 
         renderAttendanceTable();
 
@@ -63899,7 +63871,7 @@ window.renderNextAttendanceBatch = function () {
         const realIndex = start + index;
 
         const status =
-            attendanceMap[s.id]?.status || "x";
+            attendanceMap[s.id]?.status || "Present";
 
         let percent =
             attendanceMap[s.id]?.percent || 100;
@@ -63915,7 +63887,7 @@ window.renderNextAttendanceBatch = function () {
 
         let badge = "";
 
-        if (status === "x" || status === "Present") {
+        if (status === "Present") {
 
             badge = `
                 <span style="
@@ -63931,7 +63903,7 @@ window.renderNextAttendanceBatch = function () {
                 </span>
             `;
         }
-        else if (status === "00" || status === "Absent") {
+        else if (status === "Absent") {
 
             badge = `
                 <span style="
@@ -64036,14 +64008,19 @@ window.renderNextAttendanceBatch = function () {
                             min-width:80px;
                         "
                     >
-                        <option value="x"
-                            ${status === "x" ? "selected" : ""}>
-                            x — Present
+                        <option value="Present"
+                            ${status === "Present" ? "selected" : ""}>
+                            Present
                         </option>
 
-                        <option value="00"
-                            ${status === "00" ? "selected" : ""}>
-                            00 — Absent
+                        <option value="Absent"
+                            ${status === "Absent" ? "selected" : ""}>
+                            Absent
+                        </option>
+
+                        <option value="Late"
+                            ${status === "Late" ? "selected" : ""}>
+                            Late
                         </option>
                     </select>
 
@@ -64066,12 +64043,23 @@ window.renderNextAttendanceBatch = function () {
 
 // ================= SET STATUS =================
 window.setAttendance = function (id, status) {
-    const normalized = String(status || "x").trim().toLowerCase();
-    const finalStatus = (normalized === "00" || normalized === "0" || normalized === "absent") ? "00" : "x";
+
+    // ================= SMART COLOR PERCENT =================
+    let percent = 100;
+
+    if (status === "Absent") {
+        percent = 40;
+    }
+    else if (status === "Late") {
+        percent = 75;
+    }
+
     attendanceMap[id] = {
-        status: finalStatus,
-        percent: finalStatus === "00" ? 0 : 100
+        status,
+        percent
     };
+
+    // 🔥 AUTO REFRESH COLORS
     renderAttendanceTable();
 };
 
@@ -64093,33 +64081,22 @@ window.saveAttendance = async function () {
 
     try {
 
-        const records = attendanceCache.map(s => {
-            const raw = String(attendanceMap[s.id]?.status || "x").trim().toLowerCase();
-            const status = (raw === "00" || raw === "0" || raw === "absent") ? "00" : "x";
-            return {
-                studentId: s.id,
-                name: s.name,
-                grade: s.grade,
-                date,
-                status,
-                percent: status === "00" ? 0 : 100
-            };
-        });
+        const records = attendanceCache.map(s => ({
+            studentId: s.id,
+            name: s.name,
+            grade: s.grade,
+            date,
+            status: attendanceMap[s.id]?.status || "Present",
+            percent: attendanceMap[s.id]?.percent || 100
+        }));
 
-        // One deterministic record per grade/date. This prevents duplicate
-        // attendance records and makes an update immediately replace the old one.
-        const safeGradeKey = String(grade).replace(/[.#$\[\]/]/g, "_");
-        const attendanceKey = `attendance_${date}_${safeGradeKey}`;
-        const attendanceRef = schoolRef(`attendance/${attendanceKey}`);
-        await rasmBackgroundUpdate(attendanceRef, {
-            grade, date, records, updatedAt: Date.now(), createdAt: Date.now()
+        const attendanceWrite = rasmBackgroundPush(schoolRef("attendance"), {
+            grade, date, records, createdAt: Date.now()
         });
-
-        // Invalidate the report cache immediately so the next report reads
-        // the just-saved attendance instead of an old snapshot.
-        if (window.__attendanceRegisterCache) {
-            delete window.__attendanceRegisterCache.attendanceSnap;
-        }
+        attendanceWrite.promise.catch(err => {
+            console.error("Attendance save failed:", err);
+            Swal.fire("Save Failed", err.message || "Attendance could not be saved.", "error");
+        });
 
         // ================= SUCCESS =================
         Swal.fire({
@@ -64397,50 +64374,107 @@ window.viewAttendanceReport = async function () {
 
         // ====================================================
         // 📋 MASTER ATTENDANCE MAP
-        // Use only the latest saved register for each DATE + GRADE.
-        // This prevents duplicate/older registers from changing totals.
         // ====================================================
 
         const masterAttendanceMap = {};
+
         const capturedDays = {};
-        const latestAttendanceByDateGrade = {};
 
-        attendanceSnap.forEach(item => {
-            const data = item.val() || {};
-            if (!data.date || !Array.isArray(data.records)) return;
-            if (data.date < startDate || data.date > endDate) return;
 
-            const dateObj = new Date(data.date);
-            const dayName = dayNames[dateObj.getDay()];
-            if (!weekOrder.includes(dayName)) return;
+        attendanceSnap.forEach(
+            item => {
 
-            const recordGrade = String(data.grade || selectedGrade || "")
-                .trim().toLowerCase();
-            const key = `${data.date}__${recordGrade}`;
-            const updatedAt = Number(data.updatedAt || data.createdAt || 0);
-            const existing = latestAttendanceByDateGrade[key];
+                const data =
+                    item.val();
 
-            if (!existing || updatedAt >= existing.updatedAt) {
-                latestAttendanceByDateGrade[key] = { data, dayName, updatedAt };
-            }
-        });
 
-        Object.values(latestAttendanceByDateGrade).forEach(({ data, dayName }) => {
-            capturedDays[dayName] = true;
+                if (
+                    !data.date ||
+                    !Array.isArray(data.records)
+                ) {
 
-            data.records.forEach(record => {
-                if (!record?.studentId) return;
-                if (!masterAttendanceMap[record.studentId]) {
-                    masterAttendanceMap[record.studentId] = {};
+                    return;
+
                 }
 
-                const normalizedStatus = String(record.status || "")
-                    .trim().toLowerCase();
 
-                masterAttendanceMap[record.studentId][dayName] =
-                    (["00", "0", "absent"].includes(normalizedStatus)) ? "00" : "x";
-            });
-        });
+                // --------------------------------------------
+                // DATE FILTER
+                // --------------------------------------------
+
+                if (
+                    data.date < startDate ||
+                    data.date > endDate
+                ) {
+
+                    return;
+
+                }
+
+
+                const dateObj =
+                    new Date(data.date);
+
+
+                const dayName =
+                    dayNames[
+                        dateObj.getDay()
+                    ];
+
+
+                if (
+                    !weekOrder.includes(
+                        dayName
+                    )
+                ) {
+
+                    return;
+
+                }
+
+
+                capturedDays[
+                    dayName
+                ] = true;
+
+
+                data.records.forEach(
+                    record => {
+
+                        if (
+                            !record?.studentId
+                        ) {
+
+                            return;
+
+                        }
+
+
+                        if (
+                            !masterAttendanceMap[
+                                record.studentId
+                            ]
+                        ) {
+
+                            masterAttendanceMap[
+                                record.studentId
+                            ] = {};
+
+                        }
+
+
+                        masterAttendanceMap[
+                            record.studentId
+                        ][
+                            dayName
+                        ] =
+                            record.status;
+
+                    }
+                );
+
+            }
+        );
 
 
         // ====================================================
@@ -64487,9 +64521,10 @@ window.viewAttendanceReport = async function () {
                             ];
 
 
-                        if (String(status || "").trim().toLowerCase() === "x" ||
-                            String(status || "").trim().toLowerCase() === "present" ||
-                            String(status || "").trim().toLowerCase() === "late") {
+                        if (
+                            status === "Present" ||
+                            status === "Late"
+                        ) {
 
                             gradeDailyTotals[
                                 day
@@ -64506,7 +64541,17 @@ window.viewAttendanceReport = async function () {
                 );
 
 
-                gradeDailyTotals[day].total = gradeDailyTotals[day].morning;
+                gradeDailyTotals[
+                    day
+                ].total =
+
+                    gradeDailyTotals[
+                        day
+                    ].morning +
+
+                    gradeDailyTotals[
+                        day
+                    ].evening;
 
             }
         );
@@ -64696,11 +64741,8 @@ window.viewAttendanceReport = async function () {
                             ) || 0;
 
 
-                        // Total is the actual number present that day.
-                        // Morning and evening are the same attendance count;
-                        // do not add them together.
                         const t =
-                            Number(gradeDailyTotals[day]?.total) || m;
+                            m + e;
 
 
                         html += `
@@ -64810,13 +64852,9 @@ window.viewAttendanceReport = async function () {
             );
 
 
-            // Morning/evening are not separate attendance populations.
-            // GRAND TOTAL must therefore be the actual learners present,
-            // not morning + evening (which would double the count).
-            const grandTotal = gradeDays.reduce(
-                (sum, day) => sum + (Number(gradeDailyTotals[day]?.total) || 0),
-                0
-            );
+            const grandTotal =
+                grandMorning +
+                grandEvening;
 
 
             html += `
@@ -65135,9 +65173,6 @@ window.viewAttendanceReport = async function () {
                 students.forEach(
                     (student, index) => {
 
-                        // Each present day contributes 02 points to Total:
-                        // 1 day = 02, 2 days = 04, 3 days = 06,
-                        // 4 days = 08, 5 days = 10.
                         let attendedDays = 0;
 
 
@@ -65250,32 +65285,31 @@ window.viewAttendanceReport = async function () {
                                 let display = "-";
 
 
-                                const normalizedStatus = String(status || "").trim().toLowerCase();
-
                                 if (
-                                    normalizedStatus === "x" ||
-                                    normalizedStatus === "present"
+                                    status === "Present"
                                 ) {
 
-                                    display = "x";
+                                    display = "X";
 
                                     attendedDays++;
 
                                 }
 
                                 else if (
-                                    normalizedStatus === "late"
+                                    status === "Late"
                                 ) {
 
-                                    display = "x";
+                                    display = "L";
 
                                     attendedDays++;
 
                                 }
 
-                                else if (["00", "0", "absent"].includes(normalizedStatus)) {
+                                else if (
+                                    status === "Absent"
+                                ) {
 
-                                    display = "00";
+                                    display = "0";
 
                                 }
 
@@ -65316,7 +65350,7 @@ window.viewAttendanceReport = async function () {
                                 ">
 
                                     ${String(
-                                        Math.min(attendedDays * 2, orderedDays.length * 2)
+                                        attendedDays * 2
                                     ).padStart(2,"0")}
 
                                 </td>
@@ -65328,26 +65362,6 @@ window.viewAttendanceReport = async function () {
                     }
                 );
 
-
-                // =================================================
-                // ACTUAL GENDER DAILY COUNTS
-                // Morning/evening are not separate populations.
-                // Count only the learners in this boys/girls report.
-                // =================================================
-                const genderPresentByDay = {};
-                orderedDays.forEach(day => {
-                    genderPresentByDay[day] = students.reduce((count, student) => {
-                        const normalizedStatus = String(
-                            masterAttendanceMap[student.id]?.[day] || ""
-                        ).trim().toLowerCase();
-                        return count + (
-                            normalizedStatus === "x" ||
-                            normalizedStatus === "present" ||
-                            normalizedStatus === "late"
-                                ? 1 : 0
-                        );
-                    }, 0);
-                });
 
                 // =================================================
                 // MORNING SUMMARY
@@ -65388,7 +65402,9 @@ window.viewAttendanceReport = async function () {
                             ">
 
                                 ${String(
-                                    genderPresentByDay[day] || 0
+                                    gradeDailyTotals[
+                                        day
+                                    ]?.morning || 0
                                 ).padStart(
                                     2,
                                     "0"
@@ -65452,7 +65468,9 @@ window.viewAttendanceReport = async function () {
                             ">
 
                                 ${String(
-                                    genderPresentByDay[day] || 0
+                                    gradeDailyTotals[
+                                        day
+                                    ]?.evening || 0
                                 ).padStart(
                                     2,
                                     "0"
@@ -65699,10 +65717,9 @@ window.calculateAttendanceIntelligence = async function (grade) {
 
             s.total++;
 
-            const normalizedStatus = String(r.status || "").trim().toLowerCase();
-            if (normalizedStatus === "x" || normalizedStatus === "present") s.present++;
-            else if (normalizedStatus === "00" || normalizedStatus === "0" || normalizedStatus === "absent") s.absent++;
-            else if (normalizedStatus === "late") s.late++;
+            if (r.status === "Present") s.present++;
+            else if (r.status === "Absent") s.absent++;
+            else if (r.status === "Late") s.late++;
         });
     });
 
@@ -66147,7 +66164,13 @@ function renderGradeSummary(
 
 
         const total =
-            Number(dayData.total) || morning;
+            Number(
+                dayData.total
+            ) ||
+            (
+                morning +
+                evening
+            );
 
 
         html += `
@@ -66240,7 +66263,13 @@ function renderGradeSummary(
 
 
         const total =
-            Number(dayData.total) || morning;
+            Number(
+                dayData.total
+            ) ||
+            (
+                morning +
+                evening
+            );
 
 
         grandMorning += morning;
@@ -73085,102 +73114,155 @@ window.markTransportFeePaid = async function (busId, studentName) {
 ========================================================= */
 
 window.manageTransportFees = async function (busId) {
+
   try {
-    const [feeSnap, studentSnap] = await Promise.all([
-      fastGet(schoolRef(`transport/${busId}/fees`)),
-      fastGet(schoolRef("students"))
-    ]);
 
-    if (!feeSnap.exists()) {
-      Swal.fire("No Records", "No fee records found.", "info");
-      return;
-    }
-
-    const studentInfo = {};
-    if (studentSnap.exists()) {
-      studentSnap.forEach(child => {
-        const st = child.val() || {};
-        if (st.name) {
-          studentInfo[String(st.name).trim().toLowerCase()] = {
-            grade: st.grade || st.class || "",
-            year: String(st.year || st.admissionYear || "").trim()
-          };
-        }
-      });
-    }
-
-    const feeEntries = Object.entries(feeSnap.val()).map(([student, data]) => {
-      const info = studentInfo[String(student).trim().toLowerCase()] || {};
-      const timestampYear = data.updatedAt ? new Date(Number(data.updatedAt)).getFullYear() : new Date().getFullYear();
-      return {
-        student,
-        data: data || {},
-        grade: data.grade || info.grade || "",
-        year: String(data.year || info.year || timestampYear)
-      };
-    });
-
-    const years = [...new Set(feeEntries.map(x => x.year).filter(Boolean))].sort((a,b) => Number(b)-Number(a));
-    const grades = [...new Set(feeEntries.map(x => x.grade).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric:true}));
-
-    const render = (selectedYear="", selectedGrade="") => {
-      const filtered = feeEntries.filter(x =>
-        (!selectedYear || x.year === selectedYear) &&
-        (!selectedGrade || String(x.grade).toLowerCase() === String(selectedGrade).toLowerCase())
+    const snap =
+      await fastGet(
+        schoolRef(`transport/${busId}/fees`)
       );
 
-      let body = filtered.map(({student,data,grade,year}) => {
-        const fee = Number(data.fee || 0);
-        const paid = Number(data.paidAmount || 0);
-        const balance = Math.max(fee - paid, 0);
-        const color = balance <= 0 ? "#16a34a" : paid > 0 ? "#f59e0b" : "#dc2626";
-        const status = balance <= 0 ? "🟢 Paid" : paid > 0 ? "🟡 Partial" : "🔴 Pending";
-        return `<div style="border:1px solid #e5e7eb;border-radius:12px;padding:15px;margin-bottom:12px;background:#fff;">
-          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:800;color:#111827;">
-            <span>👨‍🎓 ${student}</span><span style="color:#64748b;font-size:12px;">Grade ${grade || "-"} • ${year || "-"}</span>
-          </div><hr>
-          <div>💰 Required Fee: <b>KES ${fee.toLocaleString()}</b></div>
-          <div style="color:green;">✅ Paid: <b>KES ${paid.toLocaleString()}</b></div>
-          <div style="color:red;">Balance: <b>KES ${balance.toLocaleString()}</b></div>
-          <div style="margin-top:8px;color:${color};font-weight:bold;">${status}</div>
-          <button onclick="markTransportFeePaid('${busId}',${JSON.stringify(student)})" style="margin-top:12px;background:#2563eb;color:white;border:none;padding:8px 15px;border-radius:8px;cursor:pointer;">💵 Record Payment</button>
-        </div>`;
-      }).join("") || `<div style="padding:25px;text-align:center;color:#64748b;font-weight:700;">No transport fee records match the selected filters.</div>`;
+    if (!snap.exists()) {
 
-      const host = document.getElementById("rasmTransportFeesList");
-      if (host) host.innerHTML = body;
-      const count = document.getElementById("rasmTransportFeeCount");
-      if (count) count.textContent = `${filtered.length} learner${filtered.length === 1 ? "" : "s"}`;
-    };
+      Swal.fire(
+        "No Records",
+        "No fee records found.",
+        "info"
+      );
 
-    const yearOptions = years.map(y => `<option value="${y}">${y}</option>`).join("");
-    const gradeOptions = grades.map(g => `<option value="${String(g).replace(/"/g,'&quot;')}">${g}</option>`).join("");
+      return;
+
+    }
+
+    let html = `
+    <div style="
+      max-height:500px;
+      overflow:auto;
+      text-align:left;
+    ">
+    `;
+
+    Object.entries(snap.val()).forEach(([student,data])=>{
+
+      const fee = Number(data.fee || 0);
+      const paid = Number(data.paidAmount || 0);
+      const balance = fee - paid;
+
+      let color = "#dc2626";
+      let status = "🔴 Pending";
+
+      if(balance <= 0){
+
+        color="#16a34a";
+        status="🟢 Paid";
+
+      }
+
+      else if(paid > 0){
+
+        color="#f59e0b";
+        status="🟡 Partial";
+
+      }
+
+      html += `
+
+      <div style="
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        padding:15px;
+        margin-bottom:15px;
+        background:white;
+      ">
+
+        <div style="
+          font-size:16px;
+          font-weight:bold;
+          color:#111827;
+        ">
+          👨‍🎓 ${student}
+        </div>
+
+        <hr>
+
+        <div>
+          💰 Required Fee:
+          <b>KES ${fee.toLocaleString()}</b>
+        </div>
+
+        <div style="color:green;">
+          ✅ Paid:
+          <b>KES ${paid.toLocaleString()}</b>
+        </div>
+
+        <div style="color:red;">
+          Balance:
+          <b>KES ${balance.toLocaleString()}</b>
+        </div>
+
+        <div style="
+          margin-top:8px;
+          color:${color};
+          font-weight:bold;
+        ">
+          ${status}
+        </div>
+
+        <button
+
+          onclick="markTransportFeePaid('${busId}','${student}')"
+
+          style="
+            margin-top:12px;
+            background:#2563eb;
+            color:white;
+            border:none;
+            padding:8px 15px;
+            border-radius:8px;
+            cursor:pointer;
+          "
+
+        >
+
+          💵 Record Payment
+
+        </button>
+
+      </div>
+
+      `;
+
+    });
+
+    html += "</div>";
 
     Swal.fire({
-      title: "🚌 Transport Fees",
-      width: 820,
-      html: `<div style="text-align:left;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-          <select id="rasmTransportFeeYear" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;"><option value="">📅 All Years</option>${yearOptions}</select>
-          <select id="rasmTransportFeeGrade" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;"><option value="">🎓 All Grades</option>${gradeOptions}</select>
-        </div>
-        <div id="rasmTransportFeeCount" style="font-weight:800;color:#475569;margin-bottom:10px;"></div>
-        <div id="rasmTransportFeesList" style="max-height:500px;overflow:auto;"></div>
-      </div>`,
-      confirmButtonText: "Close",
-      didOpen: () => {
-        const y = document.getElementById("rasmTransportFeeYear");
-        const g = document.getElementById("rasmTransportFeeGrade");
-        const refresh = () => render(y.value, g.value);
-        y.onchange = refresh; g.onchange = refresh; refresh();
-      }
+
+      title:"🚌 Transport Fees",
+
+      html:html,
+
+      width:750,
+
+      confirmButtonText:"Close"
+
     });
-  } catch(error) {
-    console.error(error);
-    Swal.fire("Error", error.message || "Unable to load transport fees.", "error");
+
   }
-};
-window.toggleActionPanel = function (id) {
+
+  catch(error){
+
+    console.error(error);
+
+    Swal.fire(
+      "Error",
+      error.message,
+      "error"
+    );
+
+  }
+
+};window.toggleActionPanel = function (id) {
 
   const panel = document.getElementById(`panel-${id}`);
 
@@ -73930,38 +74012,28 @@ window.setTransportFee = async function (busId, studentName) {
 
   const fees = bus.fees || {};
 
-  // Store grade + year with the fee so Transport Fees can filter reliably.
-  let learnerGrade = "";
-  try {
-    const studentsSnap = await fastGet(schoolRef("students"));
-    if (studentsSnap.exists()) {
-      studentsSnap.forEach(child => {
-        const st = child.val() || {};
-        if (String(st.name || "").trim().toLowerCase() === String(studentName).trim().toLowerCase()) {
-          learnerGrade = st.grade || st.class || "";
-        }
-      });
-    }
-  } catch (e) {
-    console.warn("Could not read learner grade for transport fee:", e);
-  }
-
-  const now = Date.now();
   fees[studentName] = {
+
     student: studentName,
-    grade: learnerGrade,
-    year: String(new Date(now).getFullYear()),
+
     fee: Number(fee),
+
     paid: false,
+
     paidAmount: 0,
-    balance: Number(fee),
+
     paidDate: "",
-    updatedAt: now
+
+    updatedAt: Date.now()
+
   };
 
-  await rasmBackgroundUpdate(busRef, {
+  rasmBackgroundUpdate(busRef, {
+
     fees: fees,
-    lastUpdated: now
+
+    lastUpdated: Date.now()
+
   });
 
   Swal.fire({
@@ -120326,9 +120398,9 @@ function getCBCGradeResult(score, grade) {
 
     /* WHOLE SCHOOL */
     const wholeBody=`
-      <div class="rasm-report-meta"><b>Examination:</b> ${escX(current.period)} &nbsp; | &nbsp; <b>Comparison exam:</b> ${escX(previous?.period||"Not available")}</div>
+      <div class="rasm-report-meta"><b>Current examination:</b> ${escX(current.period)} &nbsp; | &nbsp; <b>Previous:</b> ${escX(previous?.period||"Not available")}</div>
       <div class="rasm-report-cards">
-        <div><b>${escX(current.period)} Average</b><strong>${pctX(current.stats.avg)}</strong></div>
+        <div><b>Current School Average</b><strong>${pctX(current.stats.avg)}</strong></div>
         <div><b>Learners Analysed</b><strong>${current.stats.count}</strong><small>of ${enrolled}</small></div>
         <div><b>School Deviation</b><strong>${schoolDeviation===null?"—":devHtmlX(schoolDeviation)}</strong><small>${statusX(schoolDeviation)}</small></div>
         <div><b>Coverage</b><strong>${enrolled?pctX(current.stats.count/enrolled*100):"—"}</strong></div>
@@ -120353,7 +120425,7 @@ function getCBCGradeResult(score, grade) {
       const d=ca!==null&&pa!==null?ca-pa:null;
       return {g,c,p,ca,pa,d};
     }).filter(x=>x.ca!==null);
-    const gradeBody=`<table class="rasm-report-table"><thead><tr><th>Grade</th><th>${escX(current.period)}</th><th>${escX(previous?.period || "No Previous Exam")}</th><th>Deviation</th><th>Direction</th><th>Learners</th></tr></thead><tbody>
+    const gradeBody=`<table class="rasm-report-table"><thead><tr><th>Grade</th><th>Current Average</th><th>Previous Average</th><th>Deviation</th><th>Direction</th><th>Learners</th></tr></thead><tbody>
       ${gradeRows.map(x=>`<tr><td><b>${escX(x.g)}</b></td><td>${pctX(x.ca)}</td><td>${pctX(x.pa)}</td><td>${devHtmlX(x.d)}</td><td class="${x.d>0.05?"dev-positive":x.d<-0.05?"dev-negative":""}">${escX(statusX(x.d))}</td><td>${x.c.length}</td></tr>`).join("") || `<tr><td colspan="6">No grade data available.</td></tr>`}
     </tbody></table>
     <div class="rasm-analysis-note"><b>Deviation rule:</b> Positive = improvement; Negative = decline; 0.0 = no change. Deviation is calculated as Current Average − Previous Average.</div>`;
@@ -120743,7 +120815,7 @@ return `
                 border-left:4px solid #22c55e;
                 font-weight:800;
             ">
-                <b>Best Subject (${escX(current.period)}):</b>
+                <b>Best Current Subject:</b>
                 ${
                     best
                         ? escX(best.subject) +
@@ -120765,7 +120837,7 @@ return `
                 border-left:4px solid #3b82f6;
                 font-weight:800;
             ">
-                <b>Weakest Subject (${escX(current.period)}):</b>
+                <b>Weakest Current Subject:</b>
                 ${
                     worst
                         ? escX(worst.subject) +
@@ -120787,7 +120859,7 @@ return `
                 border-left:4px solid #f59e0b;
                 font-weight:800;
             ">
-                <b>Class Mean (${escX(current.period)}):</b>
+                <b>Current Class Mean:</b>
                 ${currentAvailable.length ? pctX(currentAvailable.reduce((sum,s)=>sum + s.currentAvg,0) / currentAvailable.length) : "—"}
             </span>
 
@@ -120801,7 +120873,7 @@ return `
                 border-left:4px solid #6366f1;
                 font-weight:800;
             ">
-                <b>Class Mean (${escX(previous?.period || "No Previous Exam")}):</b>
+                <b>Previous Class Mean:</b>
                 ${previousSubs.length ? pctX(previousSubs.reduce((sum,s)=>sum + s.avg,0) / previousSubs.length) : "—"}
             </span>
 
@@ -120898,7 +120970,7 @@ return `
                             font-weight:900;
                             padding:10px;
                         ">
-                            ${escX(current.period)}<br>Average
+                            Current Exam<br>Average
                         </th>
 
                         <th style="
@@ -120907,7 +120979,7 @@ return `
                             font-weight:900;
                             padding:10px;
                         ">
-                            ${escX(previous?.period || "No Previous Exam")}<br>Average
+                            Previous Exam<br>Average
                         </th>
 
                         <th style="
@@ -121734,4 +121806,1067 @@ html,body,#app,.main{
 </script>
 
 
+<!-- =========================================================
+     RASM 360 — UNIVERSAL RECYCLE BIN / RECORD RESTORE SYSTEM
+     Deletes are moved to a school-specific Recycle Bin first.
+     Restoration is RECORD-BY-RECORD, never "restore everything".
+========================================================= -->
+<style id="rasm360-recycle-bin-style">
+  #rasmRecycleFloatingBtn{
+    position:fixed;right:22px;bottom:82px;z-index:99998;
+    border:0;border-radius:999px;padding:12px 16px;
+    background:#7c3aed;color:#fff;font-weight:800;font-size:14px;
+    cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.24);
+  }
+  #rasmRecycleFloatingBtn:hover{transform:translateY(-2px);background:#6d28d9}
+  .rasm-recycle-section-btn{
+    display:inline-flex!important;align-items:center;justify-content:center;
+    gap:8px;margin:8px 0 14px;padding:10px 15px;border:0;border-radius:10px;
+    background:#7c3aed;color:#fff;font-weight:800;cursor:pointer;
+    box-shadow:0 5px 14px rgba(124,58,237,.22);
+  }
+  .rasm-recycle-section-btn:hover{background:#6d28d9;transform:translateY(-1px)}
+  .rasm-recycle-card{
+    border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:10px 0;
+    background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.06);
+  }
+  .rasm-recycle-card h4{margin:0 0 7px;color:#111827;font-size:15px}
+  .rasm-recycle-meta{font-size:12px;color:#64748b;line-height:1.55}
+  .rasm-recycle-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .rasm-recycle-actions button{
+    border:0;border-radius:8px;padding:8px 12px;color:#fff;font-weight:700;cursor:pointer
+  }
+  .rasm-restore-btn{background:#16a34a}
+  .rasm-restore-btn:hover{background:#15803d}
+  .rasm-delete-forever-btn{background:#dc2626}
+  .rasm-delete-forever-btn:hover{background:#b91c1c}
+  .rasm-recycle-filter{
+    width:100%;max-width:100%;margin:0 0 14px;padding:11px 12px;
+    border:1px solid #cbd5e1;border-radius:10px;background:#fff;
+  }
+  @media(max-width:768px){
+    #rasmRecycleFloatingBtn{right:12px;bottom:72px;padding:10px 13px;font-size:13px}
+  }
+</style>
 
+<script>
+(function(){
+  "use strict";
+
+  const RB_ROOT = "schools";
+  const LEGACY = {
+    teachers: "teacherTrash",
+    fees: "deletedFees"
+  };
+
+  const MODULE_LABELS = {
+    students:"👨‍🎓 Students",
+    teachers:"👨‍🏫 Teachers",
+    supportStaff:"🧹 Support Staff",
+    ict:"💻 ICT",
+    attendance:"🗓️ Attendance",
+    library:"📚 Library",
+    fees:"💰 Fees",
+    transport:"🚌 Transport",
+    hostel:"🏨 Hostel",
+    inventory:"📦 Inventory",
+    examResults:"📝 Exam Results"
+  };
+
+  function getSchoolId(){
+    return window.schoolId ||
+      localStorage.getItem("schoolId") ||
+      sessionStorage.getItem("schoolId") || "";
+  }
+
+  function esc(v){
+    return String(v ?? "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+      .replace(/'/g,"&#39;");
+  }
+
+  function uid(){
+    return Date.now().toString(36) + "_" +
+      Math.random().toString(36).slice(2,10);
+  }
+
+  function pathString(firebaseRef){
+    try{
+      return String(firebaseRef?.path?.toString?.() ||
+        firebaseRef?.path || "").replace(/^\/+/,"");
+    }catch(_){ return ""; }
+  }
+
+  function getPathParts(path){
+    return String(path || "").split("/").filter(Boolean);
+  }
+
+  function classifyPath(path){
+    const parts=getPathParts(path);
+    if(parts[0]==="schools" && parts.length>=3){
+      const module=parts[2];
+      const supported=[
+        "students","teachers","supportStaff","attendance",
+        "library","fees","transport","hostel","inventory","ict"
+      ];
+      if(supported.includes(module)){
+        return {module, schoolId:parts[1], base:`schools/${parts[1]}/${module}`, id:parts.slice(3).join("/")};
+      }
+    }
+
+    const rootModule=parts[0];
+    const rootSupported=["transport","hostel","inventory","ict","library","attendance"];
+    if(rootSupported.includes(rootModule) && parts.length>=2){
+      const schoolId=parts[1];
+      return {module:rootModule, schoolId, base:`${rootModule}/${schoolId}`, id:parts.slice(2).join("/")};
+    }
+
+    return null;
+  }
+
+  async function saveRecycleRecord(module, originalPath, data, originalId){
+    const schoolId=getSchoolId();
+    if(!schoolId || data===undefined || data===null) throw new Error("School session missing.");
+    const key=uid();
+    const record={
+      module,
+      moduleLabel:MODULE_LABELS[module] || module,
+      originalPath,
+      originalId:String(originalId || ""),
+      data,
+      deletedAt:Date.now(),
+      deletedBy:window.currentUser?.email || window.currentUser?.uid || "Current User",
+      restoreAvailable:true
+    };
+    await set(ref(db,`${RB_ROOT}/${schoolId}/recycleBin/${module}/${key}`),record);
+    return key;
+  }
+
+  async function saveCollectionChildren(module, basePath, snapshot){
+    if(!snapshot || !snapshot.exists()) return 0;
+    let count=0;
+    const promises=[];
+    snapshot.forEach(child=>{
+      const childPath=`${basePath}/${child.key}`;
+      promises.push(saveRecycleRecord(module,childPath,child.val(),child.key).then(()=>count++));
+    });
+    await Promise.all(promises);
+    return count;
+  }
+
+  async function openRecycleBin(preferredModule="all"){
+    const schoolId=getSchoolId();
+    if(!schoolId){
+      return Swal.fire("School Session Missing","Please log in again.","error");
+    }
+
+    Swal.fire({
+      title:"♻️ Recycle Bin",
+      html:`<div style="padding:8px 0;color:#64748b">
+              Loading deleted records...
+            </div>`,
+      allowOutsideClick:false,
+      showConfirmButton:false,
+      didOpen:()=>Swal.showLoading()
+    });
+
+    try{
+      const [newSnap,teacherSnap,feeSnap]=await Promise.all([
+        fastGet(ref(db,`${RB_ROOT}/${schoolId}/recycleBin`)),
+        fastGet(ref(db,`schools/${schoolId}/${LEGACY.teachers}`)),
+        fastGet(ref(db,`schools/${schoolId}/${LEGACY.fees}`))
+      ]);
+
+      const records=[];
+
+      if(newSnap.exists()){
+        newSnap.forEach(moduleSnap=>{
+          const module=moduleSnap.key;
+          moduleSnap.forEach(itemSnap=>{
+            records.push({
+              source:"recycleBin",
+              key:itemSnap.key,
+              ...((itemSnap.val()||{})),
+              module:moduleSnap.key
+            });
+          });
+        });
+      }
+
+      // Existing teacher recycle bin records in this application.
+      if(teacherSnap.exists()){
+        teacherSnap.forEach(item=>{
+          records.push({
+            source:"teacherTrash",
+            key:item.key,
+            module:"teachers",
+            moduleLabel:"👨‍🏫 Teachers",
+            originalPath:`schools/${schoolId}/teachers/${item.key}`,
+            originalId:item.key,
+            data:item.val()||{},
+            deletedAt:item.val()?.deletedAt || 0,
+            deletedBy:item.val()?.deletedBy || "Unknown"
+          });
+        });
+      }
+
+      // Existing fee recycle bin records in this application.
+      if(feeSnap.exists()){
+        feeSnap.forEach(yearSnap=>{
+          feeSnap.forEach(()=>{});
+          yearSnap.forEach(feeItem=>{
+            const d=feeItem.val()||{};
+            records.push({
+              source:"deletedFees",
+              key:`${yearSnap.key}_${feeItem.key}`,
+              module:"fees",
+              moduleLabel:"💰 Fees",
+              originalPath:`schools/${schoolId}/fees/${yearSnap.key}/${feeItem.key}`,
+              originalId:feeItem.key,
+              data:d,
+              deletedAt:d.deletedAt || 0,
+              deletedBy:d.deletedBy || "Unknown",
+              originalYear:yearSnap.key
+            });
+          });
+        });
+      }
+
+      records.sort((a,b)=>Number(b.deletedAt||0)-Number(a.deletedAt||0));
+
+      const modules=["all",...Object.keys(MODULE_LABELS)];
+      const options=modules.map(m=>
+        `<option value="${esc(m)}" ${m===preferredModule?"selected":""}>
+          ${m==="all"?"📦 All Modules":MODULE_LABELS[m]}
+        </option>`).join("");
+
+      const filtered=preferredModule==="all"
+        ? records : records.filter(r=>r.module===preferredModule);
+
+      const listHtml=renderRecycleRecords(filtered);
+
+      Swal.fire({
+        title:"♻️ Recycle Bin",
+        width:Math.min(window.innerWidth-20,900),
+        showConfirmButton:false,
+        showCloseButton:true,
+        html:`
+          <div style="text-align:left">
+            <div style="
+              display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+              margin-bottom:12px;padding:10px;background:#f8fafc;border-radius:12px;">
+              <select id="rasmRecycleModuleFilter" class="rasm-recycle-filter"
+                style="flex:1;margin:0;min-width:220px">
+                ${options}
+              </select>
+              <span style="
+                padding:9px 12px;border-radius:999px;background:#ede9fe;
+                color:#5b21b6;font-weight:800;">
+                ${filtered.length} record(s)
+              </span>
+            </div>
+            <div id="rasmRecycleList">
+              ${listHtml}
+            </div>
+          </div>
+        `,
+        didOpen:()=>{
+          const filter=document.getElementById("rasmRecycleModuleFilter");
+          if(filter){
+            filter.addEventListener("change",()=>{
+              const mod=filter.value;
+              const arr=mod==="all"?records:records.filter(r=>r.module===mod);
+              const list=document.getElementById("rasmRecycleList");
+              if(list) list.innerHTML=renderRecycleRecords(arr);
+            });
+          }
+        }
+      });
+    }catch(error){
+      console.error("Recycle Bin load failed:",error);
+      Swal.fire("Recycle Bin Error",error.message||"Unable to load deleted records.","error");
+    }
+  }
+
+  function renderRecycleRecords(records){
+    if(!records.length){
+      return `<div style="
+        padding:35px 15px;text-align:center;color:#64748b;
+        border:1px dashed #cbd5e1;border-radius:14px;">
+        <div style="font-size:42px">🗑️</div>
+        <b>No deleted records found.</b>
+        <div style="margin-top:6px;font-size:13px">
+          Deleted records from the selected module will appear here.
+        </div>
+      </div>`;
+    }
+
+    return records.map(r=>{
+      const d=r.data||{};
+      const displayName=d.name || d.studentName || d.learnerName ||
+        d.teacherName || d.deviceName || d.itemName || d.bookName ||
+        d.busName || d.hostelName || d.title || r.originalId || "Deleted Record";
+      const when=r.deletedAt ? new Date(Number(r.deletedAt)).toLocaleString() : "Unknown";
+      const source=r.source==="teacherTrash" || r.source==="deletedFees"
+        ? "Legacy recycle storage" : "Recycle Bin";
+
+      return `
+        <div class="rasm-recycle-card">
+          <h4>${esc(r.moduleLabel || MODULE_LABELS[r.module] || r.module)} — ${esc(displayName)}</h4>
+          <div class="rasm-recycle-meta">
+            <b>Deleted:</b> ${esc(when)}<br>
+            <b>Deleted by:</b> ${esc(r.deletedBy || "Unknown")}<br>
+            <b>Original record:</b> ${esc(r.originalId || "-")}<br>
+            <b>Storage:</b> ${esc(source)}
+          </div>
+          <div class="rasm-recycle-actions">
+            <button class="rasm-restore-btn"
+              onclick="window.rasmRestoreOne(${JSON.stringify(String(r.source||"recycleBin"))},${JSON.stringify(String(r.key||""))})">
+              ♻️ Restore This Record
+            </button>
+            <button class="rasm-delete-forever-btn"
+              onclick="window.rasmDeleteForever(${JSON.stringify(String(r.source||"recycleBin"))},${JSON.stringify(String(r.key||""))},${JSON.stringify(String(r.module||""))})">
+              🗑️ Delete Forever
+            </button>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  async function findRecycleRecord(source,key,module){
+    const schoolId=getSchoolId();
+    if(source==="teacherTrash"){
+      const snap=await fastGet(ref(db,`schools/${schoolId}/teacherTrash/${key}`));
+      if(!snap.exists()) return null;
+      return {
+        source,key,module:"teachers",
+        originalPath:`schools/${schoolId}/teachers/${key}`,
+        originalId:key,data:snap.val()||{}
+      };
+    }
+    if(source==="deletedFees"){
+      const parts=String(key).split("_");
+      const year=parts.shift();
+      const feeId=parts.join("_");
+      const snap=await fastGet(ref(db,`schools/${schoolId}/deletedFees/${year}/${feeId}`));
+      if(!snap.exists()) return null;
+      const d=snap.val()||{};
+      return {
+        source,key,module:"fees",originalPath:`schools/${schoolId}/fees/${year}/${feeId}`,
+        originalId:feeId,originalYear:year,data:d
+      };
+    }
+
+    const snap=await fastGet(ref(db,`${RB_ROOT}/${schoolId}/recycleBin/${module}/${key}`));
+    if(!snap.exists()) return null;
+    return {source,key,module,...(snap.val()||{})};
+  }
+
+  async function restoreRecord(source,key,module){
+    const schoolId=getSchoolId();
+    const r=await findRecycleRecord(source,key,module);
+    if(!r) throw new Error("Deleted record was not found in the Recycle Bin.");
+
+    const originalPath=r.originalPath;
+    if(!originalPath) throw new Error("Original record path is missing.");
+
+    const existing=await fastGet(ref(db,originalPath));
+    if(existing.exists()){
+      throw new Error("A record already exists at the original location. Restore was stopped to prevent overwriting current data.");
+    }
+
+    await set(ref(db,originalPath,r.data||{}));
+
+    if(source==="teacherTrash"){
+      await remove(ref(db,`schools/${schoolId}/teacherTrash/${key}`));
+    }else if(source==="deletedFees"){
+      await remove(ref(db,`schools/${schoolId}/deletedFees/${r.originalYear}/${r.originalId}`));
+    }else{
+      await remove(ref(db,`${RB_ROOT}/${schoolId}/recycleBin/${module}/${key}`));
+    }
+  }
+
+  window.rasmRestoreOne=async function(source,key,module){
+    const ok=await Swal.fire({
+      title:"♻️ Restore this record?",
+      text:"Only the selected record will be restored.",
+      icon:"question",
+      showCancelButton:true,
+      confirmButtonText:"Yes, Restore",
+      cancelButtonText:"Cancel",
+      confirmButtonColor:"#16a34a"
+    });
+    if(!ok.isConfirmed) return;
+
+    try{
+      Swal.fire({
+        title:"Restoring...",
+        text:"Restoring the selected record.",
+        allowOutsideClick:false,
+        showConfirmButton:false,
+        didOpen:()=>Swal.showLoading()
+      });
+      await restoreRecord(source,key,module);
+      await Swal.fire("Restored","The selected record has been restored successfully.","success");
+      openRecycleBin(module||"all");
+      try{ window.loadICT?.(); }catch(_){}
+      try{ window.loadTransportStats?.(); }catch(_){}
+      try{ window.loadMarksUnifiedClean?.(); }catch(_){}
+    }catch(error){
+      Swal.fire("Restore Failed",error.message||"The record could not be restored.","error");
+    }
+  };
+
+  window.rasmDeleteForever=async function(source,key,module){
+    const ok=await Swal.fire({
+      title:"Delete permanently?",
+      text:"This removes ONLY this recycle-bin record and cannot be restored.",
+      icon:"warning",
+      showCancelButton:true,
+      confirmButtonText:"Delete Forever",
+      cancelButtonText:"Cancel",
+      confirmButtonColor:"#dc2626"
+    });
+    if(!ok.isConfirmed) return;
+
+    try{
+      const schoolId=getSchoolId();
+      if(source==="teacherTrash"){
+        await remove(ref(db,`schools/${schoolId}/teacherTrash/${key}`));
+      }else if(source==="deletedFees"){
+        const r=await findRecycleRecord(source,key,module);
+        if(!r) throw new Error("Recycle record not found.");
+        await remove(ref(db,`schools/${schoolId}/deletedFees/${r.originalYear}/${r.originalId}`));
+      }else{
+        await remove(ref(db,`${RB_ROOT}/${schoolId}/recycleBin/${module}/${key}`));
+      }
+      await Swal.fire("Deleted Forever","Only the selected recycle-bin record was permanently deleted.","success");
+      openRecycleBin(module||"all");
+    }catch(error){
+      Swal.fire("Delete Failed",error.message||"Unable to permanently delete record.","error");
+    }
+  };
+
+  // ---------------------------------------------------------
+  // 1. INTERCEPT all existing rasmBackgroundRemove() deletes.
+  // This covers ICT, Inventory, Library, Hostel, Transport and
+  // Support Staff deletes, including bulk collection deletes.
+  // ---------------------------------------------------------
+  const originalBackgroundRemove=window.rasmBackgroundRemove;
+  if(typeof originalBackgroundRemove==="function" && !window.__rasmRecycleRemoveInstalled){
+    window.__rasmRecycleRemoveInstalled=true;
+
+    window.rasmBackgroundRemove=async function(firebaseRef){
+      const path=pathString(firebaseRef);
+      const info=classifyPath(path);
+
+      // Existing teacher/fee trash mechanisms already preserve records.
+      if(!info || path.includes("/teacherTrash/") || path.includes("/deletedFees/")){
+        return originalBackgroundRemove(firebaseRef);
+      }
+
+      try{
+        const snap=await fastGet(firebaseRef);
+        if(snap.exists()){
+          if(info.id){
+            await saveRecycleRecord(info.module,path,snap.val(),info.id);
+          }else{
+            // Bulk delete: save EVERY child as an independent recycle record.
+            await saveCollectionChildren(info.module,path,snap);
+          }
+        }
+      }catch(error){
+        console.error("Recycle backup failed; delete cancelled:",error);
+        await Swal.fire(
+          "Delete Cancelled",
+          "The record could not be safely backed up to the Recycle Bin, so it was NOT deleted.",
+          "error"
+        );
+        throw error;
+      }
+
+      return originalBackgroundRemove(firebaseRef);
+    };
+  }
+
+  // ---------------------------------------------------------
+  // 2. STUDENTS — direct update(null) deletion is replaced by
+  //    an individual-record recycle operation.
+  // ---------------------------------------------------------
+  window.__rasmOriginalDeleteSelectedStudents =
+    window.__rasmOriginalDeleteSelectedStudents || window.deleteSelected;
+
+  window.deleteSelected=async function(){
+    const ids=typeof getSelectedStudents==="function" ? getSelectedStudents() : [];
+    if(!ids.length){
+      return Swal.fire("Select students first","","info");
+    }
+
+    const schoolId=getSchoolId();
+    if(!schoolId) return Swal.fire("School Error","School ID is missing.","error");
+
+    const confirm=await Swal.fire({
+      title:"Move selected students to Recycle Bin?",
+      html:`<b>${ids.length}</b> student record(s) will be moved to the Recycle Bin.<br>
+            <span style="color:#16a34a;font-weight:700">They can be restored individually later.</span>`,
+      icon:"warning",
+      showCancelButton:true,
+      confirmButtonText:"🗑 Move to Recycle Bin",
+      cancelButtonText:"Cancel",
+      confirmButtonColor:"#dc2626"
+    });
+    if(!confirm.isConfirmed) return;
+
+    try{
+      Swal.fire({
+        title:"Moving Students...",
+        html:`<div id="rasmStudentTrashProgress">Preparing...</div>`,
+        allowOutsideClick:false,showConfirmButton:false,
+        didOpen:()=>Swal.showLoading()
+      });
+
+      for(let i=0;i<ids.length;i++){
+        const id=ids[i];
+        const path=`schools/${schoolId}/students/${id}`;
+        const snap=await fastGet(ref(db,path));
+        if(snap.exists()){
+          await saveRecycleRecord("students",path,snap.val(),id);
+          await remove(ref(db,path));
+        }
+        const el=document.getElementById("rasmStudentTrashProgress");
+        if(el) el.textContent=`Moved ${i+1} of ${ids.length} student(s)`;
+      }
+
+      Swal.close();
+      try{
+        if(Array.isArray(window.allStudents)){
+          window.allStudents=window.allStudents.filter(s=>!ids.includes(String(s.id)));
+        }
+        if(typeof renderStudents==="function") renderStudents(window.allStudents||[]);
+      }catch(_){}
+
+      await Swal.fire("Moved to Recycle Bin",`${ids.length} student record(s) are now in the Recycle Bin.`,"success");
+    }catch(error){
+      Swal.close();
+      Swal.fire("Delete Failed",error.message||"Student records were not deleted.","error");
+    }
+  };
+
+  // ---------------------------------------------------------
+  // 3. EXAM RESULTS — learner marks deletion, bulk deletion and
+  //    subject deletion all get individual recycle entries.
+  // ---------------------------------------------------------
+  window.deleteLearnerMarks=async function(studentId,examPeriod){
+    if(!studentId || !examPeriod) return Swal.fire("Missing data","","error");
+    const schoolId=getSchoolId();
+    const normalized=typeof normalizeExamPeriod==="function"
+      ? normalizeExamPeriod(examPeriod) : String(examPeriod).trim();
+    const path=`schools/${schoolId}/students/${studentId}/marks/${normalized}`;
+
+    const snap=await fastGet(ref(db,path));
+    if(!snap.exists()) return Swal.fire("Not Found","No marks were found for this learner and exam.","info");
+
+    const ok=await Swal.fire({
+      title:"Move Exam Results to Recycle Bin?",
+      text:"Only this learner's results for the selected exam will be moved.",
+      icon:"warning",showCancelButton:true,
+      confirmButtonText:"🗑 Move to Recycle Bin",
+      cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"
+    });
+    if(!ok.isConfirmed) return;
+
+    try{
+      Swal.fire({title:"Moving Results...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+      await saveRecycleRecord("examResults",path,snap.val(),`${studentId}_${normalized}`);
+      await remove(ref(db,path));
+      Swal.close();
+      try{await window.loadMarksUnifiedClean?.();}catch(_){}
+      Swal.fire("Moved to Recycle Bin","The selected exam results can be restored individually.","success");
+    }catch(error){
+      Swal.close();
+      Swal.fire("Delete Failed",error.message||"Exam results were not deleted.","error");
+    }
+  };
+
+  window.deleteSelectedLearnersMarks=async function(){
+    const examPeriod=document.getElementById("resultsExamPeriod")?.value;
+    if(!examPeriod) return Swal.fire("Select Exam Period","","warning");
+
+    const selected=document.querySelectorAll(".learnerCheckbox:checked");
+    if(!selected.length) return Swal.fire("No learners selected","","info");
+
+    const ok=await Swal.fire({
+      title:"Move selected exam results to Recycle Bin?",
+      html:`<b>${selected.length}</b> learner result record(s) will be moved.<br>
+            <span style="color:#16a34a;font-weight:700">Each result is stored separately and can be restored separately.</span>`,
+      icon:"warning",showCancelButton:true,
+      confirmButtonText:"🗑 Move to Recycle Bin",
+      cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"
+    });
+    if(!ok.isConfirmed) return;
+
+    const schoolId=getSchoolId();
+    const normalized=typeof normalizeExamPeriod==="function"
+      ? normalizeExamPeriod(examPeriod) : String(examPeriod).trim();
+
+    try{
+      Swal.fire({title:"Moving Exam Results...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+      let done=0;
+      for(const cb of selected){
+        const studentId=cb.value;
+        const path=`schools/${schoolId}/students/${studentId}/marks/${normalized}`;
+        const snap=await fastGet(ref(db,path));
+        if(snap.exists()){
+          await saveRecycleRecord("examResults",path,snap.val(),`${studentId}_${normalized}`);
+          await remove(ref(db,path));
+        }
+        done++;
+      }
+      Swal.close();
+      try{await window.loadMarksUnifiedClean?.();}catch(_){}
+      Swal.fire("Moved to Recycle Bin",`${done} learner result record(s) were moved. You can restore them one at a time.`,"success");
+    }catch(error){
+      Swal.close();
+      Swal.fire("Delete Failed",error.message||"Exam results were not deleted.","error");
+    }
+  };
+
+  // Subject deletion: preserves the subject only, for each learner
+  // in the selected grade and exam. It does NOT restore/delete other subjects.
+  window.deleteClassSubjectMarks=async function(){
+    const examPeriod=typeof normalizeExamPeriod==="function"
+      ? normalizeExamPeriod(document.getElementById("resultsExamPeriod")?.value)
+      : String(document.getElementById("resultsExamPeriod")?.value||"").trim();
+    if(!examPeriod) return Swal.fire("Select Exam Period","Please select an exam period first.","warning");
+
+    const learners=window.currentFilteredLearners||[];
+    if(!learners.length) return Swal.fire("No Learners Loaded","Please load marks first.","info");
+
+    const grades=[...new Set(learners.map(l=>String(l.grade||"").trim()).filter(Boolean))].sort();
+    const gradeOptions=grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("");
+
+    let subjects=[...(window.schoolSubjects||[])].filter(Boolean).sort();
+    if(!subjects.length){
+      const setSubjects=new Set();
+      learners.forEach(l=>{
+        Object.keys(l.marks?.[examPeriod]||{}).forEach(k=>{
+          if(!["total","average","mean","grade","points","position","rank","stream"].includes(k)) setSubjects.add(k);
+        });
+      });
+      subjects=[...setSubjects].sort();
+    }
+    if(!subjects.length) return Swal.fire("No Subjects","No recorded subjects found.","info");
+
+    const subjectOptions=subjects.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
+
+    const {value}=await Swal.fire({
+      title:"🗑 Move Subject Marks to Recycle Bin",
+      html:`<div style="text-align:left">
+        <label><b>Select Grade</b></label>
+        <select id="rasmRBGrade" class="swal2-select" style="width:100%">${gradeOptions}</select>
+        <label><b>Select Subject</b></label>
+        <select id="rasmRBSubject" class="swal2-select" style="width:100%">${subjectOptions}</select>
+      </div>`,
+      showCancelButton:true,confirmButtonText:"Continue",
+      cancelButtonText:"Cancel",confirmButtonColor:"#f59e0b",
+      preConfirm:()=>({
+        grade:document.getElementById("rasmRBGrade")?.value,
+        subject:document.getElementById("rasmRBSubject")?.value
+      })
+    });
+    if(!value) return;
+
+    const gradeLearners=learners.filter(l=>String(l.grade||"").trim()===value.grade);
+    const confirm=await Swal.fire({
+      title:"Move subject marks?",
+      html:`<b>${esc(value.subject)}</b> marks for <b>${gradeLearners.length}</b> learner(s) in <b>${esc(value.grade)}</b> will be moved to the Recycle Bin.<br>
+            <span style="color:#16a34a;font-weight:700">Each learner's subject mark will be restored separately.</span>`,
+      icon:"warning",showCancelButton:true,
+      confirmButtonText:"🗑 Move to Recycle Bin",
+      cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"
+    });
+    if(!confirm.isConfirmed) return;
+
+    const schoolId=getSchoolId();
+    try{
+      Swal.fire({title:"Moving Subject Marks...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+      let moved=0;
+      for(const learner of gradeLearners){
+        if(!learner.id) continue;
+        const path=`schools/${schoolId}/students/${learner.id}/marks/${examPeriod}/${value.subject}`;
+        const snap=await fastGet(ref(db,path));
+        if(snap.exists()){
+          await saveRecycleRecord(
+            "examResults",
+            path,
+            snap.val(),
+            `${learner.id}_${examPeriod}_${value.subject}`
+          );
+          await remove(ref(db,path));
+          moved++;
+        }
+      }
+      Swal.close();
+      try{await window.loadMarksUnifiedClean?.();}catch(_){}
+      Swal.fire("Moved to Recycle Bin",`${moved} subject mark record(s) were moved.`,"success");
+    }catch(error){
+      Swal.close();
+      Swal.fire("Delete Failed",error.message||"Subject marks were not deleted.","error");
+    }
+  };
+
+  // ---------------------------------------------------------
+  // 4. Recycle Bin access buttons in every requested section.
+  // ---------------------------------------------------------
+  const sectionMap={
+    students:"students",
+    teacher:"teachers",
+    teachers:"teachers",
+    supportStaff:"supportStaff",
+    ict:"ict",
+    attendanceSection:"attendance",
+    library:"library",
+    fees:"fees",
+    transport:"transport",
+    hostel:"hostel",
+    inventory:"inventory",
+    resultsSection:"examResults"
+  };
+
+  function injectSectionButtons(){
+    Object.entries(sectionMap).forEach(([sectionId,module])=>{
+      const section=document.getElementById(sectionId);
+      if(!section || section.querySelector(".rasm-recycle-section-btn")) return;
+      const btn=document.createElement("button");
+      btn.type="button";
+      btn.className="rasm-recycle-section-btn";
+      btn.innerHTML="♻️ Restore Deleted Records";
+      btn.title="Open Recycle Bin for this module";
+      btn.onclick=()=>openRecycleBin(module);
+      section.insertBefore(btn,section.firstChild);
+    });
+  }
+
+  function addFloatingButton(){
+    if(document.getElementById("rasmRecycleFloatingBtn")) return;
+    const btn=document.createElement("button");
+    btn.id="rasmRecycleFloatingBtn";
+    btn.type="button";
+    btn.innerHTML="♻️ Recycle Bin";
+    btn.title="Restore deleted records individually";
+    btn.onclick=()=>openRecycleBin("all");
+    document.body.appendChild(btn);
+  }
+
+  // Also add Recycle Bin to the School Management popup.
+  const originalSchoolManagement=window.openSchoolManagementMenu;
+  if(typeof originalSchoolManagement==="function" && !window.__rasmRecycleSchoolMenuPatched){
+    window.__rasmRecycleSchoolMenuPatched=true;
+    window.openSchoolManagementMenu=function(){
+      const result=originalSchoolManagement.apply(this,arguments);
+      setTimeout(()=>{
+        const container=document.querySelector(".swal2-html-container");
+        if(container && !container.querySelector(".rasm-school-recycle-btn")){
+          const b=document.createElement("button");
+          b.className="swal2-confirm swal2-styled rasm-school-recycle-btn";
+          b.style.cssText="width:100%;margin:8px 0 0;background:#7c3aed!important;";
+          b.textContent="♻️ Recycle Bin — Restore Deleted Records";
+          b.onclick=()=>openRecycleBin("all");
+          container.appendChild(b);
+        }
+      },80);
+      return result;
+    };
+  }
+
+  function init(){
+    injectSectionButtons();
+    addFloatingButton();
+    const observer=new MutationObserver(()=>injectSectionButtons());
+    observer.observe(document.body,{childList:true,subtree:true});
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",init);
+  }else{
+    setTimeout(init,50);
+  }
+
+  window.openRasmRecycleBin=openRecycleBin;
+})();
+</script>
+
+
+<!-- =========================================================
+     RASM 360 FINAL RECYCLE-BIN ACCESS + PROFILE MODAL PATCH
+     - Recycle Bin is NOT floating
+     - Recycle Bin access is inside User Management
+     - Only ADMIN can delete / restore / permanently delete
+     - School Profile Setup is centered
+========================================================= -->
+<style id="rasm360-final-recycle-profile-patch">
+  /* School Profile must always appear centered */
+  #schoolProfileModal{
+    display:none;
+    position:fixed !important;
+    inset:0 !important;
+    width:100% !important;
+    height:100% !important;
+    align-items:center !important;
+    justify-content:center !important;
+    padding:20px !important;
+    box-sizing:border-box !important;
+    z-index:99999 !important;
+    background:rgba(0,0,0,.60) !important;
+  }
+
+  #schoolProfileModal .modal-box{
+    margin:0 auto !important;
+    max-height:90vh !important;
+    overflow-y:auto !important;
+    width:min(420px, calc(100vw - 40px)) !important;
+    box-sizing:border-box !important;
+  }
+
+  /* The recycle button is now a normal User Management submenu item. */
+  #rasmRecycleFloatingBtn{display:none !important;}
+  .rasm-user-recycle-btn{
+    width:100%;
+    margin:8px 0 0 !important;
+    padding:11px 14px !important;
+    border:0 !important;
+    border-radius:10px !important;
+    background:#7c3aed !important;
+    color:#fff !important;
+    font-weight:800 !important;
+    cursor:pointer !important;
+    text-align:left !important;
+  }
+  .rasm-user-recycle-btn:hover{background:#6d28d9 !important;}
+
+  /* Section-level restore controls are admin-only. */
+  .rasm-recycle-section-btn.rasm-non-admin-hidden{display:none !important;}
+</style>
+
+<script id="rasm360-final-recycle-profile-patch-script">
+(function(){
+  "use strict";
+
+  function rasmIsAdmin(){
+    const u = window.currentUser || {};
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem("currentUser") || "{}"); } catch(_){ }
+    const role = String(
+      window.currentUserRole ||
+      window.userRole ||
+      u.role ||
+      stored.role ||
+      ""
+    ).toLowerCase().trim();
+    return role === "admin" || role === "superadmin";
+  }
+
+  function rasmAdminOnly(){
+    if (rasmIsAdmin()) return true;
+    Swal.fire({
+      icon:"error",
+      title:"Admin Access Required",
+      text:"Only an administrator can delete, restore, or permanently delete records.",
+      confirmButtonColor:"#2563eb"
+    });
+    return false;
+  }
+
+  window.rasmIsAdmin = rasmIsAdmin;
+
+  /* ---------------------------------------------------------
+     REMOVE THE OLD FLOATING BUTTON COMPLETELY
+  --------------------------------------------------------- */
+  function removeFloatingRecycle(){
+    document.getElementById("rasmRecycleFloatingBtn")?.remove();
+  }
+  removeFloatingRecycle();
+  setTimeout(removeFloatingRecycle, 100);
+  setTimeout(removeFloatingRecycle, 500);
+  setTimeout(removeFloatingRecycle, 1500);
+
+  /* ---------------------------------------------------------
+     PUT RECYCLE BIN INSIDE 👥 USER MANAGEMENT
+  --------------------------------------------------------- */
+  function addRecycleToUserManagement(){
+    const submenu = document.getElementById("usersSubmenu");
+    if (!submenu) return;
+
+    let btn = submenu.querySelector(".rasm-user-recycle-btn");
+
+    if (!rasmIsAdmin()){
+      if (btn) btn.remove();
+      return;
+    }
+
+    if (!btn){
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rasm-user-recycle-btn";
+      btn.innerHTML = "♻️ Restore Deleted Records";
+      btn.title = "Admin only — restore deleted records one at a time";
+      btn.onclick = function(){
+        if (!rasmAdminOnly()) return;
+        if (typeof window.openRasmRecycleBin === "function"){
+          window.openRasmRecycleBin("all");
+        }
+      };
+      submenu.appendChild(btn);
+    }
+  }
+
+  /* ---------------------------------------------------------
+     HIDE ALL SECTION RECYCLE BUTTONS FROM NON-ADMINS
+  --------------------------------------------------------- */
+  function secureRecycleSectionButtons(){
+    document.querySelectorAll(".rasm-recycle-section-btn").forEach(btn=>{
+      if (rasmIsAdmin()){
+        btn.classList.remove("rasm-non-admin-hidden");
+      }else{
+        btn.classList.add("rasm-non-admin-hidden");
+      }
+    });
+  }
+
+  function refreshRecycleUI(){
+    removeFloatingRecycle();
+    addRecycleToUserManagement();
+    secureRecycleSectionButtons();
+  }
+
+  /* ---------------------------------------------------------
+     SECURE RECYCLE BIN OPENING
+  --------------------------------------------------------- */
+  const oldOpenRecycle = window.openRasmRecycleBin;
+  if (typeof oldOpenRecycle === "function" && !window.__rasmAdminRecycleOpenGuard){
+    window.__rasmAdminRecycleOpenGuard = true;
+    window.openRasmRecycleBin = function(module){
+      if (!rasmAdminOnly()) return;
+      return oldOpenRecycle.apply(this, arguments);
+    };
+  }
+
+  /* ---------------------------------------------------------
+     SECURE COMMON DELETE ENTRY POINT
+     Existing modules that use rasmBackgroundRemove are blocked
+     for teachers/parents before anything is removed.
+  --------------------------------------------------------- */
+  const oldBackgroundRemove = window.rasmBackgroundRemove;
+  if (typeof oldBackgroundRemove === "function" && !window.__rasmAdminDeleteGuard){
+    window.__rasmAdminDeleteGuard = true;
+    window.rasmBackgroundRemove = async function(){
+      if (!rasmAdminOnly()) return false;
+      return oldBackgroundRemove.apply(this, arguments);
+    };
+  }
+
+  /* ---------------------------------------------------------
+     SECURE STUDENT DELETE
+  --------------------------------------------------------- */
+  const oldDeleteSelected = window.deleteSelected;
+  if (typeof oldDeleteSelected === "function" && !window.__rasmAdminStudentDeleteGuard){
+    window.__rasmAdminStudentDeleteGuard = true;
+    window.deleteSelected = async function(){
+      if (!rasmAdminOnly()) return;
+      return oldDeleteSelected.apply(this, arguments);
+    };
+  }
+
+  /* ---------------------------------------------------------
+     SECURE EXAM RESULT DELETIONS
+  --------------------------------------------------------- */
+  [
+    "deleteLearnerMarks",
+    "deleteSelectedLearnersMarks",
+    "deleteClassSubjectMarks"
+  ].forEach(name=>{
+    const fn = window[name];
+    const flag = "__rasmAdminGuard_" + name;
+    if (typeof fn === "function" && !window[flag]){
+      window[flag] = true;
+      window[name] = async function(){
+        if (!rasmAdminOnly()) return;
+        return fn.apply(this, arguments);
+      };
+    }
+  });
+
+  /* ---------------------------------------------------------
+     MAKE RESTORE / DELETE-FOREVER BUTTONS ADMIN-ONLY
+     Also protects clicks if a stale recycle modal was already open.
+  --------------------------------------------------------- */
+  document.addEventListener("click", function(e){
+    const target = e.target.closest?.(".rasm-restore-btn, .rasm-delete-forever-btn");
+    if (!target) return;
+    if (!rasmIsAdmin()){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      rasmAdminOnly();
+    }
+  }, true);
+
+  /* ---------------------------------------------------------
+     SCHOOL PROFILE: OPEN AS FLEX SO IT IS CENTERED
+  --------------------------------------------------------- */
+  const oldOpenProfile = window.openSchoolProfileForm;
+  if (typeof oldOpenProfile === "function" && !window.__rasmCenteredProfileGuard){
+    window.__rasmCenteredProfileGuard = true;
+    window.openSchoolProfileForm = async function(){
+      const modal = document.getElementById("schoolProfileModal");
+      if (modal) modal.style.display = "flex";
+
+      const result = await oldOpenProfile.apply(this, arguments);
+
+      /* Original function uses display:block; immediately correct it. */
+      if (modal) modal.style.display = "flex";
+      return result;
+    };
+  }
+
+  /* Keep the modal centered if any other code changes its display. */
+  const profileModal = document.getElementById("schoolProfileModal");
+  if (profileModal){
+    const observer = new MutationObserver(()=>{
+      if (profileModal.style.display === "block"){
+        profileModal.style.display = "flex";
+      }
+    });
+    observer.observe(profileModal,{attributes:true,attributeFilter:["style"]});
+  }
+
+  /* ---------------------------------------------------------
+     ADMIN-ONLY RECYCLE BUTTON IN SCHOOL MANAGEMENT POPUP:
+     remove the old popup button because access now belongs under
+     User Management.
+  --------------------------------------------------------- */
+  function removePopupRecycleButtons(){
+    document.querySelectorAll(".rasm-school-recycle-btn").forEach(b=>b.remove());
+  }
+  removePopupRecycleButtons();
+
+  /* ---------------------------------------------------------
+     KEEP THE USER-MANAGEMENT ITEM AVAILABLE AFTER LOGIN/ROLE
+     CHANGES AND DYNAMIC UI RENDERS.
+  --------------------------------------------------------- */
+  refreshRecycleUI();
+  setTimeout(refreshRecycleUI, 300);
+  setTimeout(refreshRecycleUI, 1000);
+  setTimeout(refreshRecycleUI, 2000);
+
+  if (!window.__rasmRecycleFinalObserver){
+    window.__rasmRecycleFinalObserver = new MutationObserver(function(){
+      removeFloatingRecycle();
+      addRecycleToUserManagement();
+      secureRecycleSectionButtons();
+    });
+    window.__rasmRecycleFinalObserver.observe(document.body,{childList:true,subtree:true});
+  }
+
+})();
+</script>
