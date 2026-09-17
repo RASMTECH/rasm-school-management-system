@@ -1630,6 +1630,54 @@ li{
 
 }
 
+/* =========================================================
+   ♻️ USER MANAGEMENT — RECYCLE BIN
+   ADMIN ONLY
+========================================================= */
+
+#usersSubmenu #userManagementRecycleBtn {
+    width: 100% !important;
+    min-height: 44px !important;
+
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: flex-start !important;
+
+    gap: 10px !important;
+
+    margin: 8px 0 0 !important;
+    padding: 11px 14px !important;
+
+    border: none !important;
+    border-left: 4px solid #a855f7 !important;
+    border-radius: 10px !important;
+
+    background: #4c1d95 !important;
+    color: #ffffff !important;
+
+    font-size: 13px !important;
+    font-weight: 700 !important;
+
+    cursor: pointer !important;
+
+    transition: all .25s ease !important;
+}
+
+/* SHOW ONLY TO ADMIN */
+body.rasm-is-admin #usersSubmenu #userManagementRecycleBtn {
+    display: flex !important;
+}
+
+/* HOVER */
+body.rasm-is-admin #usersSubmenu #userManagementRecycleBtn:hover {
+    background: #6d28d9 !important;
+    border-left-color: #e9d5ff !important;
+    transform: translateX(5px);
+    box-shadow: 0 6px 18px rgba(124, 58, 237, .30);
+}
+
+
 
 /* =========================================================
    ACCESSIBILITY
@@ -6458,6 +6506,12 @@ button.primary{
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style id="rasm360-user-management-recycle-visible-final">
+#usersSubmenu #menuRecycleBin, #usersSubmenu #userManagementRecycleBtn, #usersSubmenu .rasm-user-recycle-btn{display:flex!important;visibility:visible!important;opacity:1!important;position:relative!important;z-index:5!important;}
+.rasm-user-recycle-btn{background:#f5f3ff!important;color:#6d28d9!important;border:1px solid #ddd6fe!important;border-radius:10px!important;padding:11px 13px!important;font-weight:800!important;cursor:pointer!important;}
+.rasm-user-recycle-btn:hover{background:#ede9fe!important;transform:translateY(-1px);}
+.rasm-transport-fees-popup{max-width:1100px!important;width:calc(100vw - 24px)!important;}
+</style>
 </head>
 
 <body>
@@ -7274,38 +7328,64 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
     <!-- USER MANAGEMENT -->
     <!-- ============================= -->
 
-    <div class="menu-section" id="usersMenu">
 
-        <button
-            id="menuUsers"
-            class="menu-btn"
-            onclick="openUsersMenu()">
+<!-- ============================= -->
+<!-- USER MANAGEMENT -->
+<!-- ============================= -->
 
-            👥 User Management
+<div class="menu-section" id="usersMenu">
 
-        </button>
+    <button
+        id="menuUsers"
+        class="menu-btn"
+        onclick="openUsersMenu()">
 
-        <div id="usersSubmenu" class="submenu">
+        👥 User Management
 
-            <button onclick="openSchoolProfileForm()">
-                🏫 School Profile
-            </button>
+    </button>
 
-            <button id="menuCreateUsers" onclick="show('adminUsersPanel')">
-                👥 Create Users
-            </button>
+  <div id="usersSubmenu" class="submenu">
 
-            <button id="menuManageUsers" onclick="show('usersSection')">
-                👤 Manage Users
-            </button>
+    <button
+        id="menuSchoolProfile"
+        onclick="openSchoolProfileForm()">
+        🏫 School Profile
+    </button>
 
-            <button id="menuAuditTrail" onclick="show('auditTrailSection')">
-                🛡️ Audit Trail
-            </button>
+    <button
+        id="menuCreateUsers"
+        onclick="show('adminUsersPanel')">
+        👥 Create Users
+    </button>
 
-            <button id="passwordBtn" onclick="openPasswordModal()">
-                🔐 Change Password
-            </button>
+    <button
+        id="menuManageUsers"
+        onclick="show('usersSection')">
+        👤 Manage Users
+    </button>
+
+    <button
+        id="menuAuditTrail"
+        onclick="show('auditTrailSection')">
+        🛡️ Audit Trail
+    </button>
+
+    <!-- =====================================================
+         ♻️ ADMIN ONLY RECYCLE BIN
+         ===================================================== -->
+    <button
+        id="menuRecycleBin"
+        class="rasm-user-recycle-btn rasm-admin-only-recycle"
+        onclick="openAdminRecycleBin()">
+        ♻️ Recycle Bin
+    </button>
+
+    <button
+        id="passwordBtn"
+        onclick="openPasswordModal()">
+        🔐 Change Password
+    </button>
+
 
         </div>
 
@@ -7666,7 +7746,7 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
 
   <div class="card-content">
     <h3>Lower Primary (G1–G3)</h3>
-    <p id="lowerPrimaryCount">0</p>
+    <p id="lowerPrimaryCount">0</p><div class="rasm-level-hover-details" data-level="lower"></div>
   </div>
 </div>
 
@@ -7676,7 +7756,7 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
 
   <div class="card-content">
     <h3>Upper Primary (G4–G6)</h3>
-    <p id="upperPrimaryCount">0</p>
+    <p id="upperPrimaryCount">0</p><div class="rasm-level-hover-details" data-level="upper"></div>
   </div>
 </div>
 
@@ -7686,7 +7766,7 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
 
   <div class="card-content">
     <h3>Junior Secondary (G7–G9)</h3>
-    <p id="juniorSecondaryCount">0</p>
+    <p id="juniorSecondaryCount">0</p><div class="rasm-level-hover-details" data-level="junior"></div>
   </div>
 </div>
 
@@ -7696,7 +7776,7 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
 
   <div class="card-content">
     <h3>Senior Secondary (G10–G12)</h3>
-    <p id="seniorSecondaryCount">0</p>
+    <p id="seniorSecondaryCount">0</p><div class="rasm-level-hover-details" data-level="senior"></div>
   </div>
 </div>
   </div>
@@ -10684,6 +10764,129 @@ border-radius:6px;
 
 
 <!-- =========================================================
+     💰 RASM 360 — FEE FILTER + TABLE SCROLL FIX
+========================================================= -->
+<style id="rasm360-fee-filter-scroll-fix">
+  .fee-filters{
+    display:flex !important;
+    flex-wrap:wrap !important;
+    align-items:flex-end !important;
+    gap:16px !important;
+    width:100% !important;
+    margin:0 0 20px !important;
+    padding:15px !important;
+    background:#f8fafc !important;
+    border:1px solid #e2e8f0 !important;
+    border-radius:14px !important;
+  }
+
+  .fee-filter-group{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:6px !important;
+    min-width:220px !important;
+    flex:0 1 260px !important;
+  }
+
+  .fee-filter-group label{
+    margin:0 !important;
+    color:#0f172a !important;
+    font-weight:800 !important;
+    font-size:13px !important;
+  }
+
+  .fee-filter-group select{
+    width:100% !important;
+    max-width:none !important;
+    min-height:44px !important;
+    margin:0 !important;
+    padding:10px 12px !important;
+    background:#fff !important;
+    border:1px solid #cbd5e1 !important;
+    border-radius:9px !important;
+    color:#111827 !important;
+    cursor:pointer !important;
+  }
+
+  .fee-filter-group select:focus{
+    border-color:#2563eb !important;
+    box-shadow:0 0 0 3px rgba(37,99,235,.12) !important;
+    outline:none !important;
+  }
+
+  /* The fee table can be wider than the screen and can be scrolled
+     left/right without moving the entire ERP page. */
+  #feesTableScrollContainer{
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:auto !important;
+    overflow-y:visible !important;
+    -webkit-overflow-scrolling:touch !important;
+    scrollbar-width:auto !important;
+    border:1px solid #e2e8f0 !important;
+    border-radius:10px !important;
+    background:#fff !important;
+    position:relative !important;
+  }
+
+  #feesTableScrollContainer::-webkit-scrollbar{
+    height:12px !important;
+  }
+
+  #feesTableScrollContainer::-webkit-scrollbar-track{
+    background:#e5e7eb !important;
+    border-radius:20px !important;
+  }
+
+  #feesTableScrollContainer::-webkit-scrollbar-thumb{
+    background:#64748b !important;
+    border-radius:20px !important;
+    border:2px solid #e5e7eb !important;
+  }
+
+  #feesTableScrollContainer::-webkit-scrollbar-thumb:hover{
+    background:#334155 !important;
+  }
+
+  #feesTable{
+    width:max-content !important;
+    min-width:1200px !important;
+    table-layout:auto !important;
+    border-collapse:collapse !important;
+    white-space:nowrap !important;
+  }
+
+  #feesTable th,
+  #feesTable td{
+    white-space:nowrap !important;
+    min-width:100px;
+  }
+
+  #feesTable th{
+    position:sticky;
+    top:0;
+    z-index:5;
+  }
+
+  @media(max-width:768px){
+    .fee-filters{
+      flex-direction:column !important;
+      align-items:stretch !important;
+    }
+
+    .fee-filter-group{
+      width:100% !important;
+      min-width:0 !important;
+      flex:1 1 auto !important;
+    }
+
+    #feesTable{
+      min-width:1200px !important;
+    }
+  }
+</style>
+
+<!-- =========================================================
      FEE ACTIONS + FILTERS CSS
 ========================================================= -->
 
@@ -11535,9 +11738,11 @@ document.addEventListener(
 
 
 <hr>
-
-<!-- ================= FEES TABLE ================= -->
-<table border="1" width="100%" id="feesTable">
+<!-- =========================================================
+     💰 FEES TABLE — DEDICATED HORIZONTAL SCROLL CONTAINER
+========================================================= -->
+<div id="feesTableScrollContainer" class="fees-table-scroll-container">
+  <table border="1" width="100%" id="feesTable">
 
   <thead>
     <!-- 🔥 Headers generated dynamically from JS -->
@@ -11546,6 +11751,7 @@ document.addEventListener(
   <tbody></tbody>
 
 </table>
+</div>
 
 </div>
 
@@ -23661,29 +23867,41 @@ async function generateAdmissionNumbers(count) {
 
     return admissionNumbers;
 }
-/* ============================================================
-   🚀 RASM 360 — ULTRA-FAST STUDENT REGISTRATION
-   Designed for thousands of schools
-   Firebase Realtime Database
-============================================================ */
+ /* ============================================================
+    🚀 RASM 360 — STUDENT REGISTRATION
+    SINGLE + BULK REGISTRATION
+    Firebase Realtime Database
+ ============================================================ */
 
 window.addStudent = async function () {
 
     if (window.__addingStudents) return;
+
     window.__addingStudents = true;
 
     const startedAt = performance.now();
 
+    let progressBox = null;
+    let photoURL = "";
+
     try {
 
         /* =====================================================
-           1. GET DOM ELEMENTS ONCE
+           1. GET FORM ELEMENTS
         ===================================================== */
 
-        const studentNameField = document.getElementById("studentName");
-        const gradeField       = document.getElementById("grade");
-        const ageField         = document.getElementById("age");
-        const photoInput       = document.getElementById("photo");
+        const studentNameField =
+            document.getElementById("studentName");
+
+        const gradeField =
+            document.getElementById("grade");
+
+        const ageField =
+            document.getElementById("age");
+
+        const photoInput =
+            document.getElementById("photo");
+
 
         const nameInput =
             studentNameField?.value?.trim() || "";
@@ -23695,22 +23913,27 @@ window.addStudent = async function () {
             gradeField?.value?.trim() || "";
 
         const gender =
-            document.getElementById("gender")?.value || "Not Set";
+            document.getElementById("gender")?.value?.trim() ||
+            "Not Set";
 
         const parentName =
-            document.getElementById("parentName")?.value?.trim() || "";
+            document.getElementById("parentName")?.value?.trim() ||
+            "";
 
         const parentPhone =
-            document.getElementById("parentPhone")?.value?.trim() || "";
+            document.getElementById("parentPhone")?.value?.trim() ||
+            "";
 
         const birthCert =
-            document.getElementById("birthCert")?.value?.trim() || "";
+            document.getElementById("birthCert")?.value?.trim() ||
+            "";
 
         let age =
             ageField?.value?.trim() || "";
 
         let admissionNo =
-            document.getElementById("admissionNo")?.value?.trim() || "";
+            document.getElementById("admissionNo")?.value?.trim() ||
+            "";
 
         const photoFile =
             photoInput?.files?.[0] || null;
@@ -23720,12 +23943,24 @@ window.addStudent = async function () {
            2. VALIDATION
         ===================================================== */
 
-        if (!nameInput || !grade) {
+        if (!nameInput) {
 
             await Swal.fire({
                 icon: "warning",
-                title: "Missing Fields",
-                text: "Student name and grade are required."
+                title: "Learner Name Required",
+                text: "Please enter or paste at least one learner name."
+            });
+
+            return;
+        }
+
+
+        if (!grade) {
+
+            await Swal.fire({
+                icon: "warning",
+                title: "Grade Required",
+                text: "Please select the learner's grade."
             });
 
             return;
@@ -23733,40 +23968,56 @@ window.addStudent = async function () {
 
 
         /* =====================================================
-           3. PARSE NAMES
+           3. PARSE BULK NAMES
+           
+           Supports:
+           - One learner
+           - Multiple lines
+           - Tabs
+           - Commas
+           - Excel pasted names
         ===================================================== */
 
-        let namesArray = nameInput
-            .split(/\r?\n|\t|,/)
-            .map(name =>
-                name
-                    .trim()
-                    .replace(/\s+/g, " ")
-            )
-            .filter(Boolean);
+        let namesArray =
+            nameInput
+                .split(/\r?\n|\t|,/)
+                .map(name =>
+                    name
+                        .trim()
+                        .replace(/\s+/g, " ")
+                )
+                .filter(Boolean);
 
 
         /* =====================================================
-           4. REMOVE DUPLICATES LOCALLY
+           4. REMOVE DUPLICATES
         ===================================================== */
 
-        const uniqueNames = new Map();
+        const uniqueNames =
+            new Map();
+
 
         for (const name of namesArray) {
 
             const normalized =
-                name.toLowerCase();
+                name
+                    .toLowerCase()
+                    .replace(/\s+/g, " ")
+                    .trim();
+
 
             if (!uniqueNames.has(normalized)) {
 
                 const formatted =
                     name
                         .split(" ")
+                        .filter(Boolean)
                         .map(word =>
                             word.charAt(0).toUpperCase() +
                             word.slice(1).toLowerCase()
                         )
                         .join(" ");
+
 
                 uniqueNames.set(
                     normalized,
@@ -23775,8 +24026,11 @@ window.addStudent = async function () {
             }
         }
 
+
         namesArray =
-            [...uniqueNames.values()];
+            Array.from(
+                uniqueNames.values()
+            );
 
 
         const total =
@@ -23804,7 +24058,8 @@ window.addStudent = async function () {
             await Swal.fire({
                 icon: "warning",
                 title: "Too Many Learners",
-                text: "Please register a maximum of 5,000 learners per upload."
+                text:
+                    "A maximum of 5,000 learners can be registered at once."
             });
 
             return;
@@ -23816,17 +24071,15 @@ window.addStudent = async function () {
 
 
         /* =====================================================
-           6. GET SCHOOL ID ONCE
-           
-           IMPORTANT:
-           This must resolve ONLY the CURRENT SCHOOL.
-           Never download all schools.
+           6. CURRENT SCHOOL
         ===================================================== */
 
         const schoolId =
             window.schoolId ||
             window.currentSchoolId ||
-            localStorage.getItem("schoolId");
+            localStorage.getItem("schoolId") ||
+            sessionStorage.getItem("schoolId") ||
+            sessionStorage.getItem("currentSchoolId");
 
 
         if (!schoolId) {
@@ -23838,22 +24091,24 @@ window.addStudent = async function () {
 
 
         /* =====================================================
-           7. SCHOOL-SCOPED FIREBASE REFERENCE
-           
-           CRITICAL FOR 5,000+ SCHOOLS
+           7. SCHOOL-SCOPED STUDENTS REFERENCE
         ===================================================== */
 
         const studentsRef =
             schoolRef("students");
 
 
+        if (!studentsRef) {
+
+            throw new Error(
+                "Unable to access the school's students database."
+            );
+        }
+
+
         /* =====================================================
            8. PHOTO
-           
-           Keep existing behavior.
         ===================================================== */
-
-        let photoURL = "";
 
         if (photoFile) {
 
@@ -23862,7 +24117,12 @@ window.addStudent = async function () {
                 photoURL =
                     URL.createObjectURL(photoFile);
 
-            } catch (_) {
+            } catch (error) {
+
+                console.warn(
+                    "Photo preparation failed:",
+                    error
+                );
 
                 photoURL = "";
             }
@@ -23878,42 +24138,111 @@ window.addStudent = async function () {
 
 
         /* =====================================================
-           10. SINGLE STUDENT
+           10. SAFE FIREBASE KEY GENERATOR
+           
+           Does NOT depend on push().
+           
+           Firebase Realtime Database keys cannot contain:
+           . # $ [ ]
+           
+           This generator produces safe keys.
+        ===================================================== */
+
+        function createStudentKey(index = 0) {
+
+            const timestamp =
+                Date.now().toString(36);
+
+            const randomPart =
+                Math.random()
+                    .toString(36)
+                    .substring(2, 12);
+
+            const indexPart =
+                Number(index)
+                    .toString(36);
+
+            return (
+                "student_" +
+                timestamp +
+                "_" +
+                indexPart +
+                "_" +
+                randomPart
+            );
+        }
+
+
+        /* =====================================================
+           11. SINGLE LEARNER
         ===================================================== */
 
         if (!isBulk) {
 
             Swal.fire({
-                title: "Saving Learner...",
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
+
+                title:
+                    "Saving Learner...",
+
+                html:
+                    "Please wait while the learner is registered.",
+
+                allowOutsideClick:
+                    false,
+
+                allowEscapeKey:
+                    false,
+
+                didOpen:
+                    () => {
+                        Swal.showLoading();
+                    }
             });
 
 
             try {
 
+                /* ---------------------------------------------
+                   AGE
+                --------------------------------------------- */
+
                 if (!age) {
-                    age =
-                        getRandomAgeByGrade(grade);
+
+                    if (
+                        typeof getRandomAgeByGrade ===
+                        "function"
+                    ) {
+
+                        age =
+                            getRandomAgeByGrade(grade);
+
+                    } else {
+
+                        age = "";
+                    }
                 }
 
 
-                /*
-                 * IMPORTANT:
-                 * Only generate admission number if necessary.
-                 *
-                 * If your generateAdmissionNumber()
-                 * performs Firebase reads, it can become
-                 * a bottleneck.
-                 */
+                /* ---------------------------------------------
+                   ADMISSION NUMBER
+                --------------------------------------------- */
 
                 if (!admissionNo) {
 
-                    admissionNo =
-                        await generateAdmissionNumber();
+                    if (
+                        typeof generateAdmissionNumber ===
+                        "function"
+                    ) {
+
+                        admissionNo =
+                            await generateAdmissionNumber();
+
+                    } else {
+
+                        admissionNo =
+                            "ADM-" +
+                            Date.now();
+                    }
                 }
 
 
@@ -23921,30 +24250,50 @@ window.addStudent = async function () {
                     Date.now();
 
 
+                /* ---------------------------------------------
+                   CREATE SAFE DATABASE KEY
+                --------------------------------------------- */
+
+                const studentKey =
+                    createStudentKey(0);
+
+
+                /* ---------------------------------------------
+                   CREATE STUDENT DATA
+                --------------------------------------------- */
+
                 const studentData = {
 
                     name:
                         namesArray[0],
 
-                    gender,
+                    gender:
+                        gender,
 
                     adm:
-                        adm || admissionNo,
+                        adm ||
+                        admissionNo,
 
-                    admissionNo,
+                    admissionNo:
+                        admissionNo,
 
-                    grade,
+                    grade:
+                        grade,
 
-                    age,
+                    age:
+                        age,
 
                     admissionYear:
                         year,
 
-                    parentName,
+                    parentName:
+                        parentName,
 
-                    parentPhone,
+                    parentPhone:
+                        parentPhone,
 
-                    birthCert,
+                    birthCert:
+                        birthCert,
 
                     photo:
                         photoURL,
@@ -23963,16 +24312,9 @@ window.addStudent = async function () {
                 };
 
 
-                /*
-                 * ONE WRITE
-                 */
-
-                const newRef =
-                    push(studentsRef);
-
-                const studentKey =
-                    newRef.key;
-
+                /* ---------------------------------------------
+                   FIREBASE UPDATE
+                --------------------------------------------- */
 
                 const updates = {};
 
@@ -23980,28 +24322,61 @@ window.addStudent = async function () {
                     studentData;
 
 
-                const studentWrite = rasmBackgroundUpdate(studentsRef, updates);
-                studentWrite.catch(err => console.error("Learner save failed:", err));
+                await update(
+                    studentsRef,
+                    updates
+                );
+
+
+                console.log(
+                    "✅ Learner saved:",
+                    studentKey,
+                    studentData
+                );
 
 
                 Swal.close();
 
 
-                /*
-                 * UI only — don't reload everything
-                 */
+                /* ---------------------------------------------
+                   REFRESH UI
+                --------------------------------------------- */
 
                 requestAnimationFrame(() => {
 
                     try {
 
-                        loadGradeFilterOptions?.();
+                        if (
+                            typeof loadGradeFilterOptions ===
+                            "function"
+                        ) {
 
-                        applyStudentFilters?.();
+                            loadGradeFilterOptions();
+                        }
 
-                    } catch (_) {}
+
+                        if (
+                            typeof applyStudentFilters ===
+                            "function"
+                        ) {
+
+                            applyStudentFilters();
+                        }
+
+                    } catch (error) {
+
+                        console.warn(
+                            "UI refresh warning:",
+                            error
+                        );
+                    }
+
                 });
 
+
+                /* ---------------------------------------------
+                   SUCCESS
+                --------------------------------------------- */
 
                 await Swal.fire({
 
@@ -24011,15 +24386,26 @@ window.addStudent = async function () {
                     title:
                         "Learner Added",
 
+                    html:
+                        `
+                        <b>${namesArray[0]}</b>
+                        has been registered successfully.
+                        `,
+
                     timer:
-                        1000,
+                        1500,
 
                     showConfirmButton:
                         false
                 });
 
 
-                studentNameField.value = "";
+                /* ---------------------------------------------
+                   RESET FORM
+                --------------------------------------------- */
+
+                if (studentNameField)
+                    studentNameField.value = "";
 
                 if (ageField)
                     ageField.value = "";
@@ -24030,20 +24416,20 @@ window.addStudent = async function () {
 
                 return;
 
-            } catch (err) {
+            } catch (error) {
 
                 Swal.close();
 
-                throw err;
+                throw error;
             }
         }
 
 
         /* =====================================================
-           11. BULK REGISTRATION
+           12. BULK REGISTRATION
         ===================================================== */
 
-        const progressBox =
+        progressBox =
             document.createElement("div");
 
 
@@ -24054,9 +24440,9 @@ window.addStudent = async function () {
             z-index:999999;
 
             background:#0f172a;
-            color:#fff;
+            color:#ffffff;
 
-            padding:14px 18px;
+            padding:15px 20px;
 
             border-radius:14px;
 
@@ -24064,16 +24450,20 @@ window.addStudent = async function () {
             font-weight:600;
 
             box-shadow:
-                0 10px 30px rgba(0,0,0,.25);
+                0 10px 30px rgba(0,0,0,.30);
 
-            min-width:180px;
+            min-width:230px;
 
             text-align:center;
+
+            line-height:1.5;
         `;
 
 
-        progressBox.innerHTML =
-            `Preparing ${total.toLocaleString()} learners...`;
+        progressBox.innerHTML = `
+            Preparing learners...<br>
+            0 / ${total.toLocaleString()}
+        `;
 
 
         document.body.appendChild(
@@ -24096,16 +24486,16 @@ window.addStudent = async function () {
                 false,
 
             didOpen:
-                () => Swal.showLoading()
+                () => {
+
+                    Swal.showLoading();
+
+                }
         });
 
 
         /* =====================================================
-           12. BUILD EVERYTHING LOCALLY
-           
-           NO FIREBASE READS
-           NO NETWORK CALLS
-           NO WORKERS
+           13. BUILD ALL RECORDS LOCALLY
         ===================================================== */
 
         const updates = {};
@@ -24114,108 +24504,234 @@ window.addStudent = async function () {
             Date.now();
 
 
-        /*
-         * Local admission counter.
-         *
-         * This avoids querying Firebase for every learner.
-         */
+        /* =====================================================
+           14. ADMISSION NUMBERS
+        ===================================================== */
 
-     /* =========================================================
-   🔥 RESERVE ALL ADMISSION NUMBERS AT ONCE
-   ========================================================= */
+        let admissionNumbers = [];
 
-let admissionNumbers = [];
 
-if (!adm) {
+        if (adm) {
 
-    admissionNumbers =
-        await generateAdmissionNumbers(total);
+            /*
+             * If an ADM was manually supplied,
+             * preserve existing form behavior.
+             */
 
-} else {
+            admissionNumbers =
+                new Array(total).fill(adm);
 
-    admissionNumbers =
-        new Array(total).fill(adm);
-}
+        } else {
+
+            if (
+                typeof generateAdmissionNumbers ===
+                "function"
+            ) {
+
+                admissionNumbers =
+                    await generateAdmissionNumbers(total);
+
+            } else {
+
+                /*
+                 * Safe fallback.
+                 */
+
+                for (
+                    let i = 0;
+                    i < total;
+                    i++
+                ) {
+
+                    if (
+                        typeof generateAdmissionNumber ===
+                        "function"
+                    ) {
+
+                        admissionNumbers.push(
+                            await generateAdmissionNumber()
+                        );
+
+                    } else {
+
+                        admissionNumbers.push(
+                            "ADM-" +
+                            Date.now() +
+                            "-" +
+                            (i + 1)
+                        );
+                    }
+                }
+            }
+        }
 
 
         /* =====================================================
-           13. CREATE ALL STUDENTS IN MEMORY
+           15. VERIFY ADMISSION NUMBERS
         ===================================================== */
 
-      for (let i = 0; i < total; i++) {
+        if (
+            !Array.isArray(admissionNumbers) ||
+            admissionNumbers.length !== total
+        ) {
 
-    const name =
-        namesArray[i];
+            throw new Error(
+                "The system could not generate admission numbers for all learners."
+            );
+        }
 
-    const admNo =
-        admissionNumbers[i];
 
-    const studentKey =
-        push(studentsRef).key;
+        /* =====================================================
+           16. CREATE ALL LEARNERS
+        ===================================================== */
 
-    updates[studentKey] = {
+        for (
+            let i = 0;
+            i < total;
+            i++
+        ) {
 
-        name,
+            const name =
+                namesArray[i];
 
-        gender,
 
-        adm:
-            admNo,
+            const admNo =
+                admissionNumbers[i];
 
-        admissionNo:
-            admNo,
 
-        grade,
+            /* ---------------------------------------------
+               SAFE UNIQUE DATABASE KEY
+            --------------------------------------------- */
 
-        age:
-            age ||
-            getRandomAgeByGrade(grade),
+            const studentKey =
+                createStudentKey(i);
 
-        admissionYear:
-            year,
 
-        parentName,
+            /* ---------------------------------------------
+               AGE
+            --------------------------------------------- */
 
-        parentPhone,
+            let learnerAge =
+                age;
 
-        birthCert,
 
-        photo:
-            photoURL,
+            if (!learnerAge) {
 
-        active:
-            true,
+                try {
 
-        deleted:
-            false,
+                    if (
+                        typeof getRandomAgeByGrade ===
+                        "function"
+                    ) {
 
-        createdAt:
-            now,
+                        learnerAge =
+                            getRandomAgeByGrade(grade);
 
-        updatedAt:
-            now
+                    } else {
+
+                        learnerAge = "";
+                    }
+
+                } catch (_) {
+
+                    learnerAge = "";
+                }
+            }
+
+
+            /* ---------------------------------------------
+               CREATE RECORD
+            --------------------------------------------- */
+
+            updates[studentKey] = {
+
+                name:
+                    name,
+
+                gender:
+                    gender,
+
+                adm:
+                    admNo,
+
+                admissionNo:
+                    admNo,
+
+                grade:
+                    grade,
+
+                age:
+                    learnerAge,
+
+                admissionYear:
+                    year,
+
+                parentName:
+                    parentName,
+
+                parentPhone:
+                    parentPhone,
+
+                birthCert:
+                    birthCert,
+
+                photo:
+                    photoURL,
+
+                active:
+                    true,
+
+                deleted:
+                    false,
+
+                createdAt:
+                    now,
+
+                updatedAt:
+                    now
             };
 
 
-            /*
-             * Update visual progress occasionally.
-             * Not on every learner — that would slow the UI.
-             */
+            /* ---------------------------------------------
+               PROGRESS
+            --------------------------------------------- */
 
             if (
-                i % 250 === 0 ||
+                i % 100 === 0 ||
                 i === total - 1
             ) {
 
                 const completed =
                     i + 1;
 
-                progressBox.innerHTML = `
-                    Preparing...<br>
-                    ${completed.toLocaleString()}
-                    /
-                    ${total.toLocaleString()}
-                `;
+
+                if (progressBox) {
+
+                    progressBox.innerHTML = `
+                        Preparing learner records...<br>
+                        ${completed.toLocaleString()}
+                        /
+                        ${total.toLocaleString()}
+                    `;
+                }
+
+
+                Swal.update({
+
+                    title:
+                        `Preparing ${total.toLocaleString()} Learners`,
+
+                    html:
+                        `
+                        Creating learner records...<br>
+                        <b>
+                            ${completed.toLocaleString()}
+                            /
+                            ${total.toLocaleString()}
+                        </b>
+                        `
+                });
+
 
                 await new Promise(
                     resolve =>
@@ -24226,13 +24742,35 @@ if (!adm) {
 
 
         /* =====================================================
-           14. ONE FIREBASE WRITE
-           
-           THIS IS THE BIG PERFORMANCE IMPROVEMENT
+           17. VERIFY ALL RECORDS WERE CREATED
         ===================================================== */
 
-        progressBox.innerHTML =
-            `Saving ${total.toLocaleString()} learners...`;
+        const preparedCount =
+            Object.keys(updates).length;
+
+
+        if (preparedCount !== total) {
+
+            throw new Error(
+                `Only ${preparedCount} of ${total} learner records were prepared.`
+            );
+        }
+
+
+        /* =====================================================
+           18. SAVE ALL LEARNERS
+           
+           IMPORTANT:
+           WAIT FOR FIREBASE.
+        ===================================================== */
+
+        if (progressBox) {
+
+            progressBox.innerHTML = `
+                Saving learners...<br>
+                ${total.toLocaleString()} records
+            `;
+        }
 
 
         Swal.update({
@@ -24241,17 +24779,24 @@ if (!adm) {
                 `Saving ${total.toLocaleString()} Learners`,
 
             html:
-                "Writing to your school's database..."
+                "Writing all learner records to the database..."
         });
 
 
-        const studentWrite = rasmBackgroundUpdate(studentsRef, updates);
-        studentWrite.catch(err => console.error("Bulk learner save failed:", err));
+        await update(
+            studentsRef,
+            updates
+        );
 
 
         /* =====================================================
-           15. SUCCESS
+           19. FIREBASE CONFIRMED
         ===================================================== */
+
+        console.log(
+            `✅ Firebase confirmed ${total} learners saved.`
+        );
+
 
         const elapsed =
             Math.round(
@@ -24260,36 +24805,57 @@ if (!adm) {
             );
 
 
-        progressBox.innerHTML = `
-            ✅ ${total.toLocaleString()} learners registered
-        `;
+        if (progressBox) {
+
+            progressBox.innerHTML = `
+                ✅ ${total.toLocaleString()}
+                learners saved
+            `;
+        }
 
 
         Swal.close();
 
 
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT call loadStudents() immediately.
-         *
-         * If your school has 10,000+ learners,
-         * downloading them again immediately after
-         * registration defeats the performance gains.
-         */
+        /* =====================================================
+           20. REFRESH UI
+        ===================================================== */
 
         requestAnimationFrame(() => {
 
             try {
 
-                loadGradeFilterOptions?.();
+                if (
+                    typeof loadGradeFilterOptions ===
+                    "function"
+                ) {
 
-                applyStudentFilters?.();
+                    loadGradeFilterOptions();
+                }
 
-            } catch (_) {}
+
+                if (
+                    typeof applyStudentFilters ===
+                    "function"
+                ) {
+
+                    applyStudentFilters();
+                }
+
+            } catch (error) {
+
+                console.warn(
+                    "UI refresh warning:",
+                    error
+                );
+            }
 
         });
 
+
+        /* =====================================================
+           21. SUCCESS
+        ===================================================== */
 
         await Swal.fire({
 
@@ -24299,16 +24865,31 @@ if (!adm) {
             title:
                 "Registration Complete 🎉",
 
-            html: `
-                <b>
-                    ${total.toLocaleString()}
-                </b>
-                learners added successfully.
-                <br><br>
-                <small>
+            html:
+                `
+                <div style="font-size:17px;">
+                    <b>
+                        ${total.toLocaleString()}
+                    </b>
+                    learners registered successfully.
+                </div>
+
+                <div style="
+                    margin-top:10px;
+                    font-size:13px;
+                    color:#64748b;
+                ">
+                    Firebase confirmed all records were saved.
+                </div>
+
+                <div style="
+                    margin-top:8px;
+                    font-size:12px;
+                    color:#94a3b8;
+                ">
                     Completed in ${elapsed} ms
-                </small>
-            `,
+                </div>
+                `,
 
             confirmButtonText:
                 "Done"
@@ -24316,38 +24897,17 @@ if (!adm) {
 
 
         /* =====================================================
-           16. RESET FORM
+           22. RESET FORM
         ===================================================== */
 
-        studentNameField.value = "";
+        if (studentNameField)
+            studentNameField.value = "";
 
         if (ageField)
             ageField.value = "";
 
         if (photoInput)
             photoInput.value = "";
-
-
-        /* =====================================================
-           17. CLEANUP
-        ===================================================== */
-
-        if (
-            photoURL &&
-            photoURL.startsWith("blob:")
-        ) {
-
-            setTimeout(() => {
-
-                try {
-                    URL.revokeObjectURL(photoURL);
-                } catch (_) {}
-
-            }, 5000);
-        }
-
-
-        progressBox.remove();
 
 
     } catch (error) {
@@ -24363,7 +24923,32 @@ if (!adm) {
         } catch (_) {}
 
 
-        Swal.fire({
+        if (progressBox) {
+
+            try {
+                progressBox.remove();
+            } catch (_) {}
+
+        }
+
+
+        let message =
+            error?.message ||
+            "Unable to register learners.";
+
+
+        if (
+            message
+                .toLowerCase()
+                .includes("permission")
+        ) {
+
+            message =
+                "Firebase permission denied. Please check your Firebase Realtime Database rules and logged-in school account.";
+        }
+
+
+        await Swal.fire({
 
             icon:
                 "error",
@@ -24372,18 +24957,51 @@ if (!adm) {
                 "Registration Failed",
 
             text:
-                error?.message ||
-                "Unable to register learners."
+                message,
+
+            confirmButtonText:
+                "OK"
         });
 
 
     } finally {
 
+        /* =====================================================
+           CLEANUP
+        ===================================================== */
+
+        if (
+            photoURL &&
+            photoURL.startsWith("blob:")
+        ) {
+
+            setTimeout(() => {
+
+                try {
+
+                    URL.revokeObjectURL(
+                        photoURL
+                    );
+
+                } catch (_) {}
+
+            }, 5000);
+        }
+
+
+        if (progressBox) {
+
+            try {
+                progressBox.remove();
+            } catch (_) {}
+
+        }
+
+
         window.__addingStudents =
             false;
     }
 };
-
 /* =========================================================
    🔥 LIVE NAME COUNTER
 ========================================================= */
@@ -40825,40 +41443,57 @@ function initERP() {
 }
 window.loadFeeFilterGrades = function () {
 
-  const select =
-    document.getElementById("filterFeeGrade");
-
+  const select = document.getElementById("filterFeeGrade");
   if (!select) return;
 
+  let attempts = 0;
+
   const waitForStudents = setInterval(() => {
+    attempts++;
 
-    if (allStudents && allStudents.length > 0) {
+    const students = Array.isArray(window.allStudents)
+      ? window.allStudents
+      : [];
 
+    if (students.length > 0) {
       clearInterval(waitForStudents);
+
+      const currentValue = select.value || "";
 
       const grades = [
         ...new Set(
-          allStudents
-            .map(s => (s.grade || "").trim())
+          students
+            .map(s => String(s.grade || "").trim())
             .filter(Boolean)
         )
-      ];
+      ].sort((a, b) =>
+        a.localeCompare(b, undefined, {
+          numeric: true,
+          sensitivity: "base"
+        })
+      );
 
-      select.innerHTML =
-        `<option value="">All Grades</option>`;
+      select.innerHTML = `<option value="">All Grades</option>`;
 
       grades.forEach(grade => {
-
-        select.innerHTML += `
-          <option value="${grade}">
-            ${grade}
-          </option>
-        `;
+        const option = document.createElement("option");
+        option.value = grade;
+        option.textContent = grade;
+        select.appendChild(option);
       });
 
-      console.log("✅ Grades loaded:", grades);
+      if (grades.includes(currentValue)) {
+        select.value = currentValue;
+      }
+
+      console.log("✅ Fee filter grades loaded:", grades);
+      return;
     }
 
+    if (attempts >= 100) {
+      clearInterval(waitForStudents);
+      console.warn("⚠️ Fee grade filter: learners were not available.");
+    }
   }, 200);
 };
 
@@ -61218,12 +61853,13 @@ function updateDashboardFromStudents() {
   document.getElementById("totalSubjects").innerText =
     SCHOOL_SUBJECTS.length;
 const levelGender = {
-    lower: { Male: 0, Female: 0 },
-    upper: { Male: 0, Female: 0 },
-    junior: { Male: 0, Female: 0 },
-    senior: { Male: 0, Female: 0 }
+    lower: { Male: 0, Female: 0, Total: 0 },
+    upper: { Male: 0, Female: 0, Total: 0 },
+    junior: { Male: 0, Female: 0, Total: 0 },
+    senior: { Male: 0, Female: 0, Total: 0 }
 };
 const gradeMap = {};
+const gradeGenderMap = {};
 
 const genderMap = {
     Male: 0,
@@ -61242,48 +61878,53 @@ allStudents.forEach(s => {
       (s.grade || s.class || "Unknown")
         .trim();
 
-    gradeMap[grade] =
-      (gradeMap[grade] || 0) + 1;
+    gradeMap[grade] = (gradeMap[grade] || 0) + 1;
+    if(!gradeGenderMap[grade]) gradeGenderMap[grade] = {Male:0,Female:0,Total:0};
+    gradeGenderMap[grade].Total++;
 // ================= SCHOOL LEVELS =================
 // ================= SCHOOL LEVELS =================
 const gradeNumber = parseInt(grade.match(/\d+/)?.[0]);
 
 if (gradeNumber >= 1 && gradeNumber <= 3) {
     lowerPrimary++;
+    levelGender.lower.Total++;
 }
 else if (gradeNumber >= 4 && gradeNumber <= 6) {
     upperPrimary++;
+    levelGender.upper.Total++;
 }
 else if (gradeNumber >= 7 && gradeNumber <= 9) {
     juniorSecondary++;
+    levelGender.junior.Total++;
 }
 else if (gradeNumber >= 10 && gradeNumber <= 12) {
     seniorSecondary++;
+    levelGender.senior.Total++;
 }
 const gender = (s.gender || "").trim();
 
 if (gradeNumber >= 1 && gradeNumber <= 3) {
 
-    if (gender === "Male") levelGender.lower.Male++;
-    else if (gender === "Female") levelGender.lower.Female++;
+    if (gender === "Male") { levelGender.lower.Male++; gradeGenderMap[grade].Male++; }
+    else if (gender === "Female") { levelGender.lower.Female++; gradeGenderMap[grade].Female++; }
 
 }
 else if (gradeNumber >= 4 && gradeNumber <= 6) {
 
-    if (gender === "Male") levelGender.upper.Male++;
-    else if (gender === "Female") levelGender.upper.Female++;
+    if (gender === "Male") { levelGender.upper.Male++; gradeGenderMap[grade].Male++; }
+    else if (gender === "Female") { levelGender.upper.Female++; gradeGenderMap[grade].Female++; }
 
 }
 else if (gradeNumber >= 7 && gradeNumber <= 9) {
 
-    if (gender === "Male") levelGender.junior.Male++;
-    else if (gender === "Female") levelGender.junior.Female++;
+    if (gender === "Male") { levelGender.junior.Male++; gradeGenderMap[grade].Male++; }
+    else if (gender === "Female") { levelGender.junior.Female++; gradeGenderMap[grade].Female++; }
 
 }
 else if (gradeNumber >= 10 && gradeNumber <= 12) {
 
-    if (gender === "Male") levelGender.senior.Male++;
-    else if (gender === "Female") levelGender.senior.Female++;
+    if (gender === "Male") { levelGender.senior.Male++; gradeGenderMap[grade].Male++; }
+    else if (gender === "Female") { levelGender.senior.Female++; gradeGenderMap[grade].Female++; }
 
 }
     // ================= GENDER =================
@@ -61311,6 +61952,15 @@ document.getElementById("juniorSecondaryCount").innerText =
 
 document.getElementById("seniorSecondaryCount").innerText =
     seniorSecondary.toLocaleString();
+
+  const levelHoverData = {
+    lower: levelGender.lower, upper: levelGender.upper,
+    junior: levelGender.junior, senior: levelGender.senior
+  };
+  document.querySelectorAll(".rasm-level-hover-details").forEach(el=>{
+    const d=levelHoverData[el.dataset.level] || {Male:0,Female:0,Total:0};
+    el.innerHTML=`👨 <b>Male learners:</b> ${d.Male}<br>👩 <b>Female learners:</b> ${d.Female}<br>👥 <b>Total learners:</b> ${d.Total}`;
+  });
   // ================= GRADE COLORS (AUTO) =================
   const dynamicColors = [
     "#2563eb",
@@ -61375,6 +62025,7 @@ document.getElementById("seniorSecondaryCount").innerText =
       const div =
         document.createElement("div");
 
+      div.classList.add("rasm-student-hover-card");
       div.style.background = color;
       div.style.padding = "16px";
       div.style.borderRadius = "16px";
@@ -61438,6 +62089,12 @@ document.getElementById("seniorSecondaryCount").innerText =
           margin-bottom:8px;
         ">
           ${count}
+        </div>
+
+        <div class="rasm-student-hover-details">
+          👨 <b>Male learners:</b> ${gradeGenderMap[grade]?.Male || 0}<br>
+          👩 <b>Female learners:</b> ${gradeGenderMap[grade]?.Female || 0}<br>
+          👥 <b>Total learners:</b> ${gradeGenderMap[grade]?.Total || count}
         </div>
 
         <!-- Percentage -->
@@ -63365,80 +64022,38 @@ let attendanceMap = {};
 
 // ================= LOAD STUDENTS =================
 window.loadAttendance = async function () {
-
-    const grade =
-        document.getElementById("attendanceGrade").value;
-
-    const date =
-        document.getElementById("attendanceDate").value;
-
-    const output =
-        document.getElementById("attendanceOutput");
-
-    if (!grade || !date) {
-        return Swal.fire(
-            "Missing Data",
-            "Select grade and date",
-            "warning"
-        );
-    }
-
-    output.innerHTML = "Loading...";
-
-    try {
-
-        const snapshot =
-            await fastGet(schoolRef("students"));
-
-        attendanceCache = [];
-        attendanceMap = {};
-
-        if (!snapshot.exists()) {
-            output.innerHTML =
-                "<p>No students found</p>";
-            return;
+    const grade=document.getElementById("attendanceGrade").value;
+    const date=document.getElementById("attendanceDate").value;
+    const output=document.getElementById("attendanceOutput");
+    if(!grade || !date) return Swal.fire("Missing Data","Select grade and date","warning");
+    output.innerHTML="Loading...";
+    try{
+      const [studentsSnap, attendanceSnap] = await Promise.all([
+        fastGet(schoolRef("students")), fastGet(schoolRef("attendance"))
+      ]);
+      attendanceCache=[]; attendanceMap={};
+      const savedByStudent={};
+      if(attendanceSnap.exists()) attendanceSnap.forEach(ch=>{
+        const d=ch.val()||{};
+        if(String(d.date||"")===String(date) && String(d.grade||"").trim().toLowerCase()===String(grade).trim().toLowerCase() && Array.isArray(d.records)){
+          d.records.forEach(r=>{ if(r?.studentId) savedByStudent[r.studentId]=r; });
         }
-
-        snapshot.forEach(childSnap => {
-
-            const s = childSnap.val();
-
-            const studentGrade =
-                (s.grade || "")
-                .trim()
-                .toLowerCase();
-
-            const selectedGrade =
-                (grade || "")
-                .trim()
-                .toLowerCase();
-
-            if (studentGrade === selectedGrade) {
-
-                const id = childSnap.key;
-
-                attendanceCache.push({
-                    id,
-                    ...s
-                });
-
-                attendanceMap[id] = {
-                    status: "Present"
-                };
-            }
-        });
-
-        renderAttendanceTable();
-
-        updateAttendanceDashboard();
-
-    } catch (err) {
-
-        console.error(err);
-
-        output.innerHTML =
-            "Error loading attendance";
-    }
+      });
+      if(!studentsSnap.exists()){ output.innerHTML="<p>No students found</p>"; return; }
+      studentsSnap.forEach(ch=>{
+        const st=ch.val()||{};
+        if(String(st.grade||"").trim().toLowerCase()===String(grade).trim().toLowerCase()){
+          const id=ch.key, saved=savedByStudent[id]||{};
+          const legacy=saved.status || "Present";
+          attendanceCache.push({id,...st});
+          attendanceMap[id]={
+            morningStatus:saved.morningStatus || legacy,
+            eveningStatus:saved.eveningStatus || legacy
+          };
+        }
+      });
+      renderAttendanceTable(); updateAttendanceDashboard();
+    }catch(err){ console.error(err); output.innerHTML="Error loading attendance"; }
 };
 window.loadAttendanceGrades = async function () {
 
@@ -63996,33 +64611,22 @@ window.renderNextAttendanceBatch = function () {
                     flex-wrap:wrap;
                 ">
 
-                    ${badge}
-
-                    <select
-                        onchange="setAttendance('${s.id}', this.value)"
-                        style="
-                            padding:4px 6px;
-                            font-size:11px;
-                            border:1px solid black;
-                            border-radius:6px;
-                            min-width:80px;
-                        "
-                    >
-                        <option value="Present"
-                            ${status === "Present" ? "selected" : ""}>
-                            Present
-                        </option>
-
-                        <option value="Absent"
-                            ${status === "Absent" ? "selected" : ""}>
-                            Absent
-                        </option>
-
-                        <option value="Late"
-                            ${status === "Late" ? "selected" : ""}>
-                            Late
-                        </option>
-                    </select>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;width:100%;">
+                      <label style="font-size:10px;font-weight:800;">Morning
+                        <select onchange="setAttendance('${s.id}','morning',this.value)" style="padding:4px;font-size:11px;border:1px solid black;border-radius:6px;width:100%;">
+                          <option value="Present" ${attendanceMap[s.id]?.morningStatus === "Present" ? "selected" : ""}>Present</option>
+                          <option value="Absent" ${attendanceMap[s.id]?.morningStatus === "Absent" ? "selected" : ""}>Absent</option>
+                          <option value="Late" ${attendanceMap[s.id]?.morningStatus === "Late" ? "selected" : ""}>Late</option>
+                        </select>
+                      </label>
+                      <label style="font-size:10px;font-weight:800;">Evening
+                        <select onchange="setAttendance('${s.id}','evening',this.value)" style="padding:4px;font-size:11px;border:1px solid black;border-radius:6px;width:100%;">
+                          <option value="Present" ${attendanceMap[s.id]?.eveningStatus === "Present" ? "selected" : ""}>Present</option>
+                          <option value="Absent" ${attendanceMap[s.id]?.eveningStatus === "Absent" ? "selected" : ""}>Absent</option>
+                          <option value="Late" ${attendanceMap[s.id]?.eveningStatus === "Late" ? "selected" : ""}>Late</option>
+                        </select>
+                      </label>
+                    </div>
 
                 </div>
 
@@ -64042,90 +64646,35 @@ window.renderNextAttendanceBatch = function () {
 
 
 // ================= SET STATUS =================
-window.setAttendance = function (id, status) {
-
-    // ================= SMART COLOR PERCENT =================
-    let percent = 100;
-
-    if (status === "Absent") {
-        percent = 40;
-    }
-    else if (status === "Late") {
-        percent = 75;
-    }
-
-    attendanceMap[id] = {
-        status,
-        percent
-    };
-
-    // 🔥 AUTO REFRESH COLORS
+window.setAttendance = function (id, session, status) {
+    if(!attendanceMap[id]) attendanceMap[id]={morningStatus:"Present",eveningStatus:"Present"};
+    if(session === "morning") attendanceMap[id].morningStatus=status;
+    if(session === "evening") attendanceMap[id].eveningStatus=status;
+    attendanceMap[id].status = (attendanceMap[id].morningStatus === "Present" && attendanceMap[id].eveningStatus === "Present") ? "Present" : "Partial";
     renderAttendanceTable();
 };
 
 // ================= SAVE ATTENDANCE =================
 window.saveAttendance = async function () {
-
-    const grade = document.getElementById("attendanceGrade").value;
-    const date = document.getElementById("attendanceDate").value;
-
-    if (!grade || !date) {
-        return Swal.fire("Missing", "Select grade and date", "warning");
-    }
-
-    Swal.fire({
-        title: "Saving attendance...",
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
-
+    const grade=document.getElementById("attendanceGrade").value;
+    const date=document.getElementById("attendanceDate").value;
+    if(!grade || !date) return Swal.fire("Missing","Select grade and date","warning");
+    Swal.fire({title:"Saving attendance...",allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
     try {
-
-        const records = attendanceCache.map(s => ({
-            studentId: s.id,
-            name: s.name,
-            grade: s.grade,
-            date,
-            status: attendanceMap[s.id]?.status || "Present",
-            percent: attendanceMap[s.id]?.percent || 100
-        }));
-
-        const attendanceWrite = rasmBackgroundPush(schoolRef("attendance"), {
-            grade, date, records, createdAt: Date.now()
-        });
-        attendanceWrite.promise.catch(err => {
-            console.error("Attendance save failed:", err);
-            Swal.fire("Save Failed", err.message || "Attendance could not be saved.", "error");
-        });
-
-        // ================= SUCCESS =================
-        Swal.fire({
-            icon: "success",
-            title: "Attendance Saved",
-            text: "Attendance recorded successfully ✔",
-            timer: 1500,
-            showConfirmButton: false
-        });
-
-        // ================= SMART REFRESH =================
-        updateAttendanceDashboard();
-        updateAttendanceSummary();
-        showAttendanceAI();
-
-    } catch (err) {
-
-        console.error(err);
-
-        Swal.fire({
-            icon: "error",
-            title: "Save Failed",
-            text: err.message || "Failed to save attendance"
-        });
-
-        // ================= STILL REFRESH ANALYTICS =================
-        updateAttendanceDashboard();
-        updateAttendanceSummary();
-        showAttendanceAI();
+      const records=attendanceCache.map(st=>{
+        const a=attendanceMap[st.id]||{};
+        const morningStatus=a.morningStatus||"Present", eveningStatus=a.eveningStatus||"Present";
+        const sessions=[morningStatus,eveningStatus];
+        const attended=sessions.filter(x=>x==="Present"||x==="Late").length;
+        return {studentId:st.id,name:st.name,grade:st.grade,date,morningStatus,eveningStatus,status:attended===2?"Present":attended===0?"Absent":"Partial",percent:(attended/2)*100};
+      });
+      const write=rasmBackgroundPush(schoolRef("attendance"),{grade,date,records,createdAt:Date.now()});
+      await write.promise;
+      window.__attendanceRegisterCache=null;
+      Swal.fire({icon:"success",title:"Attendance Saved",text:"Morning and evening attendance recorded successfully ✔",timer:1500,showConfirmButton:false});
+      updateAttendanceDashboard(); updateAttendanceSummary(); showAttendanceAI();
+    } catch(err) {
+      console.error(err); Swal.fire({icon:"error",title:"Save Failed",text:err.message||"Failed to save attendance"});
     }
 };
 // ============================================================
@@ -64463,12 +65012,7 @@ window.viewAttendanceReport = async function () {
                         }
 
 
-                        masterAttendanceMap[
-                            record.studentId
-                        ][
-                            dayName
-                        ] =
-                            record.status;
+                        masterAttendanceMap[record.studentId][dayName] = { morning: record.morningStatus || record.status || "Absent", evening: record.eveningStatus || record.status || "Absent" };
 
                     }
                 );
@@ -64512,30 +65056,9 @@ window.viewAttendanceReport = async function () {
 
                 allStudents.forEach(
                     student => {
-
-                        const status =
-                            masterAttendanceMap[
-                                student.id
-                            ]?.[
-                                day
-                            ];
-
-
-                        if (
-                            status === "Present" ||
-                            status === "Late"
-                        ) {
-
-                            gradeDailyTotals[
-                                day
-                            ].morning++;
-
-
-                            gradeDailyTotals[
-                                day
-                            ].evening++;
-
-                        }
+                        const session = masterAttendanceMap[student.id]?.[day] || {};
+                        if(session.morning === "Present" || session.morning === "Late") gradeDailyTotals[day].morning++;
+                        if(session.evening === "Present" || session.evening === "Late") gradeDailyTotals[day].evening++;
 
                     }
                 );
@@ -65282,36 +65805,17 @@ window.viewAttendanceReport = async function () {
                                     ];
 
 
-                                let display = "-";
+                                const session = masterAttendanceMap[student.id]?.[day] || null;
+                                const morning = session?.morning || "Absent";
+                                const evening = session?.evening || "Absent";
+                                const attendedSessions = [morning, evening]
+                                    .filter(x => x === "Present" || x === "Late")
+                                    .length;
+                                attendedDays += attendedSessions / 2;
 
-
-                                if (
-                                    status === "Present"
-                                ) {
-
-                                    display = "X";
-
-                                    attendedDays++;
-
-                                }
-
-                                else if (
-                                    status === "Late"
-                                ) {
-
-                                    display = "L";
-
-                                    attendedDays++;
-
-                                }
-
-                                else if (
-                                    status === "Absent"
-                                ) {
-
-                                    display = "0";
-
-                                }
+                                // ONE mark per learner/day only.
+                                // X = Present, 00 = Absent.
+                                const display = attendedSessions > 0 ? "X" : "00";
 
 
                                 html += `
@@ -65402,9 +65906,10 @@ window.viewAttendanceReport = async function () {
                             ">
 
                                 ${String(
-                                    gradeDailyTotals[
-                                        day
-                                    ]?.morning || 0
+                                    students.reduce((count, student) => {
+                                        const session = masterAttendanceMap[student.id]?.[day] || {};
+                                        return count + ((session.morning === "Present" || session.morning === "Late") ? 1 : 0);
+                                    }, 0)
                                 ).padStart(
                                     2,
                                     "0"
@@ -65468,9 +65973,10 @@ window.viewAttendanceReport = async function () {
                             ">
 
                                 ${String(
-                                    gradeDailyTotals[
-                                        day
-                                    ]?.evening || 0
+                                    students.reduce((count, student) => {
+                                        const session = masterAttendanceMap[student.id]?.[day] || {};
+                                        return count + ((session.evening === "Present" || session.evening === "Late") ? 1 : 0);
+                                    }, 0)
                                 ).padStart(
                                     2,
                                     "0"
@@ -65534,9 +66040,12 @@ window.viewAttendanceReport = async function () {
                             ">
 
                                 ${String(
-                                    gradeDailyTotals[
-                                        day
-                                    ]?.total || 0
+                                    students.reduce((count, student) => {
+                                        const session = masterAttendanceMap[student.id]?.[day] || {};
+                                        return count
+                                            + ((session.morning === "Present" || session.morning === "Late") ? 1 : 0)
+                                            + ((session.evening === "Present" || session.evening === "Late") ? 1 : 0);
+                                    }, 0)
                                 ).padStart(
                                     2,
                                     "0"
@@ -73114,155 +73623,104 @@ window.markTransportFeePaid = async function (busId, studentName) {
 ========================================================= */
 
 window.manageTransportFees = async function (busId) {
-
   try {
-
-    const snap =
-      await fastGet(
-        schoolRef(`transport/${busId}/fees`)
-      );
-
+    const snap = await fastGet(schoolRef(`transport/${busId}/fees`));
     if (!snap.exists()) {
-
-      Swal.fire(
-        "No Records",
-        "No fee records found.",
-        "info"
-      );
-
+      Swal.fire({title:"No Fee Records",text:"No transport fee records have been found for this bus yet.",icon:"info"});
       return;
-
     }
 
-    let html = `
-    <div style="
-      max-height:500px;
-      overflow:auto;
-      text-align:left;
-    ">
-    `;
+    const feeRows = Object.entries(snap.val()).map(([studentName, data]) => {
+      const d = data || {};
+      const student = (window.allStudents || []).find(st =>
+        String(st.id || st.studentId || st.learnerId || st.admissionNo || '').trim() === String(d.studentId || d.learnerId || '').trim()
+        || String(st.name || '').trim().toLowerCase() === String(studentName || '').trim().toLowerCase()
+      ) || {};
+      const fee = Number(d.fee || d.requiredFee || 0);
+      const paid = Number(d.paidAmount || d.paid || 0);
+      const balance = Math.max(0, fee - paid);
+      const grade = d.grade || d.class || d.studentGrade || student.grade || student.class || student.studentGrade || 'Not set';
+      const year = d.academicYear || d.year || (d.updatedAt ? new Date(d.updatedAt).getFullYear() : new Date().getFullYear());
+      const status = balance <= 0 ? 'Paid' : paid > 0 ? 'Partial' : 'Pending';
+      return {studentName, d, fee, paid, balance, grade, year:String(year), status};
+    });
 
-    Object.entries(snap.val()).forEach(([student,data])=>{
+    const grades = [...new Set(feeRows.map(r => r.grade).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+    const years = [...new Set(feeRows.map(r => r.year).filter(Boolean))].sort((a,b)=>Number(b)-Number(a));
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-      const fee = Number(data.fee || 0);
-      const paid = Number(data.paidAmount || 0);
-      const balance = fee - paid;
+    const gradeOptions = ['<option value="">All Grades</option>', ...grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`)].join('');
+    const yearOptions = ['<option value="">All Years</option>', ...years.map(y=>`<option value="${esc(y)}">${esc(y)}</option>`)].join('');
 
-      let color = "#dc2626";
-      let status = "🔴 Pending";
+    const renderRows = (rows) => {
+      if (!rows.length) return `<tr><td colspan="8" class="rtf-empty">No learners match the selected filters.</td></tr>`;
+      return rows.map((r,i)=>{
+        const statusClass = r.status.toLowerCase();
+        return `<tr>
+          <td class="rtf-no">${i+1}</td>
+          <td><div class="rtf-learner"><span class="rtf-avatar">${esc((r.studentName||'?').trim().charAt(0).toUpperCase())}</span><div><strong>${esc(r.studentName)}</strong><small>${esc(r.d.studentId || r.d.learnerId || 'Transport learner')}</small></div></div></td>
+          <td><span class="rtf-grade">${esc(r.grade)}</span></td>
+          <td><span class="rtf-year">${esc(r.year)}</span></td>
+          <td class="rtf-money">KES ${r.fee.toLocaleString()}</td>
+          <td class="rtf-money paid">KES ${r.paid.toLocaleString()}</td>
+          <td><span class="rtf-status ${statusClass}">${r.status === 'Paid'?'✓':r.status === 'Partial'?'◐':'!'} ${r.status}</span></td>
+          <td><button class="rtf-pay-btn" onclick="markTransportFeePaid('${String(busId).replace(/'/g,"\\'")}','${String(r.studentName).replace(/'/g,"\\'")}')">Record Payment</button></td>
+        </tr>`;
+      }).join('');
+    };
 
-      if(balance <= 0){
+    const totals = rows => ({count:rows.length, fee:rows.reduce((a,r)=>a+r.fee,0), paid:rows.reduce((a,r)=>a+r.paid,0), balance:rows.reduce((a,r)=>a+r.balance,0)});
+    const t = totals(feeRows);
 
-        color="#16a34a";
-        status="🟢 Paid";
-
-      }
-
-      else if(paid > 0){
-
-        color="#f59e0b";
-        status="🟡 Partial";
-
-      }
-
-      html += `
-
-      <div style="
-        border:1px solid #e5e7eb;
-        border-radius:12px;
-        padding:15px;
-        margin-bottom:15px;
-        background:white;
-      ">
-
-        <div style="
-          font-size:16px;
-          font-weight:bold;
-          color:#111827;
-        ">
-          👨‍🎓 ${student}
-        </div>
-
-        <hr>
-
-        <div>
-          💰 Required Fee:
-          <b>KES ${fee.toLocaleString()}</b>
-        </div>
-
-        <div style="color:green;">
-          ✅ Paid:
-          <b>KES ${paid.toLocaleString()}</b>
-        </div>
-
-        <div style="color:red;">
-          Balance:
-          <b>KES ${balance.toLocaleString()}</b>
-        </div>
-
-        <div style="
-          margin-top:8px;
-          color:${color};
-          font-weight:bold;
-        ">
-          ${status}
-        </div>
-
-        <button
-
-          onclick="markTransportFeePaid('${busId}','${student}')"
-
-          style="
-            margin-top:12px;
-            background:#2563eb;
-            color:white;
-            border:none;
-            padding:8px 15px;
-            border-radius:8px;
-            cursor:pointer;
-          "
-
-        >
-
-          💵 Record Payment
-
-        </button>
-
+    const html = `<style>
+      .rtf-wrap{font-family:Inter,Segoe UI,Arial,sans-serif;text-align:left;color:#172033}
+      .rtf-head{padding:4px 2px 16px}
+      .rtf-head h3{margin:0;font-size:21px;font-weight:800}
+      .rtf-head p{margin:5px 0 0;color:#718096;font-size:12px}
+      .rtf-filters{display:flex;gap:10px;flex-wrap:wrap;padding:13px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;margin-bottom:13px}
+      .rtf-filter{height:40px;border:1px solid #dbe2ea;background:#fff;border-radius:10px;padding:0 12px;font-weight:600;color:#334155;min-width:145px;outline:none}
+      .rtf-filter:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+      .rtf-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:13px}
+      .rtf-stat{background:#fff;border:1px solid #e8edf3;border-radius:13px;padding:12px 13px;box-shadow:0 3px 12px rgba(15,23,42,.04)}
+      .rtf-stat span{display:block;color:#7b8798;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.rtf-stat strong{display:block;margin-top:4px;font-size:16px}
+      .rtf-table-wrap{border:1px solid #e5eaf0;border-radius:14px;overflow:auto;background:#fff;max-height:490px}
+      .rtf-table{width:100%;min-width:930px;border-collapse:separate;border-spacing:0;font-size:12px}.rtf-table th{position:sticky;top:0;z-index:2;background:#f8fafc;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:12px;border-bottom:1px solid #e5e7eb;white-space:nowrap}.rtf-table td{padding:11px 12px;border-bottom:1px solid #eef2f6;vertical-align:middle;white-space:nowrap}.rtf-table tbody tr:hover{background:#f8fbff}.rtf-table tbody tr:last-child td{border-bottom:0}.rtf-no{color:#94a3b8;width:38px}.rtf-learner{display:flex;align-items:center;gap:9px}.rtf-avatar{width:32px;height:32px;border-radius:10px;background:#eff6ff;color:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-weight:800}.rtf-learner strong{display:block;font-size:12px}.rtf-learner small{display:block;color:#94a3b8;font-size:10px;margin-top:2px}.rtf-grade,.rtf-year{padding:5px 8px;border-radius:7px;background:#f1f5f9;font-weight:700}.rtf-money{font-weight:700}.rtf-money.paid{color:#059669}.rtf-status{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:20px;font-weight:800}.rtf-status.paid{background:#ecfdf5;color:#047857}.rtf-status.partial{background:#fffbeb;color:#b45309}.rtf-status.pending{background:#fef2f2;color:#b91c1c}.rtf-pay-btn{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:7px 10px;font-weight:700;cursor:pointer}.rtf-pay-btn:hover{background:#1d4ed8}.rtf-empty{text-align:center!important;padding:35px!important;color:#94a3b8!important}
+      @media(max-width:650px){.rtf-summary{grid-template-columns:repeat(2,1fr)}.rtf-filter{flex:1;min-width:120px}}
+    </style>
+    <div class="rtf-wrap">
+      <div class="rtf-head"><h3>🚌 Transport Fee Register</h3><p>View and manage learner transport payments for this bus.</p></div>
+      <div class="rtf-filters">
+        <select id="rtfGradeFilter" class="rtf-filter">${gradeOptions}</select>
+        <select id="rtfYearFilter" class="rtf-filter">${yearOptions}</select>
+        <button id="rtfReset" class="rtf-filter" style="cursor:pointer;min-width:110px">↺ Reset</button>
       </div>
+      <div class="rtf-summary">
+        <div class="rtf-stat"><span>Learners</span><strong id="rtfCount">${t.count}</strong></div>
+        <div class="rtf-stat"><span>Required</span><strong id="rtfRequired">KES ${t.fee.toLocaleString()}</strong></div>
+        <div class="rtf-stat"><span>Collected</span><strong id="rtfPaid">KES ${t.paid.toLocaleString()}</strong></div>
+        <div class="rtf-stat"><span>Balance</span><strong id="rtfBalance">KES ${t.balance.toLocaleString()}</strong></div>
+      </div>
+      <div class="rtf-table-wrap"><table class="rtf-table"><thead><tr><th>#</th><th>Learner</th><th>Grade</th><th>Year</th><th>Required</th><th>Paid</th><th>Status</th><th>Action</th></tr></thead><tbody id="rtfBody">${renderRows(feeRows)}</tbody></table></div>
+    </div>`;
 
-      `;
+    Swal.fire({title:`🚌 Manage Transport Fees`,html,width:1100,showConfirmButton:true,confirmButtonText:'Close',customClass:{popup:'rasm-transport-fees-popup'}});
 
-    });
-
-    html += "</div>";
-
-    Swal.fire({
-
-      title:"🚌 Transport Fees",
-
-      html:html,
-
-      width:750,
-
-      confirmButtonText:"Close"
-
-    });
-
-  }
-
-  catch(error){
-
+    const filter = () => {
+      const g=document.getElementById('rtfGradeFilter')?.value || '', y=document.getElementById('rtfYearFilter')?.value || '';
+      const rows=feeRows.filter(r=>(!g || r.grade===g)&&(!y || r.year===y));
+      const x=totals(rows); const body=document.getElementById('rtfBody'); if(body) body.innerHTML=renderRows(rows);
+      const c=document.getElementById('rtfCount'), req=document.getElementById('rtfRequired'), pd=document.getElementById('rtfPaid'), bal=document.getElementById('rtfBalance');
+      if(c)c.textContent=x.count; if(req)req.textContent='KES '+x.fee.toLocaleString(); if(pd)pd.textContent='KES '+x.paid.toLocaleString(); if(bal)bal.textContent='KES '+x.balance.toLocaleString();
+    };
+    document.getElementById('rtfGradeFilter')?.addEventListener('change',filter);
+    document.getElementById('rtfYearFilter')?.addEventListener('change',filter);
+    document.getElementById('rtfReset')?.addEventListener('click',()=>{document.getElementById('rtfGradeFilter').value='';document.getElementById('rtfYearFilter').value='';filter();});
+  } catch(error){
     console.error(error);
-
-    Swal.fire(
-      "Error",
-      error.message,
-      "error"
-    );
-
+    Swal.fire({title:'Unable to Load Fees',text:error.message || 'Please try again.',icon:'error'});
   }
-
-};window.toggleActionPanel = function (id) {
+};
+window.toggleActionPanel = function (id) {
 
   const panel = document.getElementById(`panel-${id}`);
 
@@ -103015,6 +103473,7 @@ const ROLE_PERMISSIONS = {
     "hostel",
     "teacherWalletSection",
     "ict",
+
     "withdrawRequestsSection",
     "adminUsersPanel",
     "assignmentHelpSection",
@@ -103026,6 +103485,7 @@ const ROLE_PERMISSIONS = {
 
     // FIXED NAME (match DOM section)
     "usersSection",
+"recycleBinSection",
     "auditTrailSection",
 
     "examManagement",
@@ -103400,14 +103860,30 @@ if (
 // =====================================
 // 1B. USER MANAGEMENT MENU RULE
 // =====================================
+
+// =====================================
+// 1B. USER MANAGEMENT MENU RULE
+// =====================================
 if (
     btn.closest("#usersMenu") &&
     (
         allowed.includes("adminUsersPanel") ||
-        allowed.includes("usersSection")
+        allowed.includes("usersSection") ||
+        allowed.includes("auditTrailSection") ||
+        allowed.includes("recycleBinSection")
     )
 ) {
     allowedBtn = true;
+}
+
+// =====================================
+// ♻️ RECYCLE BIN — ADMIN ONLY
+// =====================================
+if (btn.id === "menuRecycleBin") {
+    allowedBtn =
+        String(window.currentUserRole || "")
+            .trim()
+            .toLowerCase() === "admin";
 }
 
     // =====================================
@@ -112377,6 +112853,14 @@ onclick="show('auditTrailSection');Swal.close();">
 </button>
 
 <button
+class="swal2-confirm swal2-styled rasm-admin-only-recycle"
+onclick="openAdminRecycleBin();Swal.close();">
+
+♻️ Recycle Bin
+
+</button>
+
+<button
 class="swal2-confirm swal2-styled"
 onclick="openPasswordModal();Swal.close();">
 
@@ -119557,16 +120041,14 @@ function getCBCGradeResult(score, grade) {
      Safe final patch: appended after the existing application.
 ========================================================= -->
 <style id="rasm360-navigation-analysis-style">
-#rasm360FloatingBack{
-  position:fixed;right:22px;bottom:22px;z-index:99999;
-  display:none;align-items:center;gap:9px;
-  border:0;border-radius:999px;padding:12px 18px;
-  background:#111827;color:#fff;font-weight:800;font-size:14px;
-  cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.24);
-  transition:transform .18s ease,box-shadow .18s ease,opacity .18s ease;
+#rasm360SidebarBack{
+  width:100%;min-height:48px;display:none;align-items:center;gap:10px;
+  margin:0 0 10px;padding:12px 16px;border:0;border-radius:12px;
+  background:#1e293b;color:#fff;font-weight:700;font-size:14px;text-align:left;
+  cursor:pointer;box-shadow:none;transition:all .25s ease;
 }
-#rasm360FloatingBack:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.30)}
-#rasm360FloatingBack .rasm-back-count{
+#rasm360SidebarBack:hover{background:#2563eb;transform:translateX(3px)}
+#rasm360SidebarBack .rasm-back-count{
   min-width:22px;height:22px;padding:0 6px;border-radius:999px;
   display:inline-flex;align-items:center;justify-content:center;
   background:#2563eb;color:#fff;font-size:11px;
@@ -119605,10 +120087,10 @@ function getCBCGradeResult(score, grade) {
 .rasm-analysis-list{margin:0;padding-left:20px;font-size:13px;line-height:1.8}
 .rasm-analysis-empty{padding:25px;text-align:center;color:#6b7280}
 @media(max-width:1100px){.rasm-analysis-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:760px){#rasm360FloatingBack{right:14px;bottom:14px}.rasm-analysis-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.rasm-analysis-grid{grid-template-columns:1fr}.rasm-analysis-content{padding:11px}}
+@media(max-width:760px){#rasm360SidebarBack{min-height:50px}.rasm-analysis-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.rasm-analysis-grid{grid-template-columns:1fr}.rasm-analysis-content{padding:11px}}
 @media(max-width:460px){.rasm-analysis-cards{grid-template-columns:1fr}}
 @media print{
-  #rasm360FloatingBack,.rasm-analysis-toolbar,.sidebar,.topbar{display:none!important}
+  #rasm360SidebarBack,.rasm-analysis-toolbar,.sidebar,.topbar{display:none!important}
   #examAnalysisSection{display:block!important;padding:0!important}
   .rasm-analysis-shell{box-shadow:none!important}
 }
@@ -119665,9 +120147,9 @@ function getCBCGradeResult(score, grade) {
   }
 
   function ensureBackButton(){
-    if(document.getElementById("rasm360FloatingBack")) return;
+    if(document.getElementById("rasm360SidebarBack")) return;
     const btn = document.createElement("button");
-    btn.id = "rasm360FloatingBack";
+    btn.id = "rasm360SidebarBack";
     btn.type = "button";
     btn.title = "Go back to the previous section";
     btn.innerHTML = "<span style=\"font-size:18px;line-height:1\">←</span><span>Back</span><span class=\"rasm-back-count\">0</span>";
@@ -119685,11 +120167,11 @@ function getCBCGradeResult(score, grade) {
         updateBackButton();
       }, 80);
     });
-    document.body.appendChild(btn);
+    (document.querySelector(".sidebar-footer") || document.querySelector(".sidebar-scroll"))?.prepend(btn);
   }
 
   function updateBackButton(){
-    const btn = document.getElementById("rasm360FloatingBack");
+    const btn = document.getElementById("rasm360SidebarBack");
     if(!btn) return;
     const count = btn.querySelector(".rasm-back-count");
     if(count) count.textContent = String(navStack.length);
@@ -122548,41 +123030,11 @@ html,body,#app,.main{
     });
   }
 
-  function addFloatingButton(){
-    if(document.getElementById("rasmRecycleFloatingBtn")) return;
-    const btn=document.createElement("button");
-    btn.id="rasmRecycleFloatingBtn";
-    btn.type="button";
-    btn.innerHTML="♻️ Recycle Bin";
-    btn.title="Restore deleted records individually";
-    btn.onclick=()=>openRecycleBin("all");
-    document.body.appendChild(btn);
-  }
-
-  // Also add Recycle Bin to the School Management popup.
-  const originalSchoolManagement=window.openSchoolManagementMenu;
-  if(typeof originalSchoolManagement==="function" && !window.__rasmRecycleSchoolMenuPatched){
-    window.__rasmRecycleSchoolMenuPatched=true;
-    window.openSchoolManagementMenu=function(){
-      const result=originalSchoolManagement.apply(this,arguments);
-      setTimeout(()=>{
-        const container=document.querySelector(".swal2-html-container");
-        if(container && !container.querySelector(".rasm-school-recycle-btn")){
-          const b=document.createElement("button");
-          b.className="swal2-confirm swal2-styled rasm-school-recycle-btn";
-          b.style.cssText="width:100%;margin:8px 0 0;background:#7c3aed!important;";
-          b.textContent="♻️ Recycle Bin — Restore Deleted Records";
-          b.onclick=()=>openRecycleBin("all");
-          container.appendChild(b);
-        }
-      },80);
-      return result;
-    };
-  }
-
+ 
+ 
   function init(){
     injectSectionButtons();
-    addFloatingButton();
+    
     const observer=new MutationObserver(()=>injectSectionButtons());
     observer.observe(document.body,{childList:true,subtree:true});
   }
@@ -122598,275 +123050,281 @@ html,body,#app,.main{
 </script>
 
 
+
 <!-- =========================================================
-     RASM 360 FINAL RECYCLE-BIN ACCESS + PROFILE MODAL PATCH
-     - Recycle Bin is NOT floating
-     - Recycle Bin access is inside User Management
-     - Only ADMIN can delete / restore / permanently delete
-     - School Profile Setup is centered
+     RASM 360 — FINAL UI/ROLE REFINEMENTS
 ========================================================= -->
-<style id="rasm360-final-recycle-profile-patch">
-  /* School Profile must always appear centered */
+<style id="rasm360-final-ui-refinements">
+  /* Recycle Bin is accessed from User Management only. */
+  #rasmRecycleFloatingBtn{display:none!important}
+  .rasm-recycle-section-btn{display:none!important}
+  #usersSubmenu .rasm-user-recycle-btn{
+    display:flex!important;width:100%;box-sizing:border-box;align-items:center;
+    justify-content:flex-start;gap:8px;margin-top:6px;
+  }
+
+  /* Check Learner Results: the two main cards always share one height. */
+  #parentResultsInstructions{
+    align-items:stretch!important;
+  }
+  #parentResultsInstructions,
+  #parentResultsInstructions + div{
+    min-height:360px!important;
+    height:360px!important;
+    box-sizing:border-box!important;
+  }
+  @media (max-width:760px){
+    #parentResultsInstructions,
+    #parentResultsInstructions + div{
+      height:auto!important;min-height:0!important;
+    }
+  }
+
+  /* School Profile Setup must stay centered in the viewport. */
   #schoolProfileModal{
-    display:none;
-    position:fixed !important;
-    inset:0 !important;
-    width:100% !important;
-    height:100% !important;
-    align-items:center !important;
-    justify-content:center !important;
-    padding:20px !important;
-    box-sizing:border-box !important;
-    z-index:99999 !important;
-    background:rgba(0,0,0,.60) !important;
+    position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;
+    display:none;align-items:center!important;justify-content:center!important;
+    padding:20px!important;box-sizing:border-box!important;
+    overflow:auto!important;z-index:99999!important;
   }
-
+  #schoolProfileModal[style*="display: block"],
+  #schoolProfileModal[style*="display:block"]{
+    display:flex!important;
+  }
   #schoolProfileModal .modal-box{
-    margin:0 auto !important;
-    max-height:90vh !important;
-    overflow-y:auto !important;
-    width:min(420px, calc(100vw - 40px)) !important;
-    box-sizing:border-box !important;
+    margin:auto!important;max-height:calc(100vh - 40px);overflow:auto;
   }
 
-  /* The recycle button is now a normal User Management submenu item. */
-  #rasmRecycleFloatingBtn{display:none !important;}
-  .rasm-user-recycle-btn{
-    width:100%;
-    margin:8px 0 0 !important;
-    padding:11px 14px !important;
-    border:0 !important;
-    border-radius:10px !important;
-    background:#7c3aed !important;
-    color:#fff !important;
-    font-weight:800 !important;
-    cursor:pointer !important;
-    text-align:left !important;
+  /* Create Learning Content toggle */
+  #courseCreatorPanel .rasm-course-toggle{
+    float:right;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.14);
+    color:#fff;border-radius:10px;padding:8px 13px;font-weight:800;cursor:pointer;
   }
-  .rasm-user-recycle-btn:hover{background:#6d28d9 !important;}
+  #courseCreatorPanel .rasm-course-toggle:hover{background:rgba(255,255,255,.24)}
+  #courseCreatorPanel .rasm-course-form-body{overflow:hidden;transition:max-height .28s ease,opacity .2s ease}
+  #courseCreatorPanel.rasm-course-collapsed .rasm-course-form-body{max-height:0!important;opacity:0!important;pointer-events:none}
+  #courseCreatorPanel.rasm-course-expanded .rasm-course-form-body{max-height:2200px;opacity:1}
+  #courseCreatorPanel h2{overflow:auto}
 
-  /* Section-level restore controls are admin-only. */
-  .rasm-recycle-section-btn.rasm-non-admin-hidden{display:none !important;}
+  /* Recycle Bin is intentionally visible inside User Management. */
+  #usersSubmenu .rasm-admin-only-recycle,
+  #usersSubmenu .rasm-user-recycle-btn{display:flex!important;}
+  .swal2-popup .rasm-admin-only-recycle{display:flex!important;}
+
+/* =========================================================
+   📊 DASHBOARD LEARNER GENDER HOVER DETAILS
+========================================================= */
+.rasm-student-hover-card{position:relative;overflow:visible!important;}
+.rasm-student-hover-details{position:absolute;left:50%;top:calc(100% + 8px);transform:translate(-50%,-4px);width:205px;z-index:9999;display:none;background:#111827;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:11px 13px;box-shadow:0 12px 28px rgba(0,0,0,.28);font-size:12px;line-height:1.7;text-align:left;}
+.rasm-student-hover-card:hover .rasm-student-hover-details{display:block;transform:translate(-50%,0);}
+.rasm-student-hover-details b{font-weight:800;}
+.dashboard-card{position:relative;overflow:visible!important;}
+.rasm-level-hover-details{position:absolute;left:50%;top:calc(100% + 8px);transform:translate(-50%,-4px);width:205px;z-index:9999;display:none;background:#111827;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:11px 13px;box-shadow:0 12px 28px rgba(0,0,0,.28);font-size:12px;line-height:1.7;text-align:left;}
+.dashboard-card:hover .rasm-level-hover-details{display:block;transform:translate(-50%,0);}
+.rasm-level-hover-details b{font-weight:800;}
+@media(max-width:760px){.rasm-student-hover-details{position:fixed;left:50%;top:auto;bottom:12px;transform:translateX(-50%)!important;width:min(205px,calc(100vw - 30px));}}
 </style>
 
-<script id="rasm360-final-recycle-profile-patch-script">
+<script id="rasm360-final-ui-refinements-js">
 (function(){
   "use strict";
 
   function rasmIsAdmin(){
-    const u = window.currentUser || {};
-    let stored = {};
-    try { stored = JSON.parse(localStorage.getItem("currentUser") || "{}"); } catch(_){ }
-    const role = String(
-      window.currentUserRole ||
-      window.userRole ||
-      u.role ||
-      stored.role ||
-      ""
-    ).toLowerCase().trim();
-    return role === "admin" || role === "superadmin";
+    const candidates=[
+      window.currentUserRole,
+      window.currentUser?.role,
+      localStorage.getItem("userRole"),
+      sessionStorage.getItem("userRole"),
+      localStorage.getItem("role"),
+      sessionStorage.getItem("role")
+    ].filter(Boolean).map(v=>String(v).toLowerCase().trim());
+    return candidates.includes("admin") || candidates.includes("superadmin");
   }
 
-  function rasmAdminOnly(){
-    if (rasmIsAdmin()) return true;
-    Swal.fire({
-      icon:"error",
-      title:"Admin Access Required",
-      text:"Only an administrator can delete, restore, or permanently delete records.",
-      confirmButtonColor:"#2563eb"
+  function syncAdminUI(){
+    document.body.classList.toggle("rasm-is-admin",rasmIsAdmin());
+    document.querySelectorAll(".rasm-admin-only-recycle").forEach(el=>{
+      el.style.display=rasmIsAdmin()?"flex":"none";
     });
-    return false;
   }
 
-  window.rasmIsAdmin = rasmIsAdmin;
-
-  /* ---------------------------------------------------------
-     REMOVE THE OLD FLOATING BUTTON COMPLETELY
-  --------------------------------------------------------- */
-  function removeFloatingRecycle(){
+  /* Remove the old floating access point and all per-section duplicate buttons. */
+  function cleanOldRecycleButtons(){
     document.getElementById("rasmRecycleFloatingBtn")?.remove();
+    document.querySelectorAll(".rasm-recycle-section-btn").forEach(el=>el.remove());
   }
-  removeFloatingRecycle();
-  setTimeout(removeFloatingRecycle, 100);
-  setTimeout(removeFloatingRecycle, 500);
-  setTimeout(removeFloatingRecycle, 1500);
 
-  /* ---------------------------------------------------------
-     PUT RECYCLE BIN INSIDE 👥 USER MANAGEMENT
-  --------------------------------------------------------- */
-  function addRecycleToUserManagement(){
-    const submenu = document.getElementById("usersSubmenu");
-    if (!submenu) return;
-
-    let btn = submenu.querySelector(".rasm-user-recycle-btn");
-
-    if (!rasmIsAdmin()){
-      if (btn) btn.remove();
-      return;
-    }
-
-    if (!btn){
-      btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "rasm-user-recycle-btn";
-      btn.innerHTML = "♻️ Restore Deleted Records";
-      btn.title = "Admin only — restore deleted records one at a time";
-      btn.onclick = function(){
-        if (!rasmAdminOnly()) return;
-        if (typeof window.openRasmRecycleBin === "function"){
-          window.openRasmRecycleBin("all");
+  function addUserManagementRecycleButton(){
+    const submenu=document.getElementById("usersSubmenu");
+    if(!submenu) return;
+    const btn=submenu.querySelector("#menuRecycleBin, .rasm-user-recycle-btn");
+    if(btn){
+      btn.classList.add("rasm-admin-only-recycle");
+      btn.innerHTML="♻️ Recycle Bin";
+      btn.onclick=function(){
+        if(!rasmIsAdmin()){
+          Swal.fire("Admin Only","Only an administrator can delete or restore deleted records.","warning");
+          return;
         }
-      };
-      submenu.appendChild(btn);
-    }
-  }
-
-  /* ---------------------------------------------------------
-     HIDE ALL SECTION RECYCLE BUTTONS FROM NON-ADMINS
-  --------------------------------------------------------- */
-  function secureRecycleSectionButtons(){
-    document.querySelectorAll(".rasm-recycle-section-btn").forEach(btn=>{
-      if (rasmIsAdmin()){
-        btn.classList.remove("rasm-non-admin-hidden");
-      }else{
-        btn.classList.add("rasm-non-admin-hidden");
-      }
-    });
-  }
-
-  function refreshRecycleUI(){
-    removeFloatingRecycle();
-    addRecycleToUserManagement();
-    secureRecycleSectionButtons();
-  }
-
-  /* ---------------------------------------------------------
-     SECURE RECYCLE BIN OPENING
-  --------------------------------------------------------- */
-  const oldOpenRecycle = window.openRasmRecycleBin;
-  if (typeof oldOpenRecycle === "function" && !window.__rasmAdminRecycleOpenGuard){
-    window.__rasmAdminRecycleOpenGuard = true;
-    window.openRasmRecycleBin = function(module){
-      if (!rasmAdminOnly()) return;
-      return oldOpenRecycle.apply(this, arguments);
-    };
-  }
-
-  /* ---------------------------------------------------------
-     SECURE COMMON DELETE ENTRY POINT
-     Existing modules that use rasmBackgroundRemove are blocked
-     for teachers/parents before anything is removed.
-  --------------------------------------------------------- */
-  const oldBackgroundRemove = window.rasmBackgroundRemove;
-  if (typeof oldBackgroundRemove === "function" && !window.__rasmAdminDeleteGuard){
-    window.__rasmAdminDeleteGuard = true;
-    window.rasmBackgroundRemove = async function(){
-      if (!rasmAdminOnly()) return false;
-      return oldBackgroundRemove.apply(this, arguments);
-    };
-  }
-
-  /* ---------------------------------------------------------
-     SECURE STUDENT DELETE
-  --------------------------------------------------------- */
-  const oldDeleteSelected = window.deleteSelected;
-  if (typeof oldDeleteSelected === "function" && !window.__rasmAdminStudentDeleteGuard){
-    window.__rasmAdminStudentDeleteGuard = true;
-    window.deleteSelected = async function(){
-      if (!rasmAdminOnly()) return;
-      return oldDeleteSelected.apply(this, arguments);
-    };
-  }
-
-  /* ---------------------------------------------------------
-     SECURE EXAM RESULT DELETIONS
-  --------------------------------------------------------- */
-  [
-    "deleteLearnerMarks",
-    "deleteSelectedLearnersMarks",
-    "deleteClassSubjectMarks"
-  ].forEach(name=>{
-    const fn = window[name];
-    const flag = "__rasmAdminGuard_" + name;
-    if (typeof fn === "function" && !window[flag]){
-      window[flag] = true;
-      window[name] = async function(){
-        if (!rasmAdminOnly()) return;
-        return fn.apply(this, arguments);
+        if(typeof window.openAdminRecycleBin==="function") window.openAdminRecycleBin();
+        else if(typeof window.openRasmRecycleBin==="function") window.openRasmRecycleBin("all");
       };
     }
-  });
-
-  /* ---------------------------------------------------------
-     MAKE RESTORE / DELETE-FOREVER BUTTONS ADMIN-ONLY
-     Also protects clicks if a stale recycle modal was already open.
-  --------------------------------------------------------- */
-  document.addEventListener("click", function(e){
-    const target = e.target.closest?.(".rasm-restore-btn, .rasm-delete-forever-btn");
-    if (!target) return;
-    if (!rasmIsAdmin()){
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      rasmAdminOnly();
-    }
-  }, true);
-
-  /* ---------------------------------------------------------
-     SCHOOL PROFILE: OPEN AS FLEX SO IT IS CENTERED
-  --------------------------------------------------------- */
-  const oldOpenProfile = window.openSchoolProfileForm;
-  if (typeof oldOpenProfile === "function" && !window.__rasmCenteredProfileGuard){
-    window.__rasmCenteredProfileGuard = true;
-    window.openSchoolProfileForm = async function(){
-      const modal = document.getElementById("schoolProfileModal");
-      if (modal) modal.style.display = "flex";
-
-      const result = await oldOpenProfile.apply(this, arguments);
-
-      /* Original function uses display:block; immediately correct it. */
-      if (modal) modal.style.display = "flex";
-      return result;
-    };
+    syncAdminUI();
   }
 
-  /* Keep the modal centered if any other code changes its display. */
-  const profileModal = document.getElementById("schoolProfileModal");
-  if (profileModal){
-    const observer = new MutationObserver(()=>{
-      if (profileModal.style.display === "block"){
-        profileModal.style.display = "flex";
+  /* Admin-only enforcement for every exposed delete entry point. */
+  function protectDeleteFunction(name){
+    const fn=window[name];
+    if(typeof fn!=="function" || fn.__rasmAdminProtected) return;
+    const wrapped=function(){
+      if(!rasmIsAdmin()){
+        return Swal.fire("Admin Only","Only an administrator can delete records.","warning");
       }
-    });
-    observer.observe(profileModal,{attributes:true,attributeFilter:["style"]});
+      return fn.apply(this,arguments);
+    };
+    wrapped.__rasmAdminProtected=true;
+    window[name]=wrapped;
   }
 
-  /* ---------------------------------------------------------
-     ADMIN-ONLY RECYCLE BUTTON IN SCHOOL MANAGEMENT POPUP:
-     remove the old popup button because access now belongs under
-     User Management.
-  --------------------------------------------------------- */
-  function removePopupRecycleButtons(){
-    document.querySelectorAll(".rasm-school-recycle-btn").forEach(b=>b.remove());
-  }
-  removePopupRecycleButtons();
+  function protectAllDeletes(){
+    [
+      "deleteSelected","deleteLearnerMarks","deleteSelectedLearnersMarks",
+      "deleteClassSubjectMarks","deleteTeacher","deleteSelectedTeachers",
+      "deleteSupportStaff","deleteSelectedSupportStaff","deleteICT",
+      "deleteSelectedICT","deleteAttendance","deleteSelectedAttendance",
+      "deleteLibraryItem","deleteSelectedLibraryItems","deleteFee",
+      "deleteSelectedFees","deleteTransport","deleteSelectedTransport",
+      "deleteHostel","deleteSelectedHostel","deleteInventory",
+      "deleteSelectedInventory"
+    ].forEach(protectDeleteFunction);
 
-  /* ---------------------------------------------------------
-     KEEP THE USER-MANAGEMENT ITEM AVAILABLE AFTER LOGIN/ROLE
-     CHANGES AND DYNAMIC UI RENDERS.
-  --------------------------------------------------------- */
-  refreshRecycleUI();
-  setTimeout(refreshRecycleUI, 300);
-  setTimeout(refreshRecycleUI, 1000);
-  setTimeout(refreshRecycleUI, 2000);
-
-  if (!window.__rasmRecycleFinalObserver){
-    window.__rasmRecycleFinalObserver = new MutationObserver(function(){
-      removeFloatingRecycle();
-      addRecycleToUserManagement();
-      secureRecycleSectionButtons();
-    });
-    window.__rasmRecycleFinalObserver.observe(document.body,{childList:true,subtree:true});
+    const rb=window.rasmBackgroundRemove;
+    if(typeof rb==="function" && !rb.__rasmAdminProtected){
+      const wrapped=function(){
+        if(!rasmIsAdmin()){
+          return Swal.fire("Admin Only","Only an administrator can delete records.","warning");
+        }
+        return rb.apply(this,arguments);
+      };
+      wrapped.__rasmAdminProtected=true;
+      window.rasmBackgroundRemove=wrapped;
+    }
   }
 
+  function protectRecycleOpen(){
+    const fn=window.openRasmRecycleBin;
+    if(typeof fn!=="function" || fn.__rasmAdminProtected) return;
+    const wrapped=function(){
+      if(!rasmIsAdmin()){
+        return Swal.fire("Admin Only","Only an administrator can restore or permanently delete records.","warning");
+      }
+      return fn.apply(this,arguments);
+    };
+    wrapped.__rasmAdminProtected=true;
+    window.openRasmRecycleBin=wrapped;
+  }
+
+  function makeCourseToggle(){
+    const panel=document.getElementById("courseCreatorPanel");
+    if(!panel) return;
+    const h2=panel.querySelector("h2");
+    if(!h2) return;
+    if(!h2.querySelector(".rasm-course-toggle")){
+      const b=document.createElement("button");
+      b.type="button"; b.className="rasm-course-toggle";
+      b.innerHTML="▼ Hide Form";
+      b.onclick=function(){
+        const collapsed=panel.classList.toggle("rasm-course-collapsed");
+        panel.classList.toggle("rasm-course-expanded",!collapsed);
+        b.innerHTML=collapsed?"▶ Show Form":"▼ Hide Form";
+      };
+      h2.appendChild(b);
+    }
+    if(!panel.querySelector(".rasm-course-form-body")){
+      const body=document.createElement("div");
+      body.className="rasm-course-form-body";
+      let node=h2.nextElementSibling;
+      while(node){
+        const next=node.nextElementSibling;
+        body.appendChild(node);
+        node=next;
+      }
+      panel.appendChild(body);
+    }
+    panel.classList.add("rasm-course-expanded");
+  }
+
+  function forceProfileCenter(){
+    const modal=document.getElementById("schoolProfileModal");
+    if(!modal) return;
+    modal.style.alignItems="center";
+    modal.style.justifyContent="center";
+    modal.style.inset="0";
+    modal.style.position="fixed";
+  }
+function init(){
+    cleanOldRecycleButtons();
+
+    protectDeleteFunction("deleteSelected");
+    protectDeleteFunction("deleteLearnerMarks");
+    protectDeleteFunction("deleteSelectedLearnersMarks");
+    protectDeleteFunction("deleteClassSubjectMarks");
+
+    protectAllDeletes();
+    protectRecycleOpen();
+
+    makeCourseToggle();
+    forceProfileCenter();
+    syncAdminUI();
+}
+
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",init);
+  else setTimeout(init,100);
+
+  let ticks=0;
+  const timer=setInterval(function(){
+    init();
+    if(++ticks>=20) clearInterval(timer);
+  },500);
 })();
+
+// =========================================================
+// ♻️ ADMIN ONLY — OPEN RECYCLE BIN
+// =========================================================
+window.openAdminRecycleBin = function () {
+
+    const role = String(
+        window.currentUserRole ||
+        window.userRole ||
+        window.currentUser?.role ||
+        ""
+    ).trim().toLowerCase();
+
+    // ONLY ADMIN CAN ACCESS RECYCLE BIN
+    if (role !== "admin") {
+        return Swal.fire({
+            icon: "error",
+            title: "Access Denied",
+            text: "Only administrators can delete or restore deleted records.",
+            confirmButtonColor: "#dc2626"
+        });
+    }
+
+    if (typeof window.openRasmRecycleBin !== "function") {
+        return Swal.fire({
+            icon: "error",
+            title: "Recycle Bin Unavailable",
+            text: "The Recycle Bin module has not loaded yet.",
+            confirmButtonColor: "#dc2626"
+        });
+    }
+
+    // Recycle Bin is defined inside its module IIFE and exposed globally
+    // as window.openRasmRecycleBin.
+    window.openRasmRecycleBin("all");
+};
+
+
+
 </script>
