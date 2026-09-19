@@ -89,7 +89,48 @@ li{
 #authSection *::after {
     box-sizing: border-box;
 }
+/* =========================================================
+   💰 RASM 360 — FEES TABLE PROFESSIONAL CELL ALIGNMENT
+========================================================= */
 
+#feesSection table th,
+#feesSection table td,
+#fees table th,
+#fees table td,
+[id*="fee"] table th,
+[id*="fee"] table td {
+    text-align: center !important;
+    vertical-align: middle !important;
+}
+
+/* Fee amounts, balances and category values */
+#feesSection table td *,
+#fees table td *,
+[id*="fee"] table td * {
+    text-align: center !important;
+    vertical-align: middle !important;
+}
+
+/* Inputs and dropdowns */
+#feesSection table td input,
+#feesSection table td select,
+#feesSection table td textarea,
+#fees table td input,
+#fees table td select,
+#fees table td textarea {
+    text-align: center !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+/* Buttons */
+#feesSection table td button,
+#fees table td button {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
 
 /* =========================================================
    AUTH ROOT
@@ -2798,8 +2839,19 @@ button.primary{
 
 .history-btn{
 
-    background:#e5e7eb;
-    color:#374151;
+    background:linear-gradient(135deg,#2563eb,#1d4ed8);
+    color:#ffffff;
+    border:1px solid #1d4ed8;
+    font-weight:800;
+    opacity:1 !important;
+    box-shadow:0 4px 10px rgba(37,99,235,.28);
+    min-width:42px;
+    min-height:38px;
+    border-radius:9px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
 
 }
 
@@ -2844,8 +2896,10 @@ button.primary{
 
 .history-btn:hover{
 
-    background:#374151;
+    background:linear-gradient(135deg,#1d4ed8,#1e40af);
     color:#fff;
+    transform:translateY(-2px) scale(1.04);
+    box-shadow:0 8px 18px rgba(37,99,235,.35);
 
 }
 
@@ -10154,7 +10208,7 @@ font-weight:bold;
     position:relative;
     overflow:hidden;
 
-    background-image:url('https://i.imgur.com/zqCdOsB.jpeg');
+    background-image:url('https://i.imgur.com/anYzVe2.jpeg');
 
     background-size:cover;
     background-position:center;
@@ -10860,7 +10914,7 @@ border-radius:6px;
   #feesTable td{
     white-space:nowrap !important;
     min-width:100px;
-  }
+  }\n  #feesTable th,\n  #feesTable td{\n    box-sizing:border-box !important;\n    vertical-align:middle !important;\n  }\n\n  #feesTable th:first-child,\n  #feesTable td:first-child{\n    width:46px !important; min-width:46px !important; max-width:46px !important;\n    text-align:center !important;\n  }\n  #feesTable th:nth-child(2),\n  #feesTable td:nth-child(2){\n    min-width:70px !important; text-align:center !important;\n  }\n  #feesTable th:nth-child(3),\n  #feesTable td:nth-child(3){\n    min-width:240px !important;\n  }\n  #feesTable th:nth-child(4),\n  #feesTable td:nth-child(4){\n    min-width:110px !important; text-align:center !important;\n  }\n  #feesTable th:last-child,\n  #feesTable td:last-child{\n    min-width:220px !important; width:220px !important; text-align:center !important;\n  }\n  #feesTable .fee-row-checkbox{\n    width:18px !important; height:18px !important; margin:0 !important; cursor:pointer;\n  }\n  #feesTable .fee-action-select{\n    width:100% !important; min-width:190px !important; max-width:210px !important; box-sizing:border-box !important;\n  }\n
 
   #feesTable th{
     position:sticky;
@@ -31386,11 +31440,12 @@ window.loadFees = async function () {
 
             <tr>
 
-                <th>No</th>
-
+                <th style="text-align:center;">
+                    <input type="checkbox" id="selectAllFees" title="Select all loaded fee records" aria-label="Select all loaded fee records" onchange="toggleAllFeeCheckboxes(this)">
+                </th>
+                <th style="text-align:center;">No</th>
                 <th>Learner</th>
-
-                <th>Grade</th>
+                <th style="text-align:center;">Grade</th>
 
                 ${feeTypes
                     .map(
@@ -31497,7 +31552,7 @@ window.loadFees = async function () {
                 <tr>
 
                     <td
-                        colspan="${feeTypes.length + 8}"
+                        colspan="${feeTypes.length + 9}"
                         style="
                             padding:60px;
                             text-align:center;
@@ -31539,8 +31594,9 @@ window.loadFees = async function () {
            Does NOT require rendering every row.
            ==================================================== */
 
-        const categoryTotals =
-            {};
+        const categoryTotals = {};
+        let totalPaidGrandTotal = 0;
+        let balanceGrandTotal = 0;
 
 
         for (
@@ -31571,6 +31627,14 @@ window.loadFees = async function () {
                     );
 
             }
+
+            // Grand totals must come from the same filtered records
+            // displayed in the table so the footer always reconciles.
+            totalPaidGrandTotal +=
+                Number(record.fee?.totalPaid) || 0;
+
+            balanceGrandTotal +=
+                Number(record.fee?.balance) || 0;
 
         }
 
@@ -31721,7 +31785,10 @@ window.loadFees = async function () {
                         data-fee-id="${safeFeeId}"
                     >
 
-                        <td>
+                        <td style="text-align:center;">
+                            <input type="checkbox" class="fee-row-checkbox" value="${safeFeeId}" data-fee-id="${safeFeeId}" aria-label="Select ${feeSafeHTML(studentName)}" onchange="syncFeeSelectAllState()">
+                        </td>
+                        <td style="text-align:center;">
                             ${rowNumber}
                         </td>
 
@@ -31990,7 +32057,9 @@ window.loadFees = async function () {
                     addFeeTotalsFooter(
                         tbody,
                         feeTypes,
-                        categoryTotals
+                        categoryTotals,
+                        totalPaidGrandTotal,
+                        balanceGrandTotal
                     );
 
                 }
@@ -32376,7 +32445,9 @@ window.loadFees = async function () {
 function addFeeTotalsFooter(
     tbody,
     feeTypes,
-    categoryTotals
+    categoryTotals,
+    totalPaidGrandTotal = 0,
+    balanceGrandTotal = 0
 ) {
 
     if (
@@ -32392,18 +32463,30 @@ function addFeeTotalsFooter(
         true;
 
 
+    // Exact column mapping:
+    // 1 checkbox | 2 No | 3 Learner | 4 Grade
+    // then one footer cell for every fee category
+    // then Total Paid | Balance | Status | History | Actions.
     let footerRow = `
 
         <tr
             class="rasm-fee-total-row"
             style="
-                font-weight:bold;
-                background:#f3f4f6;
+                font-weight:800;
+                background:#eef2ff;
+                border-top:3px solid #2563eb;
             "
         >
 
-            <td colspan="3">
-                TOTAL
+            <td colspan="4"
+                style="
+                    text-align:right;
+                    padding:12px 10px;
+                    font-weight:900;
+                    color:#111827;
+                "
+            >
+                TOTALS
             </td>
 
     `;
@@ -32415,7 +32498,15 @@ function addFeeTotalsFooter(
 
         footerRow += `
 
-            <td>
+            <td
+                style="
+                    text-align:center;
+                    padding:12px 8px;
+                    font-weight:900;
+                    color:#111827;
+                    white-space:nowrap;
+                "
+            >
 
                 ${
                     (
@@ -32431,9 +32522,71 @@ function addFeeTotalsFooter(
     }
 
 
+    // Total Paid is aligned directly below the Total Paid column.
     footerRow += `
 
-            <td colspan="5"></td>
+        <td
+            style="
+                text-align:center;
+                padding:12px 8px;
+                font-weight:900;
+                color:#166534;
+                background:#dcfce7;
+                white-space:nowrap;
+            "
+        >
+            ${Number(totalPaidGrandTotal || 0).toLocaleString()}
+        </td>
+
+
+        <!-- Balance -->
+        <td
+            style="
+                text-align:center;
+                padding:12px 8px;
+                font-weight:900;
+                color:#b91c1c;
+                background:#fee2e2;
+                white-space:nowrap;
+            "
+        >
+            ${Number(balanceGrandTotal || 0).toLocaleString()}
+        </td>
+
+
+        <!-- Status / History / Actions have no numeric total -->
+        <td
+            style="
+                text-align:center;
+                padding:12px 8px;
+                color:#64748b;
+                font-weight:700;
+            "
+        >
+            —
+        </td>
+
+        <td
+            style="
+                text-align:center;
+                padding:12px 8px;
+                color:#64748b;
+                font-weight:700;
+            "
+        >
+            —
+        </td>
+
+        <td
+            style="
+                text-align:center;
+                padding:12px 8px;
+                color:#64748b;
+                font-weight:700;
+            "
+        >
+            —
+        </td>
 
         </tr>
 
@@ -32527,6 +32680,25 @@ window.openFeeHistoryById =
 /* =========================================================
 ⚙️ HANDLE FEE ACTION
 ========================================================= */
+
+window.toggleAllFeeCheckboxes = function(master) {
+  const checked = !!master?.checked;
+  document.querySelectorAll("#feesTable tbody .fee-row-checkbox").forEach(cb => { cb.checked = checked; });
+};
+
+window.syncFeeSelectAllState = function() {
+  const master = document.getElementById("selectAllFees");
+  const boxes = Array.from(document.querySelectorAll("#feesTable tbody .fee-row-checkbox"));
+  if (!master) return;
+  const selected = boxes.filter(cb => cb.checked).length;
+  master.checked = boxes.length > 0 && selected === boxes.length;
+  master.indeterminate = selected > 0 && selected < boxes.length;
+};
+
+window.getSelectedFeeIds = function() {
+  return Array.from(document.querySelectorAll("#feesTable tbody .fee-row-checkbox:checked"))
+    .map(cb => String(cb.dataset.feeId || cb.value || "").trim()).filter(Boolean);
+};
 
 window.handleFeeAction =
 function (
@@ -46286,12 +46458,21 @@ window.generateAssessmentReports = function () {
             // CURRENT EXAM RANKING
             // ==================================================
 
+            // IMPORTANT: never rank assessment reports using a stored
+            // `total` field. Older records may contain timestamps, IDs or
+            // other metadata there. normalizeLearnerForMainSubjectReports()
+            // has already calculated a clean 0-100 subject total.
             const ranked =
-                [...learners].sort(
-                    (a, b) =>
-                        Number(b.total || 0) -
-                        Number(a.total || 0)
-                );
+                [...learners]
+                    .map(learner => ({
+                        ...learner,
+                        total: Number(learner.total) || 0,
+                        average: Number(learner.average) || 0
+                    }))
+                    .sort(
+                        (a, b) =>
+                            b.total - a.total
+                    );
 
 
             const totalLearners =
@@ -46643,18 +46824,23 @@ window.generateAssessmentReports = function () {
                 score =
                     Number(score) || 0;
 
+                // CBC Grade 1-6: percentage -> 4-level band.
                 if (isGrade1To6Value(reportMeta?.grade)) {
-                    if (score >= 75) return "EE (4)";
-                    if (score >= 50) return "ME (3)";
-                    if (score >= 30) return "AE (2)";
-                    return "BE (1)";
+                    if (score >= 75) return "EE(4)";
+                    if (score >= 50) return "ME(3)";
+                    if (score >= 30) return "AE(2)";
+                    return "BE(1)";
                 }
 
-                if (score >= 75) return "EE";
-                if (score >= 41) return "ME";
-                if (score >= 21) return "AE";
-
-                return "BE";
+                // CBC Grade 7-12: eight-point performance bands.
+                if (score >= 90) return "EE1";
+                if (score >= 75) return "EE2";
+                if (score >= 58) return "ME1";
+                if (score >= 41) return "ME2";
+                if (score >= 31) return "AE1";
+                if (score >= 21) return "AE2";
+                if (score >= 11) return "BE1";
+                return "BE2";
             }
 
 
@@ -47150,16 +47336,29 @@ window.generateAssessmentReports = function () {
 
                 subjects.forEach(sub => {
 
-                    const currentMark =
-                        Number(
-                            currentMarks[sub] ?? 0
+                    const currentRaw =
+                        getNumericRecordedValue(
+                            currentMarks[sub]
                         );
 
+                    const previousRaw =
+                        getNumericRecordedValue(
+                            previousMarks[sub]
+                        );
+
+                    const currentMark =
+                        Number.isFinite(currentRaw) &&
+                        currentRaw >= 0 &&
+                        currentRaw <= 100
+                            ? currentRaw
+                            : 0;
 
                     const previousMark =
-                        Number(
-                            previousMarks[sub] ?? 0
-                        );
+                        Number.isFinite(previousRaw) &&
+                        previousRaw >= 0 &&
+                        previousRaw <= 100
+                            ? previousRaw
+                            : 0;
 
 
                     const currentLevel =
@@ -47382,16 +47581,16 @@ window.generateAssessmentReports = function () {
                             (sum, sub) => {
 
                                 const value =
-                                    Number(
+                                    getNumericRecordedValue(
                                         previousMarks[sub]
                                     );
 
 
                                 return sum +
                                     (
-                                        Number.isFinite(
-                                            value
-                                        )
+                                        Number.isFinite(value) &&
+                                        value >= 0 &&
+                                        value <= 100
                                             ? value
                                             : 0
                                     );
@@ -51211,7 +51410,19 @@ function normalizeLearnerForMainSubjectReports(learner) {
 
     getReportMainSubjectKeysForLearner({ ...learner, marks: originalMarks })
         .forEach(subject => {
-            marks[subject] = originalMarks[subject];
+            const value = getNumericRecordedValue(originalMarks[subject]);
+
+            // Assessment marks are percentages. Reject timestamps,
+            // Firebase metadata, IDs and any impossible score so a bad
+            // field can never inflate totals/averages.
+            if (
+                value !== null &&
+                Number.isFinite(value) &&
+                value >= 0 &&
+                value <= 100
+            ) {
+                marks[subject] = value;
+            }
         });
 
     const availableSubjects = Object.keys(marks);
@@ -51220,8 +51431,13 @@ function normalizeLearnerForMainSubjectReports(learner) {
     let totalPoints = 0;
 
     availableSubjects.forEach(subject => {
-        const value = getNumericRecordedValue(marks[subject]);
-        if (value !== null) {
+        const value = Number(marks[subject]);
+
+        if (
+            Number.isFinite(value) &&
+            value >= 0 &&
+            value <= 100
+        ) {
             total += value;
             count++;
 
