@@ -30378,154 +30378,291 @@ window.addFee = async function () {
         }
 
 
-        const savedFee =
-            transactionResult.snapshot.val()
-            || {};
+     const savedFee =
+    transactionResult.snapshot.val()
+    || {};
 
 
-        const balance =
-            Number(
-                savedFee.balance
-            ) || 0;
+const balance =
+    Number(
+        savedFee.balance
+    ) || 0;
 
 
-        const totalPaid =
-            Number(
-                savedFee.totalPaid
-            ) || 0;
-
-
-
-        /* ====================================================
-           ⚡ SUCCESS IMMEDIATELY
-           ==================================================== */
-
-        const elapsed =
-            Math.round(
-                performance.now() -
-                startedAt
-            );
-
-
-        Swal.fire({
-
-            icon:
-                "success",
-
-            title:
-                "Payment Recorded ✓",
-
-            html: `
-
-                <div style="
-                    font-size:14px;
-                    line-height:1.8;
-                ">
-
-                    <b>
-                        ${escapeHTMLSafe(
-                            student.name ||
-                            "Learner"
-                        )}
-                    </b>
-
-                    <br>
-
-                    KES
-                    <b>
-                        ${amount.toLocaleString()}
-                    </b>
-
-                    recorded successfully.
-
-                    <br>
-
-                    <span style="
-                        color:#16a34a;
-                        font-weight:700;
-                    ">
-
-                        Balance:
-                        KES ${balance.toLocaleString()}
-
-                    </span>
-
-                    <br>
-
-                    <small style="
-                        color:#64748b;
-                    ">
-
-                        Recorded in ${elapsed} ms
-
-                    </small>
-
-                </div>
-
-            `,
-
-            timer:
-                1800,
-
-            showConfirmButton:
-                false
-
-        });
+const totalPaid =
+    Number(
+        savedFee.totalPaid
+    ) || 0;
 
 
 
-        /* ====================================================
-           🧹 CLEAR FORM IMMEDIATELY
-           ==================================================== */
+/* ====================================================
+   ⚡ SUCCESS IMMEDIATELY
+   ==================================================== */
+
+const elapsed =
+    Math.round(
+        performance.now() -
+        startedAt
+    );
+
+
+Swal.fire({
+
+    icon:
+        "success",
+
+    title:
+        "Payment Recorded ✓",
+
+    html: `
+
+        <div style="
+            font-size:14px;
+            line-height:1.8;
+        ">
+
+            <b>
+                ${escapeHTMLSafe(
+                    student.name ||
+                    "Learner"
+                )}
+            </b>
+
+            <br>
+
+            KES
+            <b>
+                ${amount.toLocaleString()}
+            </b>
+
+            recorded successfully.
+
+            <br>
+
+            <span style="
+                color:#16a34a;
+                font-weight:700;
+            ">
+
+                Balance:
+                KES ${balance.toLocaleString()}
+
+            </span>
+
+            <br>
+
+            <small style="
+                color:#64748b;
+            ">
+
+                Recorded in ${elapsed} ms
+
+            </small>
+
+        </div>
+
+    `,
+
+    timer:
+        1800,
+
+    showConfirmButton:
+        false
+
+});
+
+
+
+/* ====================================================
+   🧹 CLEAR FORM IMMEDIATELY
+   ==================================================== */
+
+if (
+    typeof clearFeeForm ===
+    "function"
+) {
+
+    clearFeeForm();
+
+}
+
+
+
+/* ====================================================
+   ⚡ IMMEDIATE LEARNER FEE TABLE UPDATE
+   ==================================================== */
+
+try {
+
+    /* ------------------------------------------------
+       1. UPDATE LOCAL FEE CACHE IMMEDIATELY
+       ------------------------------------------------ */
+
+    if (
+        window.allFees &&
+        typeof window.allFees ===
+            "object"
+    ) {
 
         if (
-            typeof clearFeeForm ===
-            "function"
+            !window.allFees[
+                year
+            ]
         ) {
 
-            clearFeeForm();
+            window.allFees[
+                year
+            ] = {};
 
         }
 
 
+        window.allFees[
+            year
+        ][studentId] =
+            savedFee;
 
-        /* ====================================================
-           📊 UPDATE LOCAL FEE CACHE
-           
-           If your application keeps one, update it without
-           downloading the entire fee database.
-           ==================================================== */
+    }
 
-        try {
 
-            if (
-                window.allFees &&
-                typeof window.allFees ===
-                    "object"
-            ) {
+
+    /* ------------------------------------------------
+       2. INVALIDATE LEARNER FEE CACHE
+       ------------------------------------------------ */
+
+    try {
+
+        const learnerFeeRef =
+            schoolRef(
+                `fees/${year}/${studentId}`
+            );
+
+
+        const learnerCacheKey =
+            "rasm360_cache_v1:" +
+            learnerFeeRef
+                .toString()
+                .replace(
+                    /\/+$/,
+                    ""
+                );
+
+
+        localStorage.removeItem(
+            learnerCacheKey
+        );
+
+
+
+        /* --------------------------------------------
+           INVALIDATE COMPLETE YEAR FEE CACHE
+           loadFees() reads fees/{year}
+           -------------------------------------------- */
+
+        const yearFeeRef =
+            schoolRef(
+                `fees/${year}`
+            );
+
+
+        const yearCacheKey =
+            "rasm360_cache_v1:" +
+            yearFeeRef
+                .toString()
+                .replace(
+                    /\/+$/,
+                    ""
+                );
+
+
+        localStorage.removeItem(
+            yearCacheKey
+        );
+
+
+    } catch (cacheError) {
+
+        console.warn(
+            "⚠️ Fee cache invalidation warning:",
+            cacheError
+        );
+
+    }
+
+
+
+    /* ------------------------------------------------
+       3. REFRESH FEE TABLE IMMEDIATELY
+       ------------------------------------------------ */
+
+    if (
+        typeof loadFees ===
+        "function"
+    ) {
+
+        const refreshFeeTable =
+            async function () {
+
+                /*
+                   If another fee-table load is already
+                   running, wait until it finishes instead
+                   of allowing the new refresh to be skipped.
+                */
 
                 if (
-                    !window.allFees[
-                        year
-                    ]
+                    window.__feesLoading
                 ) {
 
-                    window.allFees[
-                        year
-                    ] = {};
+                    setTimeout(
+                        refreshFeeTable,
+                        50
+                    );
+
+                    return;
 
                 }
 
 
-                window.allFees[
-                    year
-                ][studentId] =
-                    savedFee;
+                try {
 
-            }
+                    await loadFees();
 
-        } catch (_) {}
 
+                    console.log(
+                        "✅ Learner fee table updated immediately."
+                    );
+
+
+                } catch (
+                    refreshError
+                ) {
+
+                    console.error(
+                        "❌ Immediate fee table refresh failed:",
+                        refreshError
+                    );
+
+                }
+
+            };
+
+
+        refreshFeeTable();
+
+    }
+
+
+} catch (
+    feeRefreshError
+) {
+
+    console.error(
+        "❌ Learner fee immediate refresh error:",
+        feeRefreshError
+    );
+
+}
 
 
         /* ====================================================
@@ -61686,401 +61823,635 @@ function updateTeachersCount() {
 
   });
 }
-window.generateParentList = async () => {
+// ============================================================
+// 👨‍👩‍👧 GENERATE PARENT LIST
+// SAFE REUSABLE VERSION
+// CAN BE RUN MULTIPLE TIMES FOR DIFFERENT GRADES
+// ============================================================
 
-  console.log("✅ Generate Parent List clicked");
+window.generateParentList = async function () {
 
-  const output = document.getElementById("generatedOutput");
+    console.log("✅ Generate Parent List clicked");
 
-  if (!output) {
-    console.error("❌ generatedOutput div not found");
-    return;
-  }
+    let loaderStarted = false;
 
-  if (!Array.isArray(allStudents) || allStudents.length === 0) {
-    output.innerHTML = "<p>No students loaded yet</p>";
-    return;
-  }
+    try {
 
-  // ===============================
-  // 🔥 START LOADER
-  // ===============================
-  showLoader();
-  updateProgress(10, "Loading student database...");
-  await new Promise(r => setTimeout(r, 200));
+        const output =
+            document.getElementById("generatedOutput");
 
-  // ===============================
-  // 🔥 SAFE GRADE EXTRACTION
-  // ===============================
-  const uniqueGrades = [
-    ...new Set(
-      allStudents
-        .map(s => s?.grade?.toString().trim())
-        .filter(Boolean)
-    )
-  ].sort();
+        if (!output) {
+            console.error("❌ generatedOutput not found");
+            return;
+        }
 
-  if (!uniqueGrades.length) {
-    hideLoader();
-    Swal.fire("No Data", "No grades found in system", "error");
-    return;
-  }
+        if (!Array.isArray(allStudents) || !allStudents.length) {
 
-  const gradeOptions = {};
-  uniqueGrades.forEach(g => gradeOptions[g] = g);
+            Swal.fire({
+                icon: "warning",
+                title: "No Student Data",
+                text: "No students are currently loaded."
+            });
 
-  updateProgress(30, "Preparing grade selection...");
-  await new Promise(r => setTimeout(r, 200));
+            return;
+        }
 
-  hideLoader();
+        // ====================================================
+        // ALWAYS CLEAN ANY PREVIOUS LOADER
+        // ====================================================
 
-  // ===============================
-  // 1️⃣ GRADE SELECTION
-  // ===============================
-  const result = await Swal.fire({
-    title: "Select Grade",
-    input: "select",
-    inputOptions: gradeOptions,
-    inputPlaceholder: "Choose a grade",
-    showCancelButton: true,
-    allowOutsideClick: false
-  });
+        hideLoader();
 
-  if (!result.isConfirmed) return;
+        // ====================================================
+        // GET UNIQUE GRADES
+        // ====================================================
 
-  const selectedGrade = result.value;
-  const currentYear = new Date().getFullYear();
+        const uniqueGrades = [
+            ...new Set(
+                allStudents
+                    .map(s =>
+                        String(s?.grade || "").trim()
+                    )
+                    .filter(Boolean)
+            )
+        ].sort((a, b) =>
+            a.localeCompare(
+                b,
+                undefined,
+                { numeric: true, sensitivity: "base" }
+            )
+        );
 
-  // ===============================
-  // 🔥 RESTART LOADER
-  // ===============================
-  showLoader();
-  updateProgress(50, `Filtering learners for ${selectedGrade}...`);
-  await new Promise(r => setTimeout(r, 200));
+        if (!uniqueGrades.length) {
 
-  // ===============================
-  // 2️⃣ FILTER DATA
-  // ===============================
-  const learnersList = allStudents
-    .filter(s => (s?.grade || "").toString().trim() === selectedGrade)
-    .map(s => ({
-      learnerName: s?.name || "-",
-      parentName: s?.parentName || "-",
-      phone: s?.parentPhone || "-"
-    }));
+            Swal.fire({
+                icon: "warning",
+                title: "No Grades Found",
+                text: "No learner grades were found."
+            });
 
-  if (!learnersList.length) {
-    hideLoader();
-    Swal.fire("No Data", `No learners found for ${selectedGrade}`, "warning");
-    return;
-  }
+            return;
+        }
 
-  updateProgress(70, "Building parent register...");
-  await new Promise(r => setTimeout(r, 200));
+        const gradeOptions = {};
 
-  // ===============================
-  // 🔥 HEADER (IMPROVED)
-  // ===============================
-// =====================================================
-// 🏫 STANDARD SCHOOL PROFILE HEADER
-// USE THE SAME HEADER AS OTHER REPORTS
-// =====================================================
-let headerHtml = "";
+        uniqueGrades.forEach(grade => {
+            gradeOptions[grade] = grade;
+        });
 
-if (typeof window.getSchoolPrintHeader === "function") {
+        // ====================================================
+        // GRADE MODAL
+        // IMPORTANT:
+        // THIS MODAL CAN BE OPENED AGAIN AFTER GENERATION
+        // ====================================================
 
-    headerHtml = window.getSchoolPrintHeader(
-        "PARENTS ATTENDANCE REGISTER"
-    );
+        const result = await Swal.fire({
 
-} else {
+            title: "👨‍👩‍👧 Generate Parent List",
 
-    // =================================================
-    // FALLBACK ONLY
-    // =================================================
-    const school = window.currentSchool || {};
+            text: "Select the grade you want to generate.",
 
-    function escapeHeaderHTML(value) {
-        return String(value ?? "")
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
+            input: "select",
 
-    headerHtml = `
-        <div style="
-            width:100%;
-            border-bottom:3px solid #000;
-            padding-bottom:15px;
-            margin-bottom:20px;
-        ">
+            inputOptions: gradeOptions,
 
-            <div style="
-                display:flex;
-                align-items:center;
-                justify-content:space-between;
-                width:100%;
-            ">
+            inputPlaceholder: "Choose a grade",
 
-                <!-- LEFT SPACE -->
+            showCancelButton: true,
+
+            confirmButtonText: "Generate List",
+
+            cancelButtonText: "Cancel",
+
+            allowOutsideClick: true,
+
+            allowEscapeKey: true,
+
+            focusConfirm: false,
+
+            customClass: {
+                popup: "rasm-parent-list-modal"
+            }
+
+        });
+
+        // ====================================================
+        // USER CANCELLED
+        // ====================================================
+
+        if (!result.isConfirmed) {
+
+            hideLoader();
+
+            return;
+        }
+
+        const selectedGrade =
+            String(result.value || "").trim();
+
+        if (!selectedGrade) {
+
+            Swal.fire({
+                icon: "warning",
+                title: "Select Grade",
+                text: "Please select a grade first."
+            });
+
+            return;
+        }
+
+        // ====================================================
+        // START SAFE LOADER
+        // ====================================================
+
+        showLoader();
+
+        loaderStarted = true;
+
+        updateProgress(
+            15,
+            `Loading ${selectedGrade} learners...`
+        );
+
+        // ====================================================
+        // FILTER LEARNERS
+        // ====================================================
+
+        const learnersList = allStudents
+
+            .filter(student => {
+
+                const studentGrade =
+                    String(student?.grade || "").trim();
+
+                return studentGrade.toLowerCase() ===
+                       selectedGrade.toLowerCase();
+            })
+
+            .map(student => ({
+
+                learnerName:
+                    String(student?.name || "-"),
+
+                parentName:
+                    String(student?.parentName || "-"),
+
+                phone:
+                    String(student?.parentPhone || "-")
+
+            }));
+
+        if (!learnersList.length) {
+
+            hideLoader();
+            loaderStarted = false;
+
+            await Swal.fire({
+
+                icon: "warning",
+
+                title: "No Learners Found",
+
+                text:
+                    `No learners were found for ${selectedGrade}.`
+
+            });
+
+            return;
+        }
+
+        updateProgress(
+            40,
+            `Found ${learnersList.length} learners...`
+        );
+
+        await new Promise(resolve =>
+            setTimeout(resolve, 100)
+        );
+
+        // ====================================================
+        // SORT
+        // ====================================================
+
+        learnersList.sort((a, b) =>
+            a.learnerName.localeCompare(
+                b.learnerName,
+                undefined,
+                { sensitivity: "base" }
+            )
+        );
+
+        updateProgress(
+            60,
+            "Building parent register..."
+        );
+
+        // ====================================================
+        // SCHOOL HEADER
+        // ====================================================
+
+        let headerHtml = "";
+
+        if (
+            typeof window.getSchoolPrintHeader ===
+            "function"
+        ) {
+
+            headerHtml =
+                window.getSchoolPrintHeader(
+                    "PARENTS ATTENDANCE REGISTER"
+                );
+
+        } else {
+
+            const school =
+                window.currentSchool || {};
+
+            const escapeHTML = value =>
+                String(value ?? "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+
+            headerHtml = `
+
                 <div style="
-                    width:100px;
-                "></div>
-
-
-                <!-- SCHOOL DETAILS -->
-                <div style="
-                    flex:1;
+                    width:100%;
                     text-align:center;
+                    border-bottom:3px solid #000;
+                    padding-bottom:15px;
+                    margin-bottom:20px;
                 ">
 
                     <h1 style="
                         margin:0;
-                        font-size:30px;
+                        font-size:28px;
                         font-weight:800;
                     ">
-                        ${escapeHeaderHTML(
+                        ${escapeHTML(
                             school.name ||
                             "SCHOOL NAME"
                         )}
                     </h1>
 
-
-                    ${
-                        school.motto
-                            ? `
-                                <div style="
-                                    font-size:15px;
-                                    margin-top:6px;
-                                    font-style:italic;
-                                ">
-                                    ${escapeHeaderHTML(
-                                        school.motto
-                                    )}
-                                </div>
-                              `
-                            : ""
-                    }
-
-
-                    ${
-                        school.address
-                            ? `
-                                <div style="
-                                    font-size:14px;
-                                    margin-top:4px;
-                                ">
-                                    ${escapeHeaderHTML(
-                                        school.address
-                                    )}
-                                </div>
-                              `
-                            : ""
-                    }
+                    <div style="
+                        margin-top:8px;
+                        font-size:18px;
+                        font-weight:700;
+                    ">
+                        PARENTS ATTENDANCE REGISTER
+                    </div>
 
                 </div>
+            `;
+        }
 
+        // ====================================================
+        // TABLE
+        // ====================================================
 
-                <!-- SCHOOL LOGO -->
-                <div style="
-                    width:100px;
-                    text-align:right;
-                ">
+        updateProgress(
+            75,
+            "Creating printable parent list..."
+        );
 
-                    ${
-                        school.logo
-                            ? `
-                                <img
-                                    src="${escapeHeaderHTML(
-                                        school.logo
-                                    )}"
-                                    style="
-                                        width:90px;
-                                        height:90px;
-                                        object-fit:cover;
-                                        border-radius:50%;
-                                    "
-                                >
-                              `
-                            : ""
-                    }
+        const currentYear =
+            new Date().getFullYear();
 
-                </div>
+        const tableRows =
+            learnersList.map((student, index) => `
 
-            </div>
+                <tr>
 
+                    <td>
+                        ${index + 1}
+                    </td>
 
-            <!-- REPORT TITLE -->
-            <h2 style="
-                text-align:center;
-                margin-top:15px;
-                margin-bottom:8px;
-                font-size:22px;
-            ">
-                PARENTS ATTENDANCE REGISTER
-            </h2>
+                    <td>
+                        ${escapeParentHTML(
+                            student.learnerName
+                        )}
+                    </td>
 
+                    <td>
+                        ${escapeParentHTML(
+                            student.parentName
+                        )}
+                    </td>
 
-            <!-- REPORT INFO -->
+                    <td>
+                        ${escapeParentHTML(
+                            student.phone
+                        )}
+                    </td>
+
+                    <td></td>
+
+                </tr>
+
+            `).join("");
+
+        const tableHtml = `
+
             <div style="
+                margin-bottom:15px;
                 text-align:center;
-                font-size:13px;
+                font-size:14px;
             ">
-                YEAR:
-                <b>${escapeHeaderHTML(currentYear)}</b>
 
-                &nbsp; | &nbsp;
+                <strong>Year:</strong>
+                ${currentYear}
 
-                GRADE:
-                <b>${escapeHeaderHTML(selectedGrade)}</b>
+                &nbsp;&nbsp; | &nbsp;&nbsp;
 
-                &nbsp; | &nbsp;
+                <strong>Grade:</strong>
+                ${escapeParentHTML(
+                    selectedGrade
+                )}
 
-                Generated:
-                <b>${escapeHeaderHTML(
-                    new Date().toLocaleString()
-                )}</b>
+                &nbsp;&nbsp; | &nbsp;&nbsp;
+
+                <strong>Learners:</strong>
+                ${learnersList.length}
+
             </div>
 
-        </div>
-    `;
-}
+            <table
+                style="
+                    width:100%;
+                    border-collapse:collapse;
+                    font-size:13px;
+                "
+            >
 
-  // ===============================
-  // 🔥 TABLE (IMPROVED)
-  // ===============================
-  const tableHtml = `
-    <table style="
-      width:100%;
-      border-collapse:collapse;
-      font-size:14px;
-    ">
+                <thead>
 
-      <thead>
-        <tr style="background:#000;color:#fff;">
-          <th style="padding:10px;border:1px solid #000;">No.</th>
-          <th style="padding:10px;border:1px solid #000;">Parent Name</th>
-          <th style="padding:10px;border:1px solid #000;">Learner Name</th>
-          <th style="padding:10px;border:1px solid #000;">Phone</th>
-          <th style="padding:10px;border:1px solid #000;">Signature</th>
-        </tr>
-      </thead>
+                    <tr>
 
-      <tbody>
-        ${learnersList.map((p, i) => `
-          <tr style="background:${i % 2 === 0 ? '#f9f9f9' : '#ffffff'}">
+                        <th>No.</th>
+                        <th>Learner Name</th>
+                        <th>Parent / Guardian</th>
+                        <th>Phone</th>
+                        <th>Signature</th>
 
-            <td style="padding:8px;border:1px solid #ccc;">
-              ${i + 1}
-            </td>
+                    </tr>
 
-            <td style="padding:8px;border:1px solid #ccc;">
-              ${p.parentName}
-            </td>
+                </thead>
 
-            <td style="padding:8px;border:1px solid #ccc;">
-              ${p.learnerName}
-            </td>
+                <tbody>
 
-            <td style="padding:8px;border:1px solid #ccc;">
-              ${p.phone}
-            </td>
+                    ${tableRows}
 
-            <td style="
-              padding:8px;
-              border:1px solid #ccc;
-              height:35px;
-            ">
-              ______________________
-            </td>
+                </tbody>
 
-          </tr>
-        `).join("")}
-      </tbody>
+            </table>
+        `;
 
-    </table>
-  `;
+        // ====================================================
+        // SCREEN OUTPUT
+        // ====================================================
 
-  updateProgress(90, "Finalizing report...");
-  await new Promise(r => setTimeout(r, 200));
+        output.innerHTML =
+            headerHtml + tableHtml;
 
-  // ===============================
-  // 5️⃣ PRINT WINDOW (IMPROVED)
-  // ===============================
-  const printWindow = window.open("", "_blank");
+        // ====================================================
+        // PRINT WINDOW
+        // IMPORTANT:
+        // PRINT FAILURE MUST NOT LOCK THE APP
+        // ====================================================
 
-  printWindow.document.write(`
-    <html>
-    <head>
-      <title>Parents List - ${selectedGrade}</title>
+        updateProgress(
+            90,
+            "Preparing print view..."
+        );
 
-      <style>
-        body {
-          font-family: Arial;
-          padding: 20px;
+        let printWindow = null;
+
+        try {
+
+            printWindow =
+                window.open(
+                    "",
+                    "_blank",
+                    "width=1100,height=800"
+                );
+
+            if (printWindow) {
+
+                printWindow.document.open();
+
+                printWindow.document.write(`
+
+                    <!DOCTYPE html>
+
+                    <html>
+
+                    <head>
+
+                        <title>
+                            Parent List - ${escapeParentHTML(
+                                selectedGrade
+                            )}
+                        </title>
+
+                        <style>
+
+                            body {
+                                font-family: Arial, sans-serif;
+                                margin: 20px;
+                                color: #000;
+                            }
+
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                            }
+
+                            th,
+                            td {
+                                border: 1px solid #000;
+                                padding: 8px;
+                            }
+
+                            th {
+                                background: #000;
+                                color: #fff;
+                            }
+
+                            tr:nth-child(even) {
+                                background: #f2f2f2;
+                            }
+
+                            @page {
+                                margin: 20px;
+                            }
+
+                        </style>
+
+                    </head>
+
+                    <body>
+
+                        ${headerHtml}
+
+                        ${tableHtml}
+
+                    </body>
+
+                    </html>
+
+                `);
+
+                printWindow.document.close();
+
+                // Give browser time to finish rendering
+                await new Promise(resolve =>
+                    setTimeout(resolve, 250)
+                );
+
+                try {
+
+                    printWindow.focus();
+
+                    printWindow.print();
+
+                } catch (printError) {
+
+                    console.warn(
+                        "Print operation warning:",
+                        printError
+                    );
+
+                }
+
+            } else {
+
+                console.warn(
+                    "⚠️ Print window was blocked."
+                );
+
+            }
+
+        } catch (printError) {
+
+            console.warn(
+                "⚠️ Print window error:",
+                printError
+            );
+
         }
 
-        table {
-          width: 100%;
-          border-collapse: collapse;
+        // ====================================================
+        // FINISH
+        // ====================================================
+
+        updateProgress(
+            100,
+            "Parent list ready..."
+        );
+
+        await new Promise(resolve =>
+            setTimeout(resolve, 150)
+        );
+
+        hideLoader();
+        loaderStarted = false;
+
+        // ====================================================
+        // SUCCESS MESSAGE
+        // ====================================================
+
+        await Swal.fire({
+
+            icon: "success",
+
+            title: "Parent List Ready",
+
+            text:
+                `${selectedGrade} — ${learnersList.length} learner(s)`,
+
+            timer: 1400,
+
+            showConfirmButton: false
+
+        });
+
+        // ====================================================
+        // IMPORTANT:
+        // CLEAR ANY OLD DISABLED STATE
+        // ====================================================
+
+        unlockRasmInterface();
+
+    } catch (error) {
+
+        console.error(
+            "❌ Parent List generation error:",
+            error
+        );
+
+        // ====================================================
+        // ABSOLUTE CLEANUP
+        // ====================================================
+
+        hideLoader();
+        unlockRasmInterface();
+
+        loaderStarted = false;
+
+        await Swal.fire({
+
+            icon: "error",
+
+            title: "Parent List Error",
+
+            text:
+                "The parent list could not be generated. The system has been unlocked and you can try another grade."
+
+        });
+
+    } finally {
+
+        // ====================================================
+        // 🔥 CRITICAL:
+        // NEVER LEAVE THE APPLICATION LOCKED
+        // ====================================================
+
+        hideLoader();
+
+        document.body.style.pointerEvents = "auto";
+
+        const loader =
+            document.getElementById("reportLoader");
+
+        if (loader) {
+
+            loader.style.display = "none";
+            loader.style.visibility = "hidden";
+            loader.style.opacity = "0";
+            loader.style.pointerEvents = "none";
+
         }
 
-        th, td {
-          border: 1px solid #000;
-          padding: 8px;
-        }
-
-        th {
-          background: #000;
-          color: #fff;
-        }
-
-        tr:nth-child(even) {
-          background: #f2f2f2;
-        }
-
-        @page {
-          margin: 20px;
-        }
-
-        button {
-          display: none;
-        }
-      </style>
-
-    </head>
-
-    <body>
-      ${headerHtml}
-      ${tableHtml}
-    </body>
-    </html>
-  `);
-
-  printWindow.document.close();
-
-  hideLoader();
-
-  updateProgress(100, "Done");
-
-  printWindow.print();
-
-  // ===============================
-  // 6️⃣ SCREEN OUTPUT
-  // ===============================
-  output.innerHTML = headerHtml + tableHtml;
-
-  Swal.fire({
-    icon: "success",
-    title: "Generated",
-    text: `Parent list ready for ${selectedGrade}`,
-    timer: 1500,
-    showConfirmButton: false
-  });
+    }
 };
 
+
+// ============================================================
+// SAFE HTML ESCAPE FOR PARENT LIST
+// ============================================================
+
+function escapeParentHTML(value) {
+
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 window.addEventListener("DOMContentLoaded", () => {
 
   // SELECT ALL CHECKBOX
@@ -62113,114 +62484,199 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 window.generateClassList = async function () {
 
-    const selectedGrade = document.getElementById("filterGrade").value;
+    const gradeElement =
+        document.getElementById("filterGrade");
+
+    const selectedGrade =
+        gradeElement
+            ? String(gradeElement.value || "").trim()
+            : "";
 
     if (!selectedGrade) {
-        Swal.fire({
+
+        await Swal.fire({
             icon: "warning",
             title: "Select Grade",
-            text: "Please choose a grade first"
+            text: "Please choose a grade first."
         });
+
         return;
     }
 
     try {
 
-        // ===============================
-        // 🔥 LOADER START
-        // ===============================
         Swal.fire({
             title: "Generating Class List...",
             html: "Initializing system...",
             allowOutsideClick: false,
-            didOpen: () => Swal.showLoading()
+            allowEscapeKey: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
         });
 
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 150));
 
-        const snapshot = await fastGet(schoolRef("students"));
+        const snapshot =
+            await fastGet(
+                schoolRef("students")
+            );
 
-        Swal.update({ html: "Processing student records..." });
-        await new Promise(r => setTimeout(r, 300));
+        if (!snapshot || !snapshot.exists()) {
+            throw new Error("No student records found.");
+        }
+
+        Swal.update({
+            html: "Processing student records..."
+        });
 
         const boys = [];
         const girls = [];
-        const currentYear = new Date().getFullYear();
 
-        let processed = 0;
-        const total = snapshot.size || 1;
+        const currentYear =
+            new Date().getFullYear();
 
         snapshot.forEach(childSnapshot => {
 
-            const learner = childSnapshot.val();
+            const learner =
+                childSnapshot.val() || {};
 
-            if (learner.grade === selectedGrade) {
+            const learnerGrade =
+                String(
+                    learner.grade || ""
+                ).trim();
 
-                const studentData = {
-                    name: learner.name || "",
-                    age: learner.age || ""
-                };
-
-                if ((learner.gender || "").toLowerCase() === "male") {
-                    boys.push(studentData);
-                } else if ((learner.gender || "").toLowerCase() === "female") {
-                    girls.push(studentData);
-                }
+            if (
+                learnerGrade.toLowerCase() !==
+                selectedGrade.toLowerCase()
+            ) {
+                return;
             }
 
-            processed++;
+            const studentData = {
 
-            if (processed % 10 === 0) {
-                Swal.update({
-                    html: `Filtering learners... ${processed}/${total}`
-                });
+                name:
+                    String(
+                        learner.name || ""
+                    ),
+
+                age:
+                    String(
+                        learner.age || ""
+                    )
+
+            };
+
+            const gender =
+                String(
+                    learner.gender || ""
+                ).trim().toLowerCase();
+
+            if (gender === "male") {
+
+                boys.push(studentData);
+
+            } else if (gender === "female") {
+
+                girls.push(studentData);
+
             }
+
         });
 
-        Swal.update({ html: "Sorting class list..." });
-        await new Promise(r => setTimeout(r, 200));
+        boys.sort((a, b) =>
+            a.name.localeCompare(
+                b.name,
+                undefined,
+                { sensitivity: "base" }
+            )
+        );
 
-        boys.sort((a, b) => a.name.localeCompare(b.name));
-        girls.sort((a, b) => a.name.localeCompare(b.name));
+        girls.sort((a, b) =>
+            a.name.localeCompare(
+                b.name,
+                undefined,
+                { sensitivity: "base" }
+            )
+        );
 
-        Swal.update({ html: "Building printable register..." });
-        await new Promise(r => setTimeout(r, 200));
+        Swal.update({
+            html: "Building printable register..."
+        });
 
-        // ===============================
-        // 📄 BOYS HEADER (OWN)
-        // ===============================
         const boysHeader = `
-            ${window.getSchoolPrintHeader("CLASS LIST REGISTER - BOYS")}
+            ${window.getSchoolPrintHeader(
+                "CLASS LIST REGISTER - BOYS"
+            )}
 
-            <div style="margin-top:10px;text-align:center;font-size:14px;">
-                <div><strong>Year:</strong> ${currentYear}</div>
-                <div><strong>Grade:</strong> ${selectedGrade}</div>
+            <div style="
+                margin-top:10px;
+                text-align:center;
+                font-size:14px;
+            ">
+                <strong>Year:</strong>
+                ${currentYear}
+                &nbsp;&nbsp; | &nbsp;&nbsp;
+                <strong>Grade:</strong>
+                ${escapeParentHTML(selectedGrade)}
             </div>
         `;
 
-        // ===============================
-        // 📄 GIRLS HEADER (OWN)
-        // ===============================
         const girlsHeader = `
-            ${window.getSchoolPrintHeader("CLASS LIST REGISTER - GIRLS")}
+            ${window.getSchoolPrintHeader(
+                "CLASS LIST REGISTER - GIRLS"
+            )}
 
-            <div style="margin-top:10px;text-align:center;font-size:14px;">
-                <div><strong>Year:</strong> ${currentYear}</div>
-                <div><strong>Grade:</strong> ${selectedGrade}</div>
+            <div style="
+                margin-top:10px;
+                text-align:center;
+                font-size:14px;
+            ">
+                <strong>Year:</strong>
+                ${currentYear}
+                &nbsp;&nbsp; | &nbsp;&nbsp;
+                <strong>Grade:</strong>
+                ${escapeParentHTML(selectedGrade)}
             </div>
         `;
 
-        // ===============================
-        // 📄 FINAL HTML
-        // ===============================
-        let html = `
-            <!-- BOYS PAGE -->
+        const boysRows = boys.map((student, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${escapeParentHTML(student.name)}</td>
+                <td>${escapeParentHTML(student.age)}</td>
+                <td></td>
+            </tr>
+        `).join("");
+
+        const girlsRows = girls.map((student, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${escapeParentHTML(student.name)}</td>
+                <td>${escapeParentHTML(student.age)}</td>
+                <td></td>
+            </tr>
+        `).join("");
+
+        const html = `
+
             <div class="print-page">
+
                 ${boysHeader}
-                <div style="border:1px solid #ddd;padding:10px;margin-top:15px;">
-                    <h4>Boys (${boys.length})</h4>
 
-                    <table class="learners-table" style="min-width:1150px;width:100%;">
+                <div style="
+                    border:1px solid #ddd;
+                    padding:10px;
+                    margin-top:15px;
+                ">
+
+                    <h4>
+                        Boys (${boys.length})
+                    </h4>
+
+                    <table class="learners-table"
+                           style="width:100%;">
+
                         <thead>
                             <tr>
                                 <th>No.</th>
@@ -62229,27 +62685,35 @@ window.generateClassList = async function () {
                                 <th>Signature</th>
                             </tr>
                         </thead>
+
                         <tbody>
-                            ${boys.map((s, i) => `
-                                <tr>
-                                    <td>${i + 1}</td>
-                                    <td>${s.name}</td>
-                                    <td>${s.age}</td>
-                                    <td></td>
-                                </tr>
-                            `).join("")}
+                            ${boysRows}
                         </tbody>
+
                     </table>
+
                 </div>
+
             </div>
 
-            <!-- GIRLS PAGE -->
-            <div class="print-page">
-                ${girlsHeader}
-                <div style="border:1px solid #ddd;padding:10px;margin-top:15px;">
-                    <h4>Girls (${girls.length})</h4>
 
-                    <table class="learners-table">
+            <div class="print-page">
+
+                ${girlsHeader}
+
+                <div style="
+                    border:1px solid #ddd;
+                    padding:10px;
+                    margin-top:15px;
+                ">
+
+                    <h4>
+                        Girls (${girls.length})
+                    </h4>
+
+                    <table class="learners-table"
+                           style="width:100%;">
+
                         <thead>
                             <tr>
                                 <th>No.</th>
@@ -62258,63 +62722,88 @@ window.generateClassList = async function () {
                                 <th>Signature</th>
                             </tr>
                         </thead>
+
                         <tbody>
-                            ${girls.map((s, i) => `
-                                <tr>
-                                    <td>${i + 1}</td>
-                                    <td>${s.name}</td>
-                                    <td>${s.age}</td>
-                                    <td></td>
-                                </tr>
-                            `).join("")}
+                            ${girlsRows}
                         </tbody>
+
                     </table>
+
                 </div>
+
             </div>
         `;
 
-        const output = document.getElementById("generatedOutput");
-        output.innerHTML = html;
+        const output =
+            document.getElementById(
+                "generatedOutput"
+            );
 
-        // ===============================
-        // 📍 ACCURATE AUTO SCROLL
-        // ===============================
-        setTimeout(() => {
-
-            const y = output.getBoundingClientRect().top + window.pageYOffset - 20;
-
-            window.scrollTo({
-                top: y,
-                behavior: "smooth"
-            });
-
-        }, 80);
-
-        Swal.update({ html: "Finalizing..." });
-        await new Promise(r => setTimeout(r, 300));
+        if (output) {
+            output.innerHTML = html;
+        }
 
         Swal.close();
 
-        Swal.fire({
+        await Swal.fire({
+
             icon: "success",
+
             title: "Class List Ready",
-            text: `Grade ${selectedGrade}`,
-            timer: 1500,
+
+            text:
+                `Grade ${selectedGrade}`,
+
+            timer: 1200,
+
             showConfirmButton: false
+
         });
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "❌ Class List error:",
+            error
+        );
 
-        Swal.fire({
+        Swal.close();
+
+        await Swal.fire({
+
             icon: "error",
-            title: "Error",
-            text: "Failed to generate class list"
+
+            title: "Class List Error",
+
+            text:
+                "The class list could not be generated. You can select another grade and try again."
+
         });
+
+    } finally {
+
+        // 🔥 NEVER LEAVE THE APPLICATION LOCKED
+        hideLoader();
+        unlockRasmInterface();
+
+        document.body.style.pointerEvents = "auto";
+
+        const loader =
+            document.getElementById(
+                "reportLoader"
+            );
+
+        if (loader) {
+
+            loader.style.display = "none";
+            loader.style.visibility = "hidden";
+            loader.style.opacity = "0";
+            loader.style.pointerEvents = "none";
+
+        }
+
     }
-};
-function getFilteredStudents() {
+};function getFilteredStudents() {
 
   const grade = document.getElementById("filterGrade").value;
   const gender = document.getElementById("filterGender").value;
@@ -62352,22 +62841,43 @@ function loadGradeFilterOptions() {
 }
 function bindFilterEvents() {
 
-  const gradeFilter = document.getElementById("filterGrade");
-  const genderFilter = document.getElementById("filterGender");
+    const gradeFilter =
+        document.getElementById("filterGrade");
 
-  if (gradeFilter) {
-    gradeFilter.addEventListener("change", () => {
-      applyStudentFilters();
-    });
-  }
+    const genderFilter =
+        document.getElementById("filterGender");
 
-  if (genderFilter) {
-    genderFilter.addEventListener("change", () => {
-      applyStudentFilters();
-      generateClassList();
+    if (gradeFilter) {
 
-    });
-  }
+        gradeFilter.addEventListener(
+            "change",
+            function () {
+
+                applyStudentFilters();
+
+                // DO NOT automatically generate a report
+                // User must click Class List manually.
+
+            }
+        );
+
+    }
+
+    if (genderFilter) {
+
+        genderFilter.addEventListener(
+            "change",
+            function () {
+
+                applyStudentFilters();
+
+                // DO NOT automatically generate Class List.
+                // This keeps the filters responsive.
+
+            }
+        );
+
+    }
 }
 window.resetFilters = () => {
   document.getElementById("filterGrade").value = "";
@@ -71762,9 +72272,33 @@ async function(staffId) {
 
 /* =========================================================
    💰 BULK SUPPORT STAFF SALARY PAYMENT
+   ⚡ OPTIMIZED / FAST UI VERSION
+
+   FLOW:
+
+   Select Staff
+        ↓
+   Continue
+        ↓
+   Enter Salary Deductions   ← opens immediately
+        ↓
+   Review Payroll
+        ↓
+   Confirm PAY ALL SALARIES
+        ↓
+   Final live duplicate check
+        ↓
+   Final live advance check
+        ↓
+   Atomic Firebase payment
 ========================================================= */
+
 window.bulkPaySupportSalaries =
-async function() {
+async function () {
+
+  /* =======================================================
+     PREVENT DOUBLE CLICK / DUPLICATE BULK PAYMENT PROCESS
+  ======================================================= */
 
   if (
     window.__bulkSalaryPaymentRunning
@@ -71784,6 +72318,45 @@ async function() {
 
       window.__bulkSalaryPaymentRunning =
         false;
+
+    };
+
+
+  /* =======================================================
+     SAFE HTML HELPER
+  ======================================================= */
+
+  const bulkEscapeHTML =
+    value => {
+
+      const text =
+        String(
+          value ??
+          ""
+        );
+
+
+      return text
+        .replace(
+          /&/g,
+          "&amp;"
+        )
+        .replace(
+          /</g,
+          "&lt;"
+        )
+        .replace(
+          />/g,
+          "&gt;"
+        )
+        .replace(
+          /"/g,
+          "&quot;"
+        )
+        .replace(
+          /'/g,
+          "&#039;"
+        );
 
     };
 
@@ -71808,13 +72381,15 @@ async function() {
       now.toLocaleString(
         "default",
         {
-          month: "long"
+          month:
+            "long"
         }
       );
 
 
     const monthNumber =
-      now.getMonth() + 1;
+      now.getMonth() +
+      1;
 
 
     const monthKey =
@@ -71837,6 +72412,7 @@ async function() {
 
     /* =====================================================
        LOAD STAFF
+       Use already-loaded data whenever possible.
     ===================================================== */
 
     Swal.fire({
@@ -71857,14 +72433,21 @@ async function() {
         false,
 
       didOpen:
-        () =>
-          Swal.showLoading()
+        () => {
+
+          Swal.showLoading();
+
+        }
 
     });
 
 
     let staffData = {};
 
+
+    /* =====================================================
+       FIRST TRY EXISTING SUPPORT STAFF DATA
+    ===================================================== */
 
     if (
       Array.isArray(
@@ -71874,27 +72457,33 @@ async function() {
     ) {
 
       window.__supportStaffData
-        .forEach(staff => {
+        .forEach(
+          staff => {
 
-          if (
-            !staff ||
-            !staff.id
-          ) {
+            if (
+              !staff ||
+              !staff.id
+            ) {
 
-            return;
+              return;
+
+            }
+
+
+            staffData[
+              staff.id
+            ] =
+              staff;
 
           }
-
-
-          staffData[
-            staff.id
-          ] =
-            staff;
-
-        });
+        );
 
     }
 
+
+    /* =====================================================
+       FALLBACK TO FIREBASE ONLY IF NECESSARY
+    ===================================================== */
 
     if (
       !Object.keys(
@@ -71917,20 +72506,36 @@ async function() {
 
         closeBulkLock();
 
-        return Swal.fire(
-          "No Staff",
-          "No support staff records were found.",
-          "warning"
-        );
+
+        return Swal.fire({
+
+          title:
+            "No Staff",
+
+          text:
+            "No support staff records were found.",
+
+          icon:
+            "warning",
+
+          confirmButtonColor:
+            "#2563eb"
+
+        });
 
       }
 
 
       staffData =
-        staffSnap.val() || {};
+        staffSnap.val() ||
+        {};
 
     }
 
+
+    /* =====================================================
+       BUILD STAFF LIST
+    ===================================================== */
 
     const staffList = [];
 
@@ -71941,12 +72546,19 @@ async function() {
     .forEach(
       ([staffId, staff]) => {
 
-        if (!staff) return;
+        if (
+          !staff
+        ) {
+
+          return;
+
+        }
 
 
         const salary =
           Number(
-            staff.salary || 0
+            staff.salary ||
+            0
           );
 
 
@@ -71975,11 +72587,22 @@ async function() {
 
       closeBulkLock();
 
-      return Swal.fire(
-        "No Staff",
-        "No support staff salaries are available.",
-        "warning"
-      );
+
+      return Swal.fire({
+
+        title:
+          "No Staff",
+
+        text:
+          "No support staff salaries are available.",
+
+        icon:
+          "warning",
+
+        confirmButtonColor:
+          "#2563eb"
+
+      });
 
     }
 
@@ -71988,230 +72611,635 @@ async function() {
 
 
     /* =====================================================
-       STAFF SELECTION
+       STAFF SELECTION ROWS
     ===================================================== */
 
     const staffRows =
       staffList
-        .map(staff => `
+        .map(
+          staff => `
 
-          <tr>
+            <tr>
 
-            <td style="
-              text-align:center;
-              padding:8px;
-            ">
-
-              <input
-                type="checkbox"
-                class="bulk-staff-check"
-                data-staff-id="${staff.staffId}"
-                checked
-              >
-
-            </td>
-
-
-            <td style="
-              padding:8px;
-            ">
-
-              <b>
-                ${staff.name || "Unnamed Staff"}
-              </b>
-
-              ${
-                staff.staffNumber
-                  ? `
-                    <br>
-                    <small>
-                      ${staff.staffNumber}
-                    </small>
-                  `
-                  : ""
-              }
-
-            </td>
-
-
-            <td style="
-              padding:8px;
-            ">
-
-              ${staff.role || "-"}
-
-            </td>
-
-
-            <td style="
-              padding:8px;
-              text-align:right;
-            ">
-
-              KES ${staff.salary.toLocaleString()}
-
-            </td>
-
-          </tr>
-
-        `)
-        .join("");
-
-
-    const staffSelection =
-      await Swal.fire({
-
-        title:
-          `Select Staff — ${paymentMonth} ${paymentYear}`,
-
-        width:
-          "950px",
-
-        html: `
-
-          <div style="
-            text-align:left;
-          ">
-
-            <div style="
-              display:flex;
-              justify-content:space-between;
-              background:#f8fafc;
-              padding:12px;
-              border-radius:10px;
-              margin-bottom:15px;
-            ">
-
-              <label>
+              <td style="
+                text-align:center;
+                padding:8px;
+              ">
 
                 <input
                   type="checkbox"
-                  id="bulkSelectAll"
+                  class="bulk-staff-check"
+                  data-staff-id="${bulkEscapeHTML(
+                    staff.staffId
+                  )}"
                   checked
                 >
 
-                <b>
-                  Select All
-                </b>
-
-              </label>
+              </td>
 
 
-              <span
-                id="bulkSelectedCount"
-                style="
-                  color:#2563eb;
-                  font-weight:bold;
-                "
-              >
-                ${staffList.length} selected
-              </span>
-
-            </div>
-
-
-            <div style="
-              max-height:450px;
-              overflow:auto;
-            ">
-
-              <table style="
-                width:100%;
-                border-collapse:collapse;
+              <td style="
+                padding:8px;
               ">
 
-                <thead>
+                <b>
+                  ${bulkEscapeHTML(
+                    staff.name ||
+                    "Unnamed Staff"
+                  )}
+                </b>
 
-                  <tr style="
-                    background:#f1f5f9;
-                  ">
+                ${
+                  staff.staffNumber
+                    ? `
+                      <br>
+                      <small>
+                        ${bulkEscapeHTML(
+                          staff.staffNumber
+                        )}
+                      </small>
+                    `
+                    : ""
+                }
 
-                    <th>
-                      Select
-                    </th>
-
-                    <th>
-                      Staff
-                    </th>
-
-                    <th>
-                      Role
-                    </th>
-
-                    <th>
-                      Salary
-                    </th>
-
-                  </tr>
-
-                </thead>
+              </td>
 
 
-                <tbody>
-                  ${staffRows}
-                </tbody>
+              <td style="
+                padding:8px;
+              ">
 
-              </table>
+                ${bulkEscapeHTML(
+                  staff.role ||
+                  "-"
+                )}
 
-            </div>
-
-          </div>
-        `,
-
-        icon:
-          "question",
-
-        showCancelButton:
-          true,
-
-        confirmButtonText:
-          "Continue",
-
-        cancelButtonText:
-          "Cancel",
-
-        confirmButtonColor:
-          "#2563eb",
+              </td>
 
 
-        didOpen: () => {
+              <td style="
+                padding:8px;
+                text-align:right;
+              ">
 
-          const selectAll =
-            document.getElementById(
-              "bulkSelectAll"
-            );
+                KES ${
+                  Number(
+                    staff.salary ||
+                    0
+                  ).toLocaleString()
+                }
 
+              </td>
 
-          const boxes =
-            document.querySelectorAll(
-              ".bulk-staff-check"
-            );
+            </tr>
 
-
-          const count =
-            document.getElementById(
-              "bulkSelectedCount"
-            );
-
-
-          const updateCount =
-            () => {
-
-              const selected =
-                document.querySelectorAll(
-                  ".bulk-staff-check:checked"
-                ).length;
+          `
+        )
+        .join("");
 
 
-              if (count) {
+    /* =====================================================
+       STAFF SELECTION
+    ===================================================== */
 
-                count.textContent =
-                  `${selected} selected`;
+   /* =====================================================
+   STAFF SELECTION
+   FIXED:
+   - FORCE Continue button to remain visible
+   - Protect against ERP/AdminLTE CSS hiding it
+   - Keep Continue enabled
+   - Keep selection validation
+===================================================== */
 
-              }
+const staffSelection =
+  await Swal.fire({
 
-            };
+    title:
+      `Select Staff — ${paymentMonth} ${paymentYear}`,
 
+    width:
+      "950px",
+
+    heightAuto:
+      false,
+
+    html: `
+
+      <div style="
+        text-align:left;
+        width:100%;
+      ">
+
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:15px;
+          background:#f8fafc;
+          padding:12px;
+          border-radius:10px;
+          margin-bottom:15px;
+        ">
+
+          <label style="
+            cursor:pointer;
+            display:flex;
+            align-items:center;
+            gap:8px;
+            margin:0;
+          ">
+
+            <input
+              type="checkbox"
+              id="bulkSelectAll"
+              checked
+              style="
+                width:18px;
+                height:18px;
+                cursor:pointer;
+              "
+            >
+
+            <b>
+              Select All
+            </b>
+
+          </label>
+
+
+          <span
+            id="bulkSelectedCount"
+            style="
+              color:#2563eb;
+              font-weight:bold;
+              white-space:nowrap;
+            "
+          >
+            ${staffList.length} selected
+          </span>
+
+        </div>
+
+
+        <div style="
+          max-height:420px;
+          overflow:auto;
+          border:1px solid #e5e7eb;
+          border-radius:8px;
+        ">
+
+          <table style="
+            width:100%;
+            border-collapse:collapse;
+            min-width:700px;
+          ">
+
+            <thead>
+
+              <tr style="
+                background:#f1f5f9;
+              ">
+
+                <th style="
+                  padding:10px;
+                  text-align:center;
+                  white-space:nowrap;
+                ">
+                  Select
+                </th>
+
+                <th style="
+                  padding:10px;
+                  text-align:left;
+                  white-space:nowrap;
+                ">
+                  Staff
+                </th>
+
+                <th style="
+                  padding:10px;
+                  text-align:left;
+                  white-space:nowrap;
+                ">
+                  Role
+                </th>
+
+                <th style="
+                  padding:10px;
+                  text-align:right;
+                  white-space:nowrap;
+                ">
+                  Salary
+                </th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody>
+
+              ${staffRows}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+
+        <div style="
+          margin-top:10px;
+          padding:8px 10px;
+          background:#eff6ff;
+          border:1px solid #bfdbfe;
+          border-radius:7px;
+          color:#1d4ed8;
+          font-size:12px;
+        ">
+
+          Select the staff members you want to pay,
+          then click <b>Continue</b> to enter deductions.
+
+        </div>
+
+      </div>
+
+    `,
+
+    icon:
+      "question",
+
+    showCancelButton:
+      true,
+
+    showConfirmButton:
+      true,
+
+    confirmButtonText:
+      "Continue",
+
+    cancelButtonText:
+      "Cancel",
+
+    confirmButtonColor:
+      "#2563eb",
+
+    cancelButtonColor:
+      "#64748b",
+
+    reverseButtons:
+      true,
+
+    allowOutsideClick:
+      false,
+
+    allowEscapeKey:
+      true,
+
+    focusConfirm:
+      false,
+
+    buttonsStyling:
+      true,
+
+
+    /* ===================================================
+       IMPORTANT:
+       FORCE BOTH BUTTONS TO BE VISIBLE.
+
+       Some RASM/AdminLTE CSS can override:
+       .swal2-confirm
+       .swal2-cancel
+    =================================================== */
+
+    didOpen:
+      () => {
+
+        const modal =
+          Swal.getPopup();
+
+        const confirmButton =
+          Swal.getConfirmButton();
+
+        const cancelButton =
+          Swal.getCancelButton();
+
+
+        /* -----------------------------------------------
+           FORCE CONTINUE BUTTON
+        ----------------------------------------------- */
+
+        if (
+          confirmButton
+        ) {
+
+          confirmButton.style.setProperty(
+            "display",
+            "inline-flex",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "visibility",
+            "visible",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "opacity",
+            "1",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "position",
+            "relative",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "z-index",
+            "999999",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "min-width",
+            "120px",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "justify-content",
+            "center",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "align-items",
+            "center",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "cursor",
+            "pointer",
+            "important"
+          );
+
+          confirmButton.style.setProperty(
+            "margin",
+            "0 5px",
+            "important"
+          );
+
+          confirmButton.innerHTML =
+            "Continue";
+
+        }
+
+
+        /* -----------------------------------------------
+           FORCE CANCEL BUTTON
+        ----------------------------------------------- */
+
+        if (
+          cancelButton
+        ) {
+
+          cancelButton.style.setProperty(
+            "display",
+            "inline-flex",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "visibility",
+            "visible",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "opacity",
+            "1",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "position",
+            "relative",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "z-index",
+            "999999",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "min-width",
+            "100px",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "justify-content",
+            "center",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "align-items",
+            "center",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "cursor",
+            "pointer",
+            "important"
+          );
+
+          cancelButton.style.setProperty(
+            "margin",
+            "0 5px",
+            "important"
+          );
+
+        }
+
+
+        /* -----------------------------------------------
+           FORCE ACTIONS CONTAINER
+        ----------------------------------------------- */
+
+        const actions =
+          modal?.querySelector(
+            ".swal2-actions"
+          );
+
+
+        if (
+          actions
+        ) {
+
+          actions.style.setProperty(
+            "display",
+            "flex",
+            "important"
+          );
+
+          actions.style.setProperty(
+            "visibility",
+            "visible",
+            "important"
+          );
+
+          actions.style.setProperty(
+            "opacity",
+            "1",
+            "important"
+          );
+
+          actions.style.setProperty(
+            "position",
+            "relative",
+            "important"
+          );
+
+          actions.style.setProperty(
+            "z-index",
+            "999999",
+            "important"
+          );
+
+          actions.style.setProperty(
+            "width",
+            "100%",
+            "important"
+          );
+
+          actions.style.setProperty(
+            "justify-content",
+            "center",
+            "important"
+          );
+
+          actions.style.setProperty(
+            "gap",
+            "10px",
+            "important"
+          );
+
+          actions.style.setProperty(
+            "margin-top",
+            "15px",
+            "important"
+          );
+
+        }
+
+
+        /* -----------------------------------------------
+           SELECT ALL
+        ----------------------------------------------- */
+
+        const selectAll =
+          modal?.querySelector(
+            "#bulkSelectAll"
+          );
+
+
+        const boxes =
+          modal?.querySelectorAll(
+            ".bulk-staff-check"
+          ) ||
+          [];
+
+
+        const count =
+          modal?.querySelector(
+            "#bulkSelectedCount"
+          );
+
+
+        /* -----------------------------------------------
+           UPDATE COUNT
+        ----------------------------------------------- */
+
+        const updateCount =
+          () => {
+
+            const selected =
+              modal.querySelectorAll(
+                ".bulk-staff-check:checked"
+              ).length;
+
+
+            if (
+              count
+            ) {
+
+              count.textContent =
+                `${selected} selected`;
+
+            }
+
+
+            if (
+              selectAll
+            ) {
+
+              selectAll.checked =
+                selected ===
+                boxes.length;
+
+              selectAll.indeterminate =
+                selected > 0 &&
+                selected < boxes.length;
+
+            }
+
+
+            /* -----------------------------------------
+               NEVER DISABLE CONTINUE
+
+               Validation happens when clicked.
+            ----------------------------------------- */
+
+            if (
+              confirmButton
+            ) {
+
+              confirmButton.disabled =
+                false;
+
+              confirmButton.style.setProperty(
+                "display",
+                "inline-flex",
+                "important"
+              );
+
+              confirmButton.style.setProperty(
+                "visibility",
+                "visible",
+                "important"
+              );
+
+            }
+
+          };
+
+
+        /* -----------------------------------------------
+           SELECT ALL EVENT
+        ----------------------------------------------- */
+
+        if (
+          selectAll
+        ) {
 
           selectAll.addEventListener(
             "change",
@@ -72232,56 +73260,155 @@ async function() {
             }
           );
 
-
-          boxes.forEach(
-            box => {
-
-              box.addEventListener(
-                "change",
-                updateCount
-              );
-
-            }
-          );
-
-        },
+        }
 
 
-        preConfirm:
+        /* -----------------------------------------------
+           INDIVIDUAL CHECKBOXES
+        ----------------------------------------------- */
+
+        boxes.forEach(
+          box => {
+
+            box.addEventListener(
+              "change",
+              updateCount
+            );
+
+          }
+        );
+
+
+        updateCount();
+
+
+        /* -----------------------------------------------
+           FINAL SAFETY CHECK AFTER RENDER
+        ----------------------------------------------- */
+
+        setTimeout(
           () => {
 
-            const selected =
-              Array.from(
-                document.querySelectorAll(
-                  ".bulk-staff-check:checked"
-                )
-              )
-              .map(
-                box =>
-                  box.dataset.staffId
-              );
-
-
             if (
-              !selected.length
+              confirmButton
             ) {
 
-              Swal.showValidationMessage(
-                "Please select at least one staff member."
+              confirmButton.style.setProperty(
+                "display",
+                "inline-flex",
+                "important"
               );
 
+              confirmButton.style.setProperty(
+                "visibility",
+                "visible",
+                "important"
+              );
 
-              return false;
+              confirmButton.style.setProperty(
+                "opacity",
+                "1",
+                "important"
+              );
+
+              confirmButton.disabled =
+                false;
 
             }
 
+          },
+          50
+        );
 
-            return selected;
+      },
+
+
+    /* ===================================================
+       CONTINUE BUTTON VALIDATION
+    =================================================== */
+
+    preConfirm:
+      () => {
+
+        const modal =
+          Swal.getPopup();
+
+
+        if (
+          !modal
+        ) {
+
+          return false;
+
+        }
+
+
+        const selected =
+          Array.from(
+            modal.querySelectorAll(
+              ".bulk-staff-check:checked"
+            )
+          )
+          .map(
+            box =>
+              box.dataset.staffId
+          );
+
+
+        /* -----------------------------------------------
+           NO STAFF SELECTED
+        ----------------------------------------------- */
+
+        if (
+          !selected.length
+        ) {
+
+          Swal.showValidationMessage(
+            "Please select at least one staff member."
+          );
+
+
+          /* Keep Continue visible */
+
+          const button =
+            Swal.getConfirmButton();
+
+
+          if (
+            button
+          ) {
+
+            button.disabled =
+              false;
+
+            button.style.setProperty(
+              "display",
+              "inline-flex",
+              "important"
+            );
 
           }
 
-      });
 
+          return false;
+
+        }
+
+
+        /* -----------------------------------------------
+           RETURN SELECTED STAFF IDS
+        ----------------------------------------------- */
+
+        return selected;
+
+      }
+
+  });
+
+
+    /* =====================================================
+       USER CANCELLED
+    ===================================================== */
 
     if (
       !staffSelection.isConfirmed
@@ -72295,7 +73422,8 @@ async function() {
 
 
     const selectedStaffIds =
-      staffSelection.value;
+      staffSelection.value ||
+      [];
 
 
     const selectedStaff =
@@ -72307,130 +73435,23 @@ async function() {
       );
 
 
-    /* =====================================================
-       🚨 IMPORTANT:
-       REMOVE ALREADY-PAID STAFF BEFORE DEDUCTION FORM
-    ===================================================== */
-
-    const initialStatus =
-      await window.verifySupportStaffPayrollStatus(
-        selectedStaff,
-        paymentYear,
-        monthNumber
-      );
-
-
-    const alreadyPaidAtStart =
-      selectedStaff.filter(
-        staff =>
-          initialStatus[
-            staff.staffId
-          ]?.paid
-      );
-
-
-    const unpaidStaff =
-      selectedStaff.filter(
-        staff =>
-          !initialStatus[
-            staff.staffId
-          ]?.paid
-      );
-
-
     if (
-      alreadyPaidAtStart.length
+      !selectedStaff.length
     ) {
 
-      const names =
-        alreadyPaidAtStart
-          .map(
-            staff =>
-              `<div>• ${escapeTeacherHTML(
-                staff.name || "Staff"
-              )}</div>`
-          )
-          .join("");
+      closeBulkLock();
 
 
-      if (
-        !unpaidStaff.length
-      ) {
-
-        closeBulkLock();
-
-        return Swal.fire({
-
-          title:
-            "All Selected Staff Already Paid",
-
-          html: `
-
-            <div style="
-              text-align:left;
-            ">
-
-              <p>
-                Salary for
-                <b>${paymentMonth} ${paymentYear}</b>
-                has already been paid to:
-              </p>
-
-              ${names}
-
-            </div>
-          `,
-
-          icon:
-            "warning",
-
-          confirmButtonColor:
-            "#dc2626"
-
-        });
-
-      }
-
-
-      await Swal.fire({
+      return Swal.fire({
 
         title:
-          "Some Staff Already Paid",
+          "No Staff Selected",
 
-        html: `
-
-          <div style="
-            text-align:left;
-          ">
-
-            <p>
-              The following staff will be
-              <b>skipped</b> because their salary
-              is already paid for
-              <b>${paymentMonth} ${paymentYear}</b>:
-            </p>
-
-            ${names}
-
-            <hr>
-
-            <p style="
-              color:#16a34a;
-              font-weight:bold;
-            ">
-              The remaining
-              ${unpaidStaff.length}
-              staff member(s) can continue.
-            </p>
-
-          </div>
-        `,
+        text:
+          "Please select at least one staff member.",
 
         icon:
           "warning",
-
-        confirmButtonText:
-          "Continue",
 
         confirmButtonColor:
           "#2563eb"
@@ -72441,60 +73462,66 @@ async function() {
 
 
     /* =====================================================
-       FROM HERE ONLY UNPAID STAFF CONTINUE
+       ⚡ IMPORTANT PERFORMANCE CHANGE
+
+       DO NOT RUN verifySupportStaffPayrollStatus HERE.
+
+       The previous version did:
+
+       Select Staff
+          ↓
+       Firebase payroll check
+          ↓
+       Firebase payroll check
+          ↓
+       Firebase payroll check
+          ↓
+       Firebase advance check
+          ↓
+       Firebase advance check
+          ↓
+       Firebase advance check
+          ↓
+       Finally show deductions
+
+       That is what caused the long delay.
+
+       We now show the deduction screen immediately.
+
+       Live duplicate checking happens AFTER:
+       PAY ALL SALARIES is clicked.
     ===================================================== */
 
     const workingStaff =
-      unpaidStaff;
+      selectedStaff.slice();
 
 
     /* =====================================================
-       READ ADVANCES
+       ADVANCE DATA
+
+       Start with zero so the deduction screen can open
+       immediately.
+
+       The real balances are loaded in parallel in the
+       background while the deduction screen is visible.
     ===================================================== */
 
     const advanceData = {};
 
 
-    for (
-      const staff
-      of workingStaff
-    ) {
-
-      try {
-
-        const latest =
-          await window.readOutstandingSupportAdvances(
-            staff.staffId
-          );
-
-
-        advanceData[
-          staff.staffId
-        ] =
-          Number(
-            latest.total || 0
-          );
-
-      } catch(error) {
-
-        console.warn(
-          "Advance read failed:",
-          staff.staffId,
-          error
-        );
-
+    workingStaff.forEach(
+      staff => {
 
         advanceData[
           staff.staffId
         ] = 0;
 
       }
-
-    }
+    );
 
 
     /* =====================================================
-       DEDUCTION ROWS
+       BUILD DEDUCTION ROWS IMMEDIATELY
     ===================================================== */
 
     const deductionRows =
@@ -72502,11 +73529,30 @@ async function() {
         .map(
           (staff, index) => {
 
-            const advance =
+            const safeStaffId =
+              bulkEscapeHTML(
+                staff.staffId
+              );
+
+
+            const safeName =
+              bulkEscapeHTML(
+                staff.name ||
+                "Unnamed Staff"
+              );
+
+
+            const safeRole =
+              bulkEscapeHTML(
+                staff.role ||
+                ""
+              );
+
+
+            const salary =
               Number(
-                advanceData[
-                  staff.staffId
-                ] || 0
+                staff.salary ||
+                0
               );
 
 
@@ -72514,22 +73560,23 @@ async function() {
 
               <tr
                 class="deduction-row"
-                data-staff-id="${staff.staffId}"
+                data-staff-id="${safeStaffId}"
               >
 
                 <td style="
                   padding:8px;
+                  white-space:nowrap;
                 ">
 
                   <b>
                     ${index + 1}.
-                    ${staff.name || ""}
+                    ${safeName}
                   </b>
 
                   <br>
 
                   <small>
-                    ${staff.role || ""}
+                    ${safeRole}
                   </small>
 
                 </td>
@@ -72538,78 +73585,120 @@ async function() {
                 <td style="
                   padding:8px;
                   text-align:right;
+                  white-space:nowrap;
                 ">
 
-                  KES ${staff.salary.toLocaleString()}
+                  KES ${salary.toLocaleString()}
 
                 </td>
 
 
-                <td>
+                <td style="
+                  padding:6px;
+                ">
+
                   <input
                     type="number"
                     class="bulk-nhif"
                     value="0"
                     min="0"
                     step="1"
+                    style="
+                      width:100px;
+                    "
                   >
+
                 </td>
 
 
-                <td>
+                <td style="
+                  padding:6px;
+                ">
+
                   <input
                     type="number"
                     class="bulk-nssf"
                     value="0"
                     min="0"
                     step="1"
+                    style="
+                      width:100px;
+                    "
                   >
+
                 </td>
 
 
-                <td>
+                <td style="
+                  padding:6px;
+                ">
+
                   <input
                     type="number"
                     class="bulk-paye"
                     value="0"
                     min="0"
                     step="1"
+                    style="
+                      width:100px;
+                    "
                   >
+
                 </td>
 
 
-                <td>
+                <td style="
+                  padding:6px;
+                ">
 
                   <input
-                    type="number"
-                    class="bulk-advance"
-                    value="${advance}"
-                    min="0"
-                    max="${advance}"
-                    step="1"
-                    ${
-                      advance <= 0
-                        ? "disabled"
-                        : ""
-                    }
+  type="number"
+  class="bulk-advance"
+  value="0"
+  min="0"
+  step="1"
+                    style="
+                      width:100px;
+                    "
                   >
+
+                  <small
+                    class="bulk-advance-status"
+                    style="
+                      display:block;
+                      margin-top:3px;
+                      color:#64748b;
+                      font-size:10px;
+                    "
+                  >
+                    Loading...
+                  </small>
 
                 </td>
 
 
-                <td>
+                <td style="
+                  padding:6px;
+                ">
+
                   <input
                     type="number"
                     class="bulk-other"
                     value="0"
                     min="0"
                     step="1"
+                    style="
+                      width:100px;
+                    "
                   >
+
                 </td>
 
 
                 <td style="
                   text-align:right;
+                  padding:8px;
+                  white-space:nowrap;
                 ">
 
                   <span class="bulk-total">
@@ -72621,12 +73710,14 @@ async function() {
 
                 <td style="
                   text-align:right;
+                  padding:8px;
                   color:#16a34a;
                   font-weight:bold;
+                  white-space:nowrap;
                 ">
 
                   <span class="bulk-net">
-                    ${staff.salary.toLocaleString()}
+                    ${salary.toLocaleString()}
                   </span>
 
                 </td>
@@ -72641,7 +73732,189 @@ async function() {
 
 
     /* =====================================================
+       START ADVANCE LOADING IN BACKGROUND
+
+       IMPORTANT:
+       We do NOT await this before showing the deduction
+       modal.
+
+       All advance reads happen in parallel.
+    ===================================================== */
+
+    let advanceLoadingPromise;
+
+
+    advanceLoadingPromise =
+      Promise.all(
+        workingStaff.map(
+          async staff => {
+
+            try {
+
+              const latest =
+                await window.readOutstandingSupportAdvances(
+                  staff.staffId
+                );
+
+
+              const total =
+                Number(
+                  latest?.total ||
+                  0
+                );
+
+
+              advanceData[
+                staff.staffId
+              ] =
+                Number.isFinite(
+                  total
+                )
+                  ? Math.max(
+                      0,
+                      total
+                    )
+                  : 0;
+
+
+            } catch (
+              error
+            ) {
+
+              console.warn(
+                "Advance read failed:",
+                staff.staffId,
+                error
+              );
+
+
+              advanceData[
+                staff.staffId
+              ] = 0;
+
+            }
+
+
+            /* -------------------------------------------
+               UPDATE THE VISIBLE ROW IF THE MODAL IS OPEN
+            ------------------------------------------- */
+
+            try {
+
+              const popup =
+                Swal.getPopup();
+
+
+              if (!popup) {
+                return;
+              }
+
+
+              const row =
+                popup.querySelector(
+                  `.deduction-row[data-staff-id="${CSS.escape(
+                    String(
+                      staff.staffId
+                    )
+                  )}"]`
+                );
+
+
+              if (!row) {
+                return;
+              }
+
+
+              const input =
+                row.querySelector(
+                  ".bulk-advance"
+                );
+
+
+              const status =
+                row.querySelector(
+                  ".bulk-advance-status"
+                );
+
+
+              const available =
+                advanceData[
+                  staff.staffId
+                ] || 0;
+
+
+              if (
+                input
+              ) {
+
+                input.value =
+                  available;
+
+
+                input.max =
+                  available;
+
+
+                input.disabled =
+                  available <= 0;
+
+              }
+
+
+              if (
+                status
+              ) {
+
+                status.textContent =
+                  available > 0
+                    ? `Available: KES ${available.toLocaleString()}`
+                    : "No outstanding advance";
+
+
+                status.style.color =
+                  available > 0
+                    ? "#2563eb"
+                    : "#64748b";
+
+              }
+
+
+              /* Recalculate totals because advance value changed */
+
+              const event =
+                new Event(
+                  "input",
+                  {
+                    bubbles:
+                      true
+                  }
+                );
+
+
+              input?.dispatchEvent(
+                event
+              );
+
+            } catch (
+              updateError
+            ) {
+
+              console.warn(
+                "Advance row update failed:",
+                updateError
+              );
+
+            }
+
+          }
+        )
+      );
+
+
+    /* =====================================================
        DEDUCTION SCREEN
+
+       This opens WITHOUT waiting for advance reads.
     ===================================================== */
 
     const deductionResult =
@@ -72661,13 +73934,35 @@ async function() {
 
             <div style="
               background:#eff6ff;
+              border:1px solid #bfdbfe;
               padding:12px;
               border-radius:10px;
               margin-bottom:15px;
             ">
 
-              Enter deductions separately
-              for each employee.
+              <div style="
+                font-weight:bold;
+                color:#1d4ed8;
+                margin-bottom:4px;
+              ">
+                Salary deductions
+              </div>
+
+              <div>
+                Enter deductions separately
+                for each employee.
+              </div>
+
+              <div
+                id="bulkAdvanceLoadingMessage"
+                style="
+                  margin-top:6px;
+                  font-size:12px;
+                  color:#64748b;
+                "
+              >
+                Checking outstanding salary advances in the background…
+              </div>
 
             </div>
 
@@ -72675,11 +73970,13 @@ async function() {
             <div style="
               max-height:500px;
               overflow:auto;
+              border:1px solid #e5e7eb;
+              border-radius:8px;
             ">
 
               <table style="
                 width:100%;
-                min-width:1100px;
+                min-width:1150px;
                 border-collapse:collapse;
               ">
 
@@ -72689,39 +73986,57 @@ async function() {
                     background:#f1f5f9;
                   ">
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       Employee
                     </th>
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       Salary
                     </th>
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       NHIF/SHIF
                     </th>
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       NSSF
                     </th>
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       PAYE
                     </th>
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       Advance
                     </th>
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       Other
                     </th>
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       Deductions
                     </th>
 
-                    <th>
+                    <th style="
+                      padding:10px;
+                    ">
                       Net
                     </th>
 
@@ -72731,7 +74046,9 @@ async function() {
 
 
                 <tbody>
+
                   ${deductionRows}
+
                 </tbody>
 
               </table>
@@ -72746,6 +74063,8 @@ async function() {
               border-radius:10px;
               display:flex;
               justify-content:space-between;
+              gap:20px;
+              flex-wrap:wrap;
             ">
 
               <div>
@@ -72794,6 +74113,7 @@ async function() {
             </div>
 
           </div>
+
         `,
 
         icon:
@@ -72811,174 +74131,382 @@ async function() {
         confirmButtonColor:
           "#2563eb",
 
-
-        didOpen: () => {
-
-          const rows =
-            document.querySelectorAll(
-              ".deduction-row"
-            );
+        reverseButtons:
+          true,
 
 
-          const calculate =
-            () => {
+        didOpen:
+          () => {
 
-              let gross = 0;
-
-              let deductions = 0;
-
-              let net = 0;
+            const popup =
+              Swal.getPopup();
 
 
-              rows.forEach(
-                row => {
-
-                  const staff =
-                    workingStaff.find(
-                      s =>
-                        s.staffId ===
-                        row.dataset.staffId
-                    );
+            if (!popup) {
+              return;
+            }
 
 
-                  if (!staff) return;
+            const rows =
+              popup.querySelectorAll(
+                ".deduction-row"
+              );
 
 
-                  const get =
-                    selector =>
-                      Number(
-                        row.querySelector(
-                          selector
-                        )?.value || 0
+            /* =================================================
+               CALCULATE TOTALS
+            ================================================= */
+
+            const calculate =
+              () => {
+
+                let gross =
+                  0;
+
+
+                let deductions =
+                  0;
+
+
+                let net =
+                  0;
+
+
+                rows.forEach(
+                  row => {
+
+                    const staff =
+                      workingStaff.find(
+                        s =>
+                          String(
+                            s.staffId
+                          ) ===
+                          String(
+                            row.dataset.staffId
+                          )
                       );
 
 
-                  const nhif =
-                    get(".bulk-nhif");
+                    if (!staff) {
+                      return;
+                    }
 
 
-                  const nssf =
-                    get(".bulk-nssf");
+                    const get =
+                      selector =>
+                        Number(
+                          row.querySelector(
+                            selector
+                          )?.value ||
+                          0
+                        );
 
 
-                  const paye =
-                    get(".bulk-paye");
+                    const nhif =
+                      get(
+                        ".bulk-nhif"
+                      );
 
 
-                  const advance =
-                    get(".bulk-advance");
+                    const nssf =
+                      get(
+                        ".bulk-nssf"
+                      );
 
 
-                  const other =
-                    get(".bulk-other");
+                    const paye =
+                      get(
+                        ".bulk-paye"
+                      );
 
 
-                  const total =
-                    nhif +
-                    nssf +
-                    paye +
-                    advance +
-                    other;
+                    const advance =
+                      get(
+                        ".bulk-advance"
+                      );
 
 
-                  const salary =
-                    Number(
-                      staff.salary || 0
-                    );
+                    const other =
+                      get(
+                        ".bulk-other"
+                      );
 
 
-                  const rowNet =
-                    salary -
-                    total;
+                    const total =
+                      nhif +
+                      nssf +
+                      paye +
+                      advance +
+                      other;
 
 
-                  row.querySelector(
-                    ".bulk-total"
-                  ).textContent =
-                    total.toLocaleString();
+                    const salary =
+                      Number(
+                        staff.salary ||
+                        0
+                      );
 
 
-                  row.querySelector(
-                    ".bulk-net"
-                  ).textContent =
-                    rowNet.toLocaleString();
+                    const rowNet =
+                      salary -
+                      total;
 
 
-                  row.querySelector(
-                    ".bulk-net"
-                  ).style.color =
-                    rowNet < 0
+                    const totalElement =
+                      row.querySelector(
+                        ".bulk-total"
+                      );
+
+
+                    const netElement =
+                      row.querySelector(
+                        ".bulk-net"
+                      );
+
+
+                    if (
+                      totalElement
+                    ) {
+
+                      totalElement.textContent =
+                        total.toLocaleString();
+
+                    }
+
+
+                    if (
+                      netElement
+                    ) {
+
+                      netElement.textContent =
+                        rowNet.toLocaleString();
+
+
+                      netElement.style.color =
+                        rowNet < 0
+                          ? "#dc2626"
+                          : "#16a34a";
+
+                    }
+
+
+                    gross +=
+                      salary;
+
+
+                    deductions +=
+                      total;
+
+
+                    net +=
+                      rowNet;
+
+                  }
+                );
+
+
+                const grossElement =
+                  popup.querySelector(
+                    "#bulkGrossTotal"
+                  );
+
+
+                const deductionElement =
+                  popup.querySelector(
+                    "#bulkDeductionTotal"
+                  );
+
+
+                const netElement =
+                  popup.querySelector(
+                    "#bulkNetTotal"
+                  );
+
+
+                if (
+                  grossElement
+                ) {
+
+                  grossElement.textContent =
+                    `KES ${gross.toLocaleString()}`;
+
+                }
+
+
+                if (
+                  deductionElement
+                ) {
+
+                  deductionElement.textContent =
+                    `KES ${deductions.toLocaleString()}`;
+
+                }
+
+
+                if (
+                  netElement
+                ) {
+
+                  netElement.textContent =
+                    `KES ${net.toLocaleString()}`;
+
+
+                  netElement.style.color =
+                    net < 0
                       ? "#dc2626"
                       : "#16a34a";
 
+                }
 
-                  gross += salary;
+              };
 
-                  deductions += total;
 
-                  net += rowNet;
+            /* =================================================
+               INPUT LISTENERS
+            ================================================= */
+
+            rows.forEach(
+              row => {
+
+                row.querySelectorAll(
+                  "input"
+                )
+                .forEach(
+                  input => {
+
+                    input.addEventListener(
+                      "input",
+                      calculate
+                    );
+
+                  }
+                );
+
+              }
+            );
+
+
+            calculate();
+
+
+            /* =================================================
+               BACKGROUND ADVANCE LOADING FINISH MESSAGE
+            ================================================= */
+
+            advanceLoadingPromise
+              .then(
+                () => {
+
+                  const message =
+                    popup.querySelector(
+                      "#bulkAdvanceLoadingMessage"
+                    );
+
+
+                  if (
+                    message
+                  ) {
+
+                    message.textContent =
+                      "Outstanding salary advances loaded.";
+
+
+                    message.style.color =
+                      "#16a34a";
+
+                  }
+
+
+                  calculate();
 
                 }
-              );
-
-
-              document.getElementById(
-                "bulkGrossTotal"
-              ).textContent =
-                `KES ${gross.toLocaleString()}`;
-
-
-              document.getElementById(
-                "bulkDeductionTotal"
-              ).textContent =
-                `KES ${deductions.toLocaleString()}`;
-
-
-              document.getElementById(
-                "bulkNetTotal"
-              ).textContent =
-                `KES ${net.toLocaleString()}`;
-
-            };
-
-
-          rows.forEach(
-            row => {
-
-              row.querySelectorAll(
-                "input"
               )
-              .forEach(
-                input => {
+              .catch(
+                error => {
 
-                  input.addEventListener(
-                    "input",
-                    calculate
+                  console.warn(
+                    "Advance loading completed with errors:",
+                    error
                   );
 
+
+                  const message =
+                    popup.querySelector(
+                      "#bulkAdvanceLoadingMessage"
+                    );
+
+
+                  if (
+                    message
+                  ) {
+
+                    message.textContent =
+                      "Some advance balances could not be loaded. They will be checked again before payment.";
+
+
+                    message.style.color =
+                      "#d97706";
+
+                  }
+
+
+                  calculate();
+
                 }
               );
 
-            }
-          );
-
-
-          calculate();
-
-        },
+          },
 
 
         preConfirm:
-          () => {
+          async () => {
+
+            /* =================================================
+               WAIT FOR BACKGROUND ADVANCE READS
+
+               The button is already visible. We only wait
+               after the user actually chooses Review Payroll.
+            ================================================= */
+
+            try {
+
+              await advanceLoadingPromise;
+
+            } catch (
+              error
+            ) {
+
+              console.warn(
+                "Advance loading warning:",
+                error
+              );
+
+            }
+
+
+            const popup =
+              Swal.getPopup();
+
+
+            if (!popup) {
+
+              return false;
+
+            }
+
 
             const results = [];
 
 
             const rows =
-              document.querySelectorAll(
+              popup.querySelectorAll(
                 ".deduction-row"
               );
 
+
+            /* =================================================
+               VALIDATE EVERY ROW
+            ================================================= */
 
             for (
               const row
@@ -72992,12 +74520,18 @@ async function() {
               const staff =
                 workingStaff.find(
                   s =>
-                    s.staffId ===
-                    staffId
+                    String(
+                      s.staffId
+                    ) ===
+                    String(
+                      staffId
+                    )
                 );
 
 
-              if (!staff) continue;
+              if (!staff) {
+                continue;
+              }
 
 
               const get =
@@ -73005,45 +74539,67 @@ async function() {
                   Number(
                     row.querySelector(
                       selector
-                    )?.value || 0
+                    )?.value ||
+                    0
                   );
 
 
               const nhif =
-                get(".bulk-nhif");
+                get(
+                  ".bulk-nhif"
+                );
 
 
               const nssf =
-                get(".bulk-nssf");
+                get(
+                  ".bulk-nssf"
+                );
 
 
               const paye =
-                get(".bulk-paye");
+                get(
+                  ".bulk-paye"
+                );
 
 
               const salaryAdvance =
-                get(".bulk-advance");
+                get(
+                  ".bulk-advance"
+                );
 
 
               const otherDeductions =
-                get(".bulk-other");
+                get(
+                  ".bulk-other"
+                );
 
 
               const availableAdvance =
                 Number(
                   advanceData[
                     staffId
-                  ] || 0
+                  ] ||
+                  0
                 );
 
 
+              /* ---------------------------------------------
+                 ADVANCE LIMIT
+              --------------------------------------------- */
+
               if (
                 salaryAdvance >
-                availableAdvance
+                availableAdvance +
+                0.0001
               ) {
 
                 Swal.showValidationMessage(
-                  `${staff.name}: Salary advance cannot exceed KES ${availableAdvance.toLocaleString()}.`
+
+                  `${bulkEscapeHTML(
+                    staff.name ||
+                    "Staff"
+                  )}: Salary advance cannot exceed KES ${availableAdvance.toLocaleString()}.`
+
                 );
 
 
@@ -73051,6 +74607,10 @@ async function() {
 
               }
 
+
+              /* ---------------------------------------------
+                 TOTAL DEDUCTIONS
+              --------------------------------------------- */
 
               const totalDeductions =
                 nhif +
@@ -73060,19 +74620,30 @@ async function() {
                 otherDeductions;
 
 
+              /* ---------------------------------------------
+                 NET SALARY
+              --------------------------------------------- */
+
               const netSalary =
                 Number(
-                  staff.salary || 0
+                  staff.salary ||
+                  0
                 ) -
                 totalDeductions;
 
 
               if (
-                netSalary < 0
+                netSalary <
+                0
               ) {
 
                 Swal.showValidationMessage(
-                  `${staff.name}: Total deductions cannot exceed the basic salary.`
+
+                  `${bulkEscapeHTML(
+                    staff.name ||
+                    "Staff"
+                  )}: Total deductions cannot exceed the basic salary.`
+
                 );
 
 
@@ -73096,7 +74667,8 @@ async function() {
                 otherDeductions,
 
                 otherDeductionDescription:
-                  otherDeductions > 0
+                  otherDeductions >
+                  0
                     ? "Other Deduction"
                     : "",
 
@@ -73109,12 +74681,30 @@ async function() {
             }
 
 
+            if (
+              !results.length
+            ) {
+
+              Swal.showValidationMessage(
+                "No payroll records were prepared."
+              );
+
+
+              return false;
+
+            }
+
+
             return results;
 
           }
 
       });
 
+
+    /* =====================================================
+       USER CANCELLED DEDUCTIONS
+    ===================================================== */
 
     if (
       !deductionResult.isConfirmed
@@ -73128,18 +74718,50 @@ async function() {
 
 
     const payrollData =
-      deductionResult.value;
+      deductionResult.value ||
+      [];
+
+
+    if (
+      !payrollData.length
+    ) {
+
+      closeBulkLock();
+
+
+      return Swal.fire({
+
+        title:
+          "No Payroll",
+
+        text:
+          "No salary payment records were prepared.",
+
+        icon:
+          "warning",
+
+        confirmButtonColor:
+          "#2563eb"
+
+      });
+
+    }
 
 
     /* =====================================================
-       REVIEW
+       REVIEW TOTALS
     ===================================================== */
 
-    let totalGross = 0;
+    let totalGross =
+      0;
 
-    let totalDeductions = 0;
 
-    let totalNet = 0;
+    let totalDeductions =
+      0;
+
+
+    let totalNet =
+      0;
 
 
     payrollData.forEach(
@@ -73148,28 +74770,47 @@ async function() {
         const staff =
           workingStaff.find(
             s =>
-              s.staffId ===
-              item.staffId
+              String(
+                s.staffId
+              ) ===
+              String(
+                item.staffId
+              )
           );
 
 
-        if (!staff) return;
+        if (!staff) {
+          return;
+        }
 
 
         totalGross +=
-          staff.salary;
+          Number(
+            staff.salary ||
+            0
+          );
 
 
         totalDeductions +=
-          item.totalDeductions;
+          Number(
+            item.totalDeductions ||
+            0
+          );
 
 
         totalNet +=
-          item.netSalary;
+          Number(
+            item.netSalary ||
+            0
+          );
 
       }
     );
 
+
+    /* =====================================================
+       REVIEW
+    ===================================================== */
 
     const review =
       await Swal.fire({
@@ -73177,46 +74818,143 @@ async function() {
         title:
           "Confirm Bulk Salary Payment",
 
+        width:
+          "650px",
+
         html: `
 
           <div style="
             text-align:left;
           ">
 
-            <p>
-              <b>Employees:</b>
-              ${payrollData.length}
-            </p>
+            <div style="
+              display:grid;
+              grid-template-columns:
+                repeat(
+                  3,
+                  1fr
+                );
+              gap:10px;
+              margin-bottom:18px;
+            ">
 
-            <p>
-              <b>Total Gross:</b>
-              KES ${totalGross.toLocaleString()}
-            </p>
+              <div style="
+                background:#f8fafc;
+                padding:12px;
+                border-radius:8px;
+                text-align:center;
+              ">
+
+                <small>
+                  Employees
+                </small>
+
+                <br>
+
+                <b style="
+                  font-size:20px;
+                ">
+                  ${payrollData.length}
+                </b>
+
+              </div>
+
+
+              <div style="
+                background:#f8fafc;
+                padding:12px;
+                border-radius:8px;
+                text-align:center;
+              ">
+
+                <small>
+                  Gross
+                </small>
+
+                <br>
+
+                <b>
+                  KES ${totalGross.toLocaleString()}
+                </b>
+
+              </div>
+
+
+              <div style="
+                background:#f0fdf4;
+                padding:12px;
+                border-radius:8px;
+                text-align:center;
+              ">
+
+                <small>
+                  Net
+                </small>
+
+                <br>
+
+                <b style="
+                  color:#16a34a;
+                ">
+                  KES ${totalNet.toLocaleString()}
+                </b>
+
+              </div>
+
+            </div>
+
 
             <p>
               <b>Total Deductions:</b>
               KES ${totalDeductions.toLocaleString()}
             </p>
 
+
             <h2 style="
               color:#16a34a;
+              margin-top:10px;
             ">
               KES ${totalNet.toLocaleString()}
             </h2>
 
+
             <div style="
               background:#fff7ed;
+              border:1px solid #fed7aa;
               padding:12px;
               border-radius:8px;
+              margin-top:15px;
             ">
 
               This will record the selected
               employees as <b>PAID</b> for
-              ${paymentMonth} ${paymentYear}.
+              ${bulkEscapeHTML(
+                paymentMonth
+              )}
+              ${bulkEscapeHTML(
+                paymentYear
+              )}.
+
+            </div>
+
+
+            <div style="
+              background:#eff6ff;
+              border:1px solid #bfdbfe;
+              padding:10px;
+              border-radius:8px;
+              margin-top:10px;
+              font-size:12px;
+              color:#1d4ed8;
+            ">
+
+              A final live Firebase check will be
+              performed before anything is written.
 
             </div>
 
           </div>
+
         `,
 
         icon:
@@ -73232,10 +74970,17 @@ async function() {
           "Cancel",
 
         confirmButtonColor:
-          "#16a34a"
+          "#16a34a",
+
+        reverseButtons:
+          true
 
       });
 
+
+    /* =====================================================
+       REVIEW CANCELLED
+    ===================================================== */
 
     if (
       !review.isConfirmed
@@ -73250,15 +74995,41 @@ async function() {
 
     /* =====================================================
        🚨 FINAL LIVE DUPLICATE CHECK
-       
-       This is the important bulk fix.
 
-       We check Firebase AGAIN after the review,
-       immediately before constructing payment records.
+       This is intentionally AFTER the user has reviewed
+       and confirmed payment.
 
-       Already-paid staff are skipped BEFORE advance
-       settlement is added to atomicUpdates.
+       It prevents duplicate salary payment if another
+       browser/user paid the same staff member while this
+       form was open.
     ===================================================== */
+
+    Swal.fire({
+
+      title:
+        "Checking Payroll…",
+
+      text:
+        "Verifying payment status before saving.",
+
+      allowOutsideClick:
+        false,
+
+      allowEscapeKey:
+        false,
+
+      showConfirmButton:
+        false,
+
+      didOpen:
+        () => {
+
+          Swal.showLoading();
+
+        }
+
+    });
+
 
     const finalStatus =
       await window.verifySupportStaffPayrollStatus(
@@ -73294,6 +75065,10 @@ async function() {
         );
 
 
+    /* =====================================================
+       IF EVERYONE WAS PAID WHILE FORM WAS OPEN
+    ===================================================== */
+
     if (
       !finalUnpaid.length
     ) {
@@ -73316,21 +75091,32 @@ async function() {
               No salary was written because
               all selected employees are already
               marked as paid for
-              <b>${paymentMonth} ${paymentYear}</b>.
+              <b>
+                ${bulkEscapeHTML(
+                  paymentMonth
+                )}
+                ${bulkEscapeHTML(
+                  paymentYear
+                )}
+              </b>.
             </p>
+
 
             ${
               skippedAtFinal
                 .map(
                   name =>
-                    `<div>• ${escapeTeacherHTML(
-                      name
-                    )}</div>`
+                    `<div>
+                      • ${bulkEscapeHTML(
+                        name
+                      )}
+                    </div>`
                 )
                 .join("")
             }
 
           </div>
+
         `,
 
         icon:
@@ -73357,6 +75143,32 @@ async function() {
       );
 
 
+    if (
+      !finalPayrollData.length
+    ) {
+
+      closeBulkLock();
+
+
+      return Swal.fire({
+
+        title:
+          "Nothing To Pay",
+
+        text:
+          "All selected staff have already been paid.",
+
+        icon:
+          "warning",
+
+        confirmButtonColor:
+          "#2563eb"
+
+      });
+
+    }
+
+
     /* =====================================================
        ATOMIC UPDATES
     ===================================================== */
@@ -73364,65 +75176,217 @@ async function() {
     const atomicUpdates = {};
 
 
-    let successfulPayments = 0;
+    let successfulPayments =
+      0;
 
-    const failedPayments = [
-      ...skippedAtFinal
-    ];
+
+    const failedPayments =
+      [
+        ...skippedAtFinal
+      ];
 
 
     /* =====================================================
-       PROCESS ONLY UNPAID STAFF
+       SHOW PROCESSING
+    ===================================================== */
+
+    Swal.fire({
+
+      title:
+        "Preparing Payments…",
+
+      text:
+        `Validating ${finalPayrollData.length} unpaid staff member${
+          finalPayrollData.length === 1
+            ? ""
+            : "s"
+        }.`,
+
+      allowOutsideClick:
+        false,
+
+      allowEscapeKey:
+        false,
+
+      showConfirmButton:
+        false,
+
+      didOpen:
+        () => {
+
+          Swal.showLoading();
+
+        }
+
+    });
+
+
+    /* =====================================================
+       ⚡ FINAL ADVANCE VALIDATION IN PARALLEL
+
+       Each staff member gets one fresh advance read.
+
+       This prevents old advance balances from being reused.
+    ===================================================== */
+
+    const finalPreparation =
+      await Promise.all(
+        finalPayrollData.map(
+          async item => {
+
+            const staff =
+              finalUnpaid.find(
+                s =>
+                  String(
+                    s.staffId
+                  ) ===
+                  String(
+                    item.staffId
+                  )
+              );
+
+
+            if (!staff) {
+
+              return {
+
+                ok:
+                  false,
+
+                reason:
+                  null
+
+              };
+
+            }
+
+
+            try {
+
+              /* -------------------------------------------
+                 FRESH LIVE ADVANCE BALANCE
+              ------------------------------------------- */
+
+              const latestAdvance =
+                await window.readOutstandingSupportAdvances(
+                  staff.staffId
+                );
+
+
+              const availableAdvance =
+                Number(
+                  latestAdvance?.total ||
+                  0
+                );
+
+
+              const requestedAdvance =
+                Number(
+                  item.salaryAdvance ||
+                  0
+                );
+
+
+              /* -------------------------------------------
+                 ADVANCE BALANCE CHANGED
+              ------------------------------------------- */
+
+              if (
+                requestedAdvance >
+                availableAdvance +
+                0.0001
+              ) {
+
+                return {
+
+                  ok:
+                    false,
+
+                  reason:
+                    `${staff.name || "Staff"} — advance balance changed`
+
+                };
+
+              }
+
+
+              /* -------------------------------------------
+                 BUILD ADVANCE SETTLEMENT
+              ------------------------------------------- */
+
+              const settlement =
+                await window.buildSupportAdvanceSettlement(
+                  staff.staffId,
+                  requestedAdvance
+                );
+
+
+              return {
+
+                ok:
+                  true,
+
+                item,
+
+                staff,
+
+                settlement
+
+              };
+
+            } catch (
+              error
+            ) {
+
+              console.error(
+                "Bulk payroll preparation failed:",
+                staff.staffId,
+                error
+              );
+
+
+              return {
+
+                ok:
+                  false,
+
+                reason:
+                  `${staff.name || "Staff"} — ${
+                    error?.message ||
+                    "Payroll preparation failed"
+                  }`
+
+              };
+
+            }
+
+          }
+        )
+      );
+
+
+    /* =====================================================
+       BUILD PAYMENT RECORDS
     ===================================================== */
 
     for (
-      const item
-      of finalPayrollData
+      const result
+      of finalPreparation
     ) {
 
-      const staff =
-        finalUnpaid.find(
-          s =>
-            s.staffId ===
-            item.staffId
-        );
-
-
-      if (!staff) {
-
-        continue;
-
-      }
-
-
-      /* ---------------------------------------------
-         ONE MORE ADVANCE READ
-         Immediately before creating advance updates.
-      --------------------------------------------- */
-
-      const latestAdvance =
-        await window.readOutstandingSupportAdvances(
-          staff.staffId
-        );
-
-
-      const requestedAdvance =
-        Number(
-          item.salaryAdvance || 0
-        );
-
-
       if (
-        requestedAdvance >
-        Number(
-          latestAdvance.total || 0
-        ) +
-        0.0001
+        !result.ok
       ) {
 
-        failedPayments.push(
-          `${staff.name || "Staff"} — advance balance changed`
-        );
+        if (
+          result.reason
+        ) {
+
+          failedPayments.push(
+            result.reason
+          );
+
+        }
 
 
         continue;
@@ -73430,21 +75394,22 @@ async function() {
       }
 
 
+      const {
+        item,
+        staff,
+        settlement
+      } =
+        result;
+
+
       /* ---------------------------------------------
-         ADVANCE SETTLEMENT
-         ONLY FOR STAFF WHO ARE NOT ALREADY PAID.
+         ADVANCE SETTLEMENT UPDATES
       --------------------------------------------- */
-
-      const settlement =
-        await window.buildSupportAdvanceSettlement(
-          staff.staffId,
-          requestedAdvance
-        );
-
 
       Object.assign(
         atomicUpdates,
-        settlement.updates
+        settlement?.updates ||
+        {}
       );
 
 
@@ -73466,7 +75431,9 @@ async function() {
       ) {
 
         failedPayments.push(
+
           `${staff.name || "Staff"} — payment ID generation failed`
+
         );
 
 
@@ -73475,18 +75442,27 @@ async function() {
       }
 
 
+      /* ---------------------------------------------
+         TRANSACTION NUMBER
+      --------------------------------------------- */
+
       const transactionNo =
         "SAL-" +
         Date.now() +
         "-" +
         String(
-          successfulPayments + 1
+          successfulPayments +
+          1
         )
         .padStart(
           2,
           "0"
         );
 
+
+      /* ---------------------------------------------
+         COMMON PAYMENT DATA
+      --------------------------------------------- */
 
       const common = {
 
@@ -73496,16 +75472,20 @@ async function() {
           staff.staffId,
 
         staffName:
-          staff.name || "",
+          staff.name ||
+          "",
 
         staffNumber:
-          staff.staffNumber || "",
+          staff.staffNumber ||
+          "",
 
         role:
-          staff.role || "",
+          staff.role ||
+          "",
 
         department:
-          staff.department || "",
+          staff.department ||
+          "",
 
         month:
           paymentMonth,
@@ -73527,41 +75507,53 @@ async function() {
 
         basicSalary:
           Number(
-            staff.salary || 0
+            staff.salary ||
+            0
           ),
 
         grossSalary:
           Number(
-            staff.salary || 0
+            staff.salary ||
+            0
           ),
 
-        allowances: 0,
+        allowances:
+          0,
 
-        overtime: 0,
+        overtime:
+          0,
 
-        bonus: 0,
+        bonus:
+          0,
 
         nhif:
           Number(
-            item.nhif || 0
+            item.nhif ||
+            0
           ),
 
         nssf:
           Number(
-            item.nssf || 0
+            item.nssf ||
+            0
           ),
 
         paye:
           Number(
-            item.paye || 0
+            item.paye ||
+            0
           ),
 
         salaryAdvance:
-          requestedAdvance,
+          Number(
+            item.salaryAdvance ||
+            0
+          ),
 
         otherDeductions:
           Number(
-            item.otherDeductions || 0
+            item.otherDeductions ||
+            0
           ),
 
         otherDeductionDescription:
@@ -73570,12 +75562,14 @@ async function() {
 
         totalDeductions:
           Number(
-            item.totalDeductions || 0
+            item.totalDeductions ||
+            0
           ),
 
         netSalary:
           Number(
-            item.netSalary || 0
+            item.netSalary ||
+            0
           ),
 
         paidBy:
@@ -73588,9 +75582,9 @@ async function() {
       };
 
 
-      /* ---------------------------------------------
+      /* =================================================
          PAYMENT LEDGER
-      --------------------------------------------- */
+      ================================================= */
 
       atomicUpdates[
         `schools/${window.schoolId}/supportSalaryPayments/${staff.staffId}/${paymentId}`
@@ -73607,11 +75601,11 @@ async function() {
       };
 
 
-      /* ---------------------------------------------
-         IMPORTANT:
-         UPDATE FIELDS ONLY.
-         DO NOT REPLACE supportStaff/{id}.
-      --------------------------------------------- */
+      /* =================================================
+         UPDATE SUPPORT STAFF FIELDS ONLY
+
+         DO NOT REPLACE supportStaff/{id}
+      ================================================= */
 
       const staffBase =
         `schools/${window.schoolId}/supportStaff/${staff.staffId}`;
@@ -73639,7 +75633,8 @@ async function() {
         `${staffBase}/lastNetSalary`
       ] =
         Number(
-          item.netSalary || 0
+          item.netSalary ||
+          0
         );
 
 
@@ -73649,9 +75644,9 @@ async function() {
         "Paid";
 
 
-      /* ---------------------------------------------
+      /* =================================================
          PAYROLL RECORD
-      --------------------------------------------- */
+      ================================================= */
 
       atomicUpdates[
         `schools/${window.schoolId}/supportPayroll/${paymentYear}/${paymentMonth}/${payrollId}`
@@ -73676,53 +75671,111 @@ async function() {
 
 
     /* =====================================================
-       SAVE EVERYTHING
+       NOTHING READY TO SAVE
     ===================================================== */
 
     if (
-      Object.keys(
+      !Object.keys(
         atomicUpdates
       ).length
     ) {
 
-      Swal.fire({
+      closeBulkLock();
+
+
+      return Swal.fire({
 
         title:
-          "Processing Payments…",
+          "No Payments Saved",
 
-        text:
-          `Saving ${successfulPayments} salary payment${
-            successfulPayments === 1
-              ? ""
-              : "s"
-          }`,
+        html: `
 
-        allowOutsideClick:
-          false,
+          <div style="
+            text-align:left;
+          ">
 
-        allowEscapeKey:
-          false,
+            <p>
+              No payment records were written.
+            </p>
 
-        showConfirmButton:
-          false,
+            ${
+              failedPayments.length
+                ? `
+                  <hr>
 
-        didOpen:
-          () =>
-            Swal.showLoading()
+                  ${failedPayments
+                    .map(
+                      item =>
+                        `<div>
+                          • ${bulkEscapeHTML(
+                            item
+                          )}
+                        </div>`
+                    )
+                    .join("")
+                  }
+                `
+                : ""
+            }
+
+          </div>
+
+        `,
+
+        icon:
+          "warning",
+
+        confirmButtonColor:
+          "#2563eb"
 
       });
-
-
-      await update(
-        ref(db),
-        atomicUpdates
-      );
 
     }
 
 
     /* =====================================================
-       REFRESH DASHBOARD
+       SAVE EVERYTHING ATOMICALLY
+    ===================================================== */
+
+    Swal.fire({
+
+      title:
+        "Processing Payments…",
+
+      text:
+        `Saving ${successfulPayments} salary payment${
+          successfulPayments === 1
+            ? ""
+            : "s"
+        }`,
+
+      allowOutsideClick:
+        false,
+
+      allowEscapeKey:
+        false,
+
+      showConfirmButton:
+        false,
+
+      didOpen:
+        () => {
+
+          Swal.showLoading();
+
+        }
+
+    });
+
+
+    await update(
+      ref(db),
+      atomicUpdates
+    );
+
+
+    /* =====================================================
+       REFRESH DASHBOARD WITHOUT BLOCKING SUCCESS MESSAGE
     ===================================================== */
 
     if (
@@ -73745,7 +75798,7 @@ async function() {
 
 
     /* =====================================================
-       FINAL RESULT
+       FINAL RESULT — PARTIAL SUCCESS / SKIPPED
     ===================================================== */
 
     if (
@@ -73792,8 +75845,10 @@ async function() {
               failedPayments
                 .map(
                   item =>
-                    `<div>
-                      • ${escapeTeacherHTML(
+                    `<div style="
+                      margin-bottom:5px;
+                    ">
+                      • ${bulkEscapeHTML(
                         item
                       )}
                     </div>`
@@ -73808,12 +75863,19 @@ async function() {
         icon:
           "warning",
 
+        confirmButtonText:
+          "OK",
+
         confirmButtonColor:
           "#2563eb"
 
       });
 
     } else {
+
+      /* ===================================================
+         COMPLETE SUCCESS
+      =================================================== */
 
       await Swal.fire({
 
@@ -73826,18 +75888,31 @@ async function() {
 
             <h2 style="
               color:#16a34a;
+              margin-bottom:10px;
             ">
               ${successfulPayments}
             </h2>
+
 
             <p>
               Support staff salaries paid successfully.
             </p>
 
+
             <p>
-              <b>Total Net Payroll:</b>
+              <b>
+                Total Net Payroll:
+              </b>
+
               <br>
-              KES ${totalNet.toLocaleString()}
+
+              <span style="
+                font-size:20px;
+                font-weight:bold;
+                color:#16a34a;
+              ">
+                KES ${totalNet.toLocaleString()}
+              </span>
             </p>
 
           </div>
@@ -73845,14 +75920,19 @@ async function() {
         `,
 
         icon:
-          "success"
+          "success",
+
+        confirmButtonColor:
+          "#16a34a"
 
       });
 
     }
 
 
-  } catch(error) {
+  } catch (
+    error
+  ) {
 
     console.error(
       "Bulk Salary Payment Error:",
@@ -73860,16 +75940,22 @@ async function() {
     );
 
 
-    await Swal.fire(
+    await Swal.fire({
 
-      "Payment Error",
+      title:
+        "Payment Error",
 
-      error?.message ||
+      text:
+        error?.message ||
         "Unable to process bulk salary payments.",
 
-      "error"
+      icon:
+        "error",
 
-    );
+      confirmButtonColor:
+        "#dc2626"
+
+    });
 
 
   } finally {
@@ -73879,8 +75965,6 @@ async function() {
   }
 
 };
-
-
 /* =========================================================
    ⚠ OPTIONAL ERROR MONITOR
    Specifically catches old pieceNum_ errors if another
