@@ -17033,10 +17033,21 @@ function auditEscape(value) {
 function auditActor() {
   const u = window.currentUser || {};
   const authUser = auth?.currentUser || {};
+
   const stored = (() => {
-    try { return JSON.parse(localStorage.getItem("currentUser") || "{}"); }
-    catch (_) { return {}; }
+    try {
+      return JSON.parse(localStorage.getItem("currentUser") || "{}");
+    } catch (_) {
+      return {};
+    }
   })();
+
+  // Resolve email first because it is our reliable fallback identity
+  const email =
+    u.email ||
+    stored.email ||
+    authUser.email ||
+    "";
 
   const name =
     u.fullName ||
@@ -17048,16 +17059,16 @@ function auditActor() {
     stored.displayName ||
     stored.username ||
     authUser.displayName ||
+    email ||
     "Unknown User";
 
   return {
     uid: u.uid || stored.uid || authUser.uid || "unknown",
-    name,
-    email: u.email || stored.email || authUser.email || "",
+    name: name,
+    email: email,
     role: window.currentUserRole || u.role || stored.role || "unknown"
   };
 }
-
 window.logAuditAction = async function(action, details = "", section = "") {
   try {
     const school = window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId");
@@ -17136,79 +17147,292 @@ window.logAuditAction = async function(action, details = "", section = "") {
   }
 };
 
-window.loadAuditTrail = function() {
+window.loadAuditTrail = function () {
   try {
+    // ============================================================
+    // 🔐 ADMIN ACCESS CHECK
+    // ============================================================
     if (String(window.currentUserRole || "").toLowerCase() !== "admin") {
-      return Swal.fire({icon:"error",title:"Access Denied",text:"Only administrators can view the System Audit Trail."});
+      return Swal.fire({
+        icon: "error",
+        title: "Access Denied",
+        text: "Only administrators can view the System Audit Trail."
+      });
     }
 
+    // ============================================================
+    // 📋 TABLE BODY
+    // ============================================================
     const body = document.getElementById("auditTrailBody");
-    if (body) body.innerHTML = '<tr><td colspan="6" style="padding:30px;text-align:center;color:#64748b;">Loading audit records...</td></tr>';
 
-    const school = window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId");
-    if (!school) return;
+    if (body) {
+      body.innerHTML = `
+        <tr>
+          <td colspan="6"
+              style="padding:30px;text-align:center;color:#64748b;">
+            Loading latest audit records...
+          </td>
+        </tr>
+      `;
+    }
 
-    if (window.__auditUnsubscribe) window.__auditUnsubscribe();
+    // ============================================================
+    // 🏫 SCHOOL ID
+    // ============================================================
+    const school =
+      window.schoolId ||
+      sessionStorage.getItem("schoolId") ||
+      localStorage.getItem("schoolId");
 
-    window.__auditUnsubscribe = window.fastOnValue(schoolRef("auditLogs"), snap => {
-      const data = snap.val() || {};
-      window.__auditTrail = Object.entries(data).map(([id, item]) => ({id, ...(item || {})}))
-        .sort((a,b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
-        .slice(0, 2000);
+    if (!school) {
+      console.warn("Audit Trail: schoolId not available.");
+      if (body) {
+        body.innerHTML = `
+          <tr>
+            <td colspan="6"
+                style="padding:30px;text-align:center;color:#dc2626;">
+              School account could not be identified.
+            </td>
+          </tr>
+        `;
+      }
+      return;
+    }
 
-      // Repair historical records that were created before the user-name
-      // lookup was added. Resolve the registered name from users/{uid}
-      // and write it back to the audit record itself.
-      repairUnknownAuditActors(window.__auditTrail);
+    // ============================================================
+    // 🧹 REMOVE PREVIOUS LISTENER
+    // ============================================================
+    if (typeof window.__auditUnsubscribe === "function") {
+      try {
+        window.__auditUnsubscribe();
+      } catch (e) {
+        console.warn("Could not remove previous audit listener:", e);
+      }
 
-      populateAuditActionFilter();
-      renderAuditTrail();
-    });
+      window.__auditUnsubscribe = null;
+    }
+
+    // ============================================================
+    // ⚡ FAST FIREBASE QUERY
+    //
+    // IMPORTANT:
+    // Firebase returns ONLY the newest 300 records.
+    // We no longer download the entire auditLogs tree.
+    // ============================================================
+    const auditRef = schoolRef("auditLogs");
+
+    let auditQuery = auditRef;
+
+    try {
+      // Firebase v9/v10 modular query support
+      if (
+        typeof window.query === "function" &&
+        typeof window.orderByChild === "function" &&
+        typeof window.limitToLast === "function"
+      ) {
+        auditQuery = window.query(
+          auditRef,
+          window.orderByChild("timestamp"),
+          window.limitToLast(300)
+        );
+      }
+
+      // If the Firebase functions are globally available
+      else if (
+        typeof query === "function" &&
+        typeof orderByChild === "function" &&
+        typeof limitToLast === "function"
+      ) {
+        auditQuery = query(
+          auditRef,
+          orderByChild("timestamp"),
+          limitToLast(300)
+        );
+      }
+
+      // If query helpers are unavailable, fall back safely
+      else {
+        console.warn(
+          "Firebase query helpers unavailable. Using auditLogs reference."
+        );
+      }
+    } catch (queryError) {
+      console.warn(
+        "Audit query optimisation unavailable:",
+        queryError
+      );
+
+      auditQuery = auditRef;
+    }
+
+    // ============================================================
+    // ⚡ LOAD RECORDS
+    // ============================================================
+    window.__auditUnsubscribe = window.fastOnValue(
+      auditQuery,
+      function (snap) {
+
+        try {
+          const data = snap.val() || {};
+
+          // ========================================================
+          // Convert Firebase object to array
+          // ========================================================
+          const records = Object.entries(data).map(function ([id, item]) {
+            return {
+              id: id,
+              ...(item || {})
+            };
+          });
+
+          // ========================================================
+          // Firebase limitToLast returns the latest records, but
+          // order is not guaranteed for rendering. Sort ONLY the
+          // small 300-record result locally.
+          // ========================================================
+          records.sort(function (a, b) {
+            return (
+              Number(b.timestamp || 0) -
+              Number(a.timestamp || 0)
+            );
+          });
+
+          // Keep an additional safety limit
+          window.__auditTrail = records.slice(0, 300);
+
+          // ========================================================
+          // IMPORTANT:
+          // DO NOT run repairUnknownAuditActors() here.
+          //
+          // That function can cause additional Firebase reads/writes
+          // and was one of the major reasons the Audit Trail felt slow.
+          //
+          // Historical unknown actors should be repaired separately,
+          // not during every Audit Trail page load.
+          // ========================================================
+
+          // ========================================================
+          // Render immediately
+          // ========================================================
+          populateAuditActionFilter();
+          renderAuditTrail();
+
+        } catch (renderError) {
+          console.error(
+            "Audit trail rendering error:",
+            renderError
+          );
+
+          if (body) {
+            body.innerHTML = `
+              <tr>
+                <td colspan="6"
+                    style="padding:30px;text-align:center;color:#dc2626;">
+                  Failed to display audit records.
+                </td>
+              </tr>
+            `;
+          }
+        }
+      }
+    );
+
   } catch (err) {
     console.error("Audit trail load error:", err);
-    Swal.fire("Audit Trail Error", err.message || "Unable to load audit records.", "error");
+
+    Swal.fire({
+      icon: "error",
+      title: "Audit Trail Error",
+      text:
+        err.message ||
+        "Unable to load audit records."
+    });
   }
 };
-
 async function repairUnknownAuditActors(logs) {
   try {
-    const candidates = (logs || []).filter(log =>
-      (!log.performedBy || String(log.performedBy).trim().toLowerCase() === "unknown user") &&
-      log.uid && String(log.uid).trim() && String(log.uid) !== "unknown"
-    ).slice(0, 100);
+    const candidates = (logs || [])
+      .filter(log =>
+        (
+          !log.performedBy ||
+          String(log.performedBy).trim().toLowerCase() === "unknown user"
+        ) &&
+        log.uid &&
+        String(log.uid).trim() &&
+        String(log.uid) !== "unknown"
+      )
+      .slice(0, 100);
 
     for (const log of candidates) {
       try {
         const snap = await fastGet(ref(db, `users/${log.uid}`));
+
         if (!snap.exists()) continue;
+
         const profile = snap.val() || {};
+
+        const email =
+          profile.email ||
+          log.email ||
+          "";
+
         const resolvedName =
           profile.fullName ||
           profile.name ||
           profile.displayName ||
           profile.username ||
-          "";
-        if (!resolvedName) continue;
+          email ||
+          "Unknown User";
 
-        const updates = { performedBy: resolvedName };
-        if (!log.email && profile.email) updates.email = profile.email;
-        if ((!log.role || log.role === "unknown") && profile.role) updates.role = profile.role;
+        const updates = {
+          performedBy: resolvedName
+        };
 
-        await update(ref(db, `schools/${window.schoolId}/auditLogs/${log.id}`), updates);
+        if (!log.email && email) {
+          updates.email = email;
+        }
 
+        if (
+          (!log.role || log.role === "unknown") &&
+          profile.role
+        ) {
+          updates.role = profile.role;
+        }
+
+        await update(
+          ref(db, `schools/${window.schoolId}/auditLogs/${log.id}`),
+          updates
+        );
+
+        // Immediately update the displayed record
         log.performedBy = resolvedName;
-        if (updates.email) log.email = updates.email;
-        if (updates.role) log.role = updates.role;
+
+        if (email) {
+          log.email = email;
+        }
+
+        if (updates.role) {
+          log.role = updates.role;
+        }
+
       } catch (err) {
-        console.warn("Could not repair audit actor:", log.uid, err);
+        console.warn(
+          "Could not repair audit actor:",
+          log.uid,
+          err
+        );
       }
     }
+
     renderAuditTrail();
+
   } catch (err) {
-    console.warn("Audit actor repair failed:", err);
+    console.warn(
+      "Audit actor repair failed:",
+      err
+    );
   }
 }
-
 function populateAuditActionFilter() {
   const select = document.getElementById("auditActionFilter");
   if (!select) return;
