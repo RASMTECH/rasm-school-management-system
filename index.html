@@ -16938,6 +16938,8 @@ window.set = firebaseSet;
     } catch (_) {}
   };
 
+  window.rasmFreshGet = function(firebaseRef){ return firebaseGet(firebaseRef); };
+
   window.fastGet = async function(firebaseRef){
     const cached = readCache(firebaseRef);
     if (cached) {
@@ -23061,15 +23063,15 @@ window.login = async function () {
                                 )
                             ),
 
-                            30000,
+                            45000,
 
-                            "User profile timed out."
+                            "User profile is taking longer than usual."
 
                         ),
 
-                    3,
+                    5,
 
-                    1500
+                    2500
 
                 );
 
@@ -23222,66 +23224,57 @@ window.login = async function () {
         );
 
 
-        let schoolSnapshot;
-
+        let schoolData = {};
 
         try {
 
-            schoolSnapshot =
+            /* Slow-network safe: fetch only lightweight school verification fields.
+               Never download the entire schools/{schoolId} tree during login. */
+            const verificationFields = [
+                "name", "schoolName", "deleted", "locked", "active",
+                "subscriptionStatus", "subscriptionEndsAt", "subscriptionEndAt",
+                "subscriptionExpiresAt", "subscriptionExpiry",
+                "trialEndsAt", "trialEndAt", "trialExpiresAt", "trialExpiry"
+            ];
+
+            const readField = async (field) =>
                 await window.retryRequest(
-
-                    () =>
-                        window.withTimeout(
-
-                            fastGet(
-                                ref(
-                                    db,
-                                    `schools/${schoolId}`
-                                )
-                            ),
-
-                            30000,
-
-                            "School verification timed out."
-
-                        ),
-
-                    3,
-
-                    1800
-
+                    () => window.withTimeout(
+                        fastGet(ref(db, `schools/${schoolId}/${field}`)),
+                        45000,
+                        `School verification timed out while reading ${field}.`
+                    ),
+                    5,
+                    2500
                 );
 
-        }
-
-        catch (error) {
-
-            console.error(
-                "❌ School verification error:",
-                error
+            const results = await Promise.all(
+                verificationFields.map(async field => [field, await readField(field)])
             );
 
+            let foundAny = false;
+            for (const [field, snap] of results) {
+                if (snap?.exists()) {
+                    foundAny = true;
+                    schoolData[field] = snap.val();
+                }
+            }
 
-            throw new Error(
-                "SCHOOL_CONNECTION_FAILED"
-            );
+            if (!foundAny) throw new Error("SCHOOL_NOT_FOUND");
 
+        } catch (error) {
+
+            console.error("❌ School verification error after slow-network retries:", error);
+
+            if (String(error?.message || error).includes("SCHOOL_NOT_FOUND")) {
+                throw error;
+            }
+
+            const wrapped = new Error("SCHOOL_CONNECTION_FAILED");
+            wrapped.originalError = error;
+            wrapped.code = error?.code || "NETWORK_TIMEOUT";
+            throw wrapped;
         }
-
-
-        if (
-            !schoolSnapshot.exists()
-        ) {
-
-            throw new Error(
-                "SCHOOL_NOT_FOUND"
-            );
-
-        }
-
-
-        const schoolData =
-            schoolSnapshot.val() || {};
 
 
         /* ====================================================
@@ -23964,7 +23957,7 @@ window.login = async function () {
                 "Connection Problem";
 
             message =
-                "Your account was authenticated, but RASM 360 could not verify your school. The Wi-Fi connection may be slow.";
+                "Your account was authenticated, but school verification is taking longer than usual. RASM 360 will keep retrying automatically. Please keep your internet connection active.";
 
             icon =
                 "warning";
@@ -44088,6 +44081,11 @@ function getCleanRecordedSubjects(subjects) {
         .filter(s => s && !isMarksMetadataField(s));
 }
 
+function isCREStandaloneSubject(subject) {
+    const key = String(subject ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return key === "CRE" || key === "CHRISTIANRELIGIOUSEDUCATION";
+}
+
 function getMarksDisplaySubjects(gradeValue, learners) {
     const grade = getGradeNumber(gradeValue);
     const candidates = new Set();
@@ -44126,7 +44124,7 @@ function getMarksDisplaySubjects(gradeValue, learners) {
     }
 
     // Grades 4-12: show only real, recorded main subjects for this grade.
-    return subjects.filter(s => !isReportSubLearningArea(s));
+    return subjects.filter(s => isCREStandaloneSubject(s) || !isReportSubLearningArea(s));
 }
 
 // ===============================================================
@@ -44140,7 +44138,7 @@ function getLoadedMarksMainSubjects(subjects, gradeValue) {
         const canonicalMain = new Set(REPORT_GRADE13_MAIN_SUBJECTS.map(s => rasmCanonicalSubjectName(s)));
         return list.filter(s => canonicalMain.has(rasmCanonicalSubjectName(s)));
     }
-    return list.filter(s => !isReportSubLearningArea(s));
+    return list.filter(s => isCREStandaloneSubject(s) || !isReportSubLearningArea(s));
 }
 function calculateLoadedLearnerPerformance(learner, subjects, gradeValue) {
     const grade = getGradeNumber(gradeValue || learner?.grade);
@@ -49971,10 +49969,22 @@ function generatePerformanceInsight() {
       // ==========================
       // 🔥 PERFORMANCE STATUS
       // ==========================
+      // ==========================================================
+      // 📊 NORMALIZED PERFORMANCE DISTRIBUTION
+      // Always combine the lower-primary EE/ME/AE/BE levels with
+      // the upper-secondary EE1/EE2 etc. levels. This is essential
+      // when "All Grades" is selected, because the dashboard may
+      // contain both grading systems at the same time.
+      // ==========================================================
+      const distributionCounts = {
+        EE: Number(levels.EE || 0) + Number(levels.EE1 || 0) + Number(levels.EE2 || 0),
+        ME: Number(levels.ME || 0) + Number(levels.ME1 || 0) + Number(levels.ME2 || 0),
+        AE: Number(levels.AE || 0) + Number(levels.AE1 || 0) + Number(levels.AE2 || 0),
+        BE: Number(levels.BE || 0) + Number(levels.BE1 || 0) + Number(levels.BE2 || 0)
+      };
+
       const eePercent = learners.length
-        ? (isGrade1To6Value(selectedDashboardGrade)
-            ? (levels.EE / learners.length) * 100
-            : ((levels.EE1 + levels.EE2) / learners.length) * 100)
+        ? (distributionCounts.EE / learners.length) * 100
         : 0;
 
       let status = "";
@@ -50195,10 +50205,10 @@ gap:18px;
 ">
 
 ${[
-["EE","#16a34a",levels.EE1+levels.EE2],
-["ME","#2563eb",levels.ME1+levels.ME2],
-["AE","#f59e0b",levels.AE1+levels.AE2],
-["BE","#dc2626",levels.BE1+levels.BE2]
+["EE","#16a34a",distributionCounts.EE],
+["ME","#2563eb",distributionCounts.ME],
+["AE","#f59e0b",distributionCounts.AE],
+["BE","#dc2626",distributionCounts.BE]
 ].map(item=>{
 
 const percent=((item[2]/learners.length)*100).toFixed(1);
@@ -62178,35 +62188,96 @@ window.generateParentList = async function () {
 
             </div>
 
-            <table
+        
+<table
+    style="
+        width:100%;
+        border-collapse:collapse;
+        font-size:13px;
+        table-layout:fixed;
+    "
+>
+
+    <colgroup>
+        <col style="width:6%;">
+        <col style="width:27%;">
+        <col style="width:27%;">
+        <col style="width:25%;">
+        <col style="width:15%;">
+    </colgroup>
+
+    <thead>
+
+        <tr>
+
+            <th
                 style="
-                    width:100%;
-                    border-collapse:collapse;
-                    font-size:13px;
+                    color:#000;
+                    background:#fff;
+                    font-weight:800;
+                    text-align:center;
                 "
             >
+                No.
+            </th>
 
-                <thead>
+            <th
+                style="
+                    color:#000;
+                    background:#fff;
+                    font-weight:800;
+                    text-align:left;
+                "
+            >
+                Learner Name
+            </th>
 
-                    <tr>
+            <th
+                style="
+                    color:#000;
+                    background:#fff;
+                    font-weight:800;
+                    text-align:left;
+                "
+            >
+                Parent / Guardian
+            </th>
 
-                        <th>No.</th>
-                        <th>Learner Name</th>
-                        <th>Parent / Guardian</th>
-                        <th>Phone</th>
-                        <th>Signature</th>
+            <th
+                style="
+                    color:#000;
+                    background:#fff;
+                    font-weight:800;
+                    text-align:center;
+                "
+            >
+                Phone
+            </th>
 
-                    </tr>
+            <th
+                style="
+                    color:#000;
+                    background:#fff;
+                    font-weight:800;
+                    text-align:center;
+                "
+            >
+                Signature
+            </th>
 
-                </thead>
+        </tr>
 
-                <tbody>
+    </thead>
 
-                    ${tableRows}
+    <tbody>
 
-                </tbody>
+        ${tableRows}
 
-            </table>
+    </tbody>
+
+</table>
+
+
         `;
 
         // ====================================================
@@ -62275,10 +62346,12 @@ window.generateParentList = async function () {
                                 padding: 8px;
                             }
 
-                            th {
-                                background: #000;
-                                color: #fff;
-                            }
+                           th {
+    background: #fff;
+    color: #000 !important;
+    font-weight: 800;
+    text-align: center;
+}
 
                             tr:nth-child(even) {
                                 background: #f2f2f2;
@@ -88456,6 +88529,52 @@ window.deleteAllBooks = async function(){
 
 };
 /* =========================================================
+   BORROWER LOADERS — REQUIRED BY BULK BORROW WORKFLOW
+   Kept global so window.borrowBook can call them safely.
+========================================================= */
+window.getStudentsForBorrow = async function(){
+    const snap = await fastGet(schoolRef("students"));
+    const students = [];
+    if(snap && snap.exists()){
+        snap.forEach(child=>{
+            const s = child.val() || {};
+            students.push({
+                id: child.key,
+                name: s.name || s.fullName || s.studentName || "",
+                number: s.admissionNo || s.adm || s.admission || s.admissionNumber || "",
+                grade: s.grade || s.className || "Unknown"
+            });
+        });
+    }
+    students.sort((a,b)=>{
+        const g=String(a.grade||"").localeCompare(String(b.grade||""),undefined,{numeric:true});
+        return g || String(a.name||"").localeCompare(String(b.name||""));
+    });
+    return students;
+};
+
+window.getTeachersForBorrow = async function(){
+    const snap = await fastGet(schoolRef("teachers"));
+    const teachers = [];
+    if(snap && snap.exists()){
+        snap.forEach(child=>{
+            const t = child.val() || {};
+            teachers.push({
+                id: child.key,
+                name: t.name || t.fullName || t.teacherName || "",
+                number: t.staffNumber || t.staffNo || t.teacherId || ""
+            });
+        });
+    }
+    teachers.sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+    return teachers;
+};
+
+window.buildBorrowerOptions = function(list){
+    return (Array.isArray(list)?list:[]).map(person=>`<option value="${String(person.id??"").replace(/"/g,'&quot;')}" data-name="${String(person.name??"").replace(/"/g,'&quot;')}" data-number="${String(person.number??"").replace(/"/g,'&quot;')}">${String(person.name??"")} ${person.number?`(${String(person.number)})`:""}</option>`).join("");
+};
+
+/* =========================================================
    BORROW BOOK
 ========================================================= */
 
@@ -88464,1806 +88583,131 @@ window.deleteAllBooks = async function(){
 ========================================================= */
 
 window.borrowBook = async function (bookId) {
+    const schoolId = window.schoolId;
+    if (!schoolId) return Swal.fire("School Missing", "Please login again.", "error");
 
-    try {
+    const esc = value => String(value ?? "")
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+        .replace(/'/g,"&#039;");
+    const todayISO = () => {
+        const d=new Date();
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    };
+    const addDaysISO = days => {
+        const d=new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate()+days);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    };
+    const gradeStorageKey=`rasmLibraryBorrowGrade_${schoolId}`;
 
-        const schoolId = window.schoolId;
+    try{
+        const [students,teachers]=await Promise.all([window.getStudentsForBorrow(),window.getTeachersForBorrow()]);
+        const initialBookSnap=await fastGet(ref(db,`library/${schoolId}/${bookId}`));
+        if(!initialBookSnap.exists()) return Swal.fire("Error","Book not found.","error");
+        const initialBook=initialBookSnap.val()||{}, initialCopies=initialBook.copies||{};
+        const availableCount=Object.values(initialCopies).filter(c=>String(c?.status||"").toLowerCase()==="available").length;
+        const activeCount=Object.values(initialCopies).filter(c=>!['lost','damaged','withdrawn','disposed','replaced'].includes(String(c?.status||"").toLowerCase())).length;
+        const savedGrade=localStorage.getItem(gradeStorageKey)||"";
+        const grades=[...new Set(students.map(s=>String(s.grade||"Unknown")))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+        const initialGrade=grades.includes(savedGrade)?savedGrade:(grades[0]||"");
 
-        const students = await getStudentsForBorrow();
-        const teachers = await getTeachersForBorrow();
+        const borrowerAlreadyHasBook=(person,copies)=>{
+            const pid=String(person.id||"").trim(), adm=String(person.number||"").trim().toLowerCase(), name=String(person.name||"").trim().toLowerCase();
+            return Object.values(copies||{}).some(copy=>{
+                if(String(copy?.status||"").trim().toLowerCase()!=="borrowed") return false;
+                const ids=[copy?.borrowerId,copy?.studentId,copy?.learnerId].map(v=>String(v??"").trim()).filter(Boolean);
+                const ca=String(copy?.borrowerAdm||copy?.admissionNo||copy?.adm||"").trim().toLowerCase();
+                const cn=String(copy?.borrowerName||copy?.borrower||copy?.studentName||copy?.learnerName||"").trim().toLowerCase();
+                return (pid&&ids.includes(pid))||(adm&&ca&&adm===ca)||(name&&cn&&name===cn);
+            });
+        };
+        const studentOptions=(grade,copies)=>students.filter(s=>String(s.grade)===String(grade)).map(p=>{
+            const already=borrowerAlreadyHasBook(p,copies);
+            return `<option value="${esc(p.id)}" data-name="${esc(p.name)}" data-number="${esc(p.number)}" ${already?'disabled style="color:#dc2626;font-weight:800;background:#fee2e2;"':''}>${already?'🔴 Already borrowing — ':''}${esc(p.name)}${p.number?` (${esc(p.number)})`:''}</option>`;
+        }).join("");
+        const teacherOptions=teachers.map(p=>{
+            const already=borrowerAlreadyHasBook(p,initialCopies);
+            return `<option value="${esc(p.id)}" data-name="${esc(p.name)}" data-number="${esc(p.number)}" ${already?'disabled style="color:#dc2626;font-weight:800;background:#fee2e2;"':''}>${already?'🔴 Already borrowing — ':''}${esc(p.name)}${p.number?` (${esc(p.number)})`:''}</option>`;
+        }).join("");
 
-        const { value: formValues } = await Swal.fire({
-
-            title: "Borrow Book",
-
-            width: 650,
-
-            html: `
-
-            <div style="text-align:left;">
-
-                <label><b>Borrower Type</b></label>
-
-                <select id="borrowerType" class="swal2-input">
-
-                    <option value="Student">Student</option>
-
-                    <option value="Teacher">Teacher</option>
-
-                </select>
-
-                <div id="gradeArea">
-
-                    <label><b>Grade</b></label>
-
-                    <select id="gradeSelectBorrow" class="swal2-input">
-
-                        ${buildGradeOptions(students)}
-
-                    </select>
-
+        const {value:formValues}=await Swal.fire({
+            title:`Borrow Book — ${esc(initialBook.title||"")}`,width:760,
+            html:`<div style="text-align:left;">
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px;">
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;"><div style="font-size:12px;font-weight:700;color:#64748b">AVAILABLE COPIES</div><div id="borrowAvailableCopies" style="font-size:25px;font-weight:900;color:#2563eb">${availableCount}</div><div style="font-size:12px;color:#64748b">Exact copies currently marked Available</div></div>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-size:12px;font-weight:700;color:#64748b">ACTIVE COPIES</div><div id="borrowActiveCopies" style="font-size:25px;font-weight:900;color:#0f172a">${activeCount}</div><div style="font-size:12px;color:#64748b">Available + currently borrowed</div></div>
                 </div>
-
-                <label><b>Select Borrower</b></label>
-
-                <select id="borrowerSelect" class="swal2-input"></select>
-
-                <label><b>Due Date</b></label>
-
-                <input
-                    type="date"
-                    id="dueDate"
-                    class="swal2-input">
-
-            </div>
-
-            `,
-
-            didOpen: () => {
-
-                const type = document.getElementById("borrowerType");
-                const list = document.getElementById("borrowerSelect");
-                const grade = document.getElementById("gradeSelectBorrow");
-
-                function loadStudents() {
-
-                    const selectedGrade = grade.value;
-
-                    list.innerHTML = buildBorrowerOptions(
-
-                        students.filter(s => s.grade == selectedGrade)
-
-                    );
-
-                }
-
-                loadStudents();
-
-                grade.onchange = loadStudents;
-
-                type.onchange = function () {
-
-                    if (this.value === "Student") {
-
-                        document.getElementById("gradeArea").style.display = "block";
-
-                        loadStudents();
-
-                    } else {
-
-                        document.getElementById("gradeArea").style.display = "none";
-
-                        list.innerHTML = buildBorrowerOptions(teachers);
-
-                    }
-
-                };
-
+                <label><b>Borrower Type</b></label><select id="borrowerType" class="swal2-input"><option value="Student">Student / Learner</option><option value="Teacher">Teacher</option></select>
+                <div id="gradeArea"><label><b>Grade</b></label><select id="gradeSelectBorrow" class="swal2-input">${grades.map(g=>`<option value="${esc(g)}" ${g===initialGrade?'selected':''}>${esc(g)}</option>`).join('')}</select></div>
+                <label><b>Select Borrower(s)</b> <span id="borrowerSelectionHint" style="color:#64748b;font-size:12px">(Select one or more learners)</span></label>
+                <select id="borrowerSelect" class="swal2-input" multiple size="8" style="height:auto;min-height:180px"></select>
+                <div style="margin-top:6px;padding:9px 11px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412;font-size:12px">🔴 Red and disabled learners already have this particular book and cannot be selected again.</div>
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px"><div><label><b>Borrow Date</b></label><input type="date" id="borrowDate" class="swal2-input" value="${todayISO()}" readonly style="background:#f8fafc;cursor:not-allowed"></div><div><label><b>Due Date</b></label><input type="date" id="dueDate" class="swal2-input" value="${addDaysISO(14)}" min="${todayISO()}"></div></div>
+                <div id="bulkCopyHint" style="margin-top:8px;font-size:12px;color:#475569;font-weight:600">One available copy will be assigned automatically to each selected learner.</div>
+            </div>`,
+            didOpen:()=>{
+                const type=document.getElementById('borrowerType'),list=document.getElementById('borrowerSelect'),grade=document.getElementById('gradeSelectBorrow'),hint=document.getElementById('borrowerSelectionHint'),bulk=document.getElementById('bulkCopyHint');
+                const loadStudents=()=>{ localStorage.setItem(gradeStorageKey,grade.value); list.multiple=true; list.size=8; list.innerHTML=studentOptions(grade.value,initialCopies); hint.textContent='(Select one or more learners)'; bulk.style.display='block'; };
+                loadStudents(); grade.onchange=loadStudents;
+                type.onchange=function(){if(this.value==='Student'){document.getElementById('gradeArea').style.display='block';loadStudents();}else{document.getElementById('gradeArea').style.display='none';list.multiple=false;list.size=7;list.innerHTML=teacherOptions;hint.textContent='(Select one teacher)';bulk.style.display='none';}};
             },
-
-            showCancelButton: true,
-
-            confirmButtonText: "Borrow Book",
-
-           preConfirm: () => {
-
-    const borrowerType = document.getElementById("borrowerType");
-    const borrowerSelect = document.getElementById("borrowerSelect");
-    const dueDate = document.getElementById("dueDate");
-    const gradeSelect = document.getElementById("gradeSelectBorrow");
-
-    const option =
-        borrowerSelect.options[borrowerSelect.selectedIndex];
-
-    if (!option) {
-
-        Swal.showValidationMessage("Please select borrower.");
-
-        return false;
-
-    }
-
-    return {
-
-        borrowerType: borrowerType.value,
-
-        borrowerName: option.dataset.name,
-
-        borrowerAdm: option.dataset.number,
-
-        dueDate: dueDate.value,
-
-        selectedGrade:
-            borrowerType.value === "Student"
-                ? gradeSelect.value
-                : ""
-
-    };
-
-}
-
-        });
-
-        if (!formValues) return;
-
-        openSweetLoader("Borrowing Book...");
-
-        const bookRef = ref(db, `library/${schoolId}/${bookId}`);
-
-        const snap = await fastGet(bookRef);
-
-        if (!snap.exists()) {
-
-            closeSweetLoader();
-
-            return Swal.fire("Error", "Book not found", "error");
-
-        }
-
-        const book = snap.val();
-
-        const copies = book.copies || {};
-
-        // ======================================
-        // FIND FIRST AVAILABLE COPY
-        // ======================================
-
-        let selectedCopy = null;
-
-        for (const copyNo in copies) {
-
-            if (copies[copyNo].status === "Available") {
-
-                selectedCopy = copyNo;
-
-                break;
-
+            showCancelButton:true,confirmButtonText:"Assign Book(s)",
+            preConfirm:()=>{
+                const type=document.getElementById('borrowerType'),sel=document.getElementById('borrowerSelect'),due=document.getElementById('dueDate'),date=document.getElementById('borrowDate'),grade=document.getElementById('gradeSelectBorrow');
+                const selected=[...sel.selectedOptions].filter(o=>!o.disabled);
+                if(!selected.length){Swal.showValidationMessage('Please select at least one available learner.');return false;}
+                if(!due.value){Swal.showValidationMessage('Please select a due date.');return false;}
+                if(due.value<date.value){Swal.showValidationMessage('Due date cannot be before the borrow date.');return false;}
+                if(type.value==='Student'&&selected.length>availableCount){Swal.showValidationMessage(`Only ${availableCount} available copy/copies remain.`);return false;}
+                return {borrowerType:type.value,borrowers:selected.map(o=>({id:o.value,name:o.dataset.name||'',number:o.dataset.number||''})),dueDate:due.value,borrowDate:date.value,selectedGrade:type.value==='Student'?grade.value:''};
             }
-
-        }
-
-        if (!selectedCopy) {
-
-            closeSweetLoader();
-
-            return Swal.fire(
-
-                "Unavailable",
-
-                "No available copies remaining.",
-
-                "warning"
-
-            );
-
-        }
-
-        // ======================================
-        // UPDATE THE COPY
-        // ======================================
-
-        copies[selectedCopy].status = "Borrowed";
-        copies[selectedCopy].borrower = formValues.borrowerName;
-        copies[selectedCopy].borrowerAdm = formValues.borrowerAdm;
-        copies[selectedCopy].borrowerType = formValues.borrowerType;
-        copies[selectedCopy].borrowDate = new Date().toLocaleDateString();
-        copies[selectedCopy].dueDate = formValues.dueDate;
-addCopyHistory(
-
-    copies[selectedCopy],
-
-    "Borrowed",
-
-    `${formValues.borrowerName} (${formValues.borrowerAdm})`
-
-);
-        // ======================================
-        // SAVE BOOK
-        // ======================================
-
-        rasmBackgroundUpdate(bookRef, {
-
-            available: Number(book.available) - 1,
-
-            copies
-
         });
+        if(!formValues)return;
 
-        // ======================================
-        // SAVE BORROW HISTORY
-        // ======================================
+        // FAST SAVE: one Firebase multi-location update instead of one full-book write
+        // plus one network request per borrower. This is the main speed improvement.
+        openSweetLoader("Saving book assignments...");
+        const bookRef=ref(db,`library/${schoolId}/${bookId}`);
+        const freshSnap=window.rasmFreshGet?await window.rasmFreshGet(bookRef):await fastGet(bookRef);
+        if(!freshSnap.exists()){closeSweetLoader();return Swal.fire('Error','Book not found.','error');}
+        const book=freshSnap.val()||{},copies=book.copies||{};
+        const currentAvailable=Object.keys(copies).filter(k=>String(copies[k]?.status||'').trim().toLowerCase()==='available');
+        if(formValues.borrowers.length>currentAvailable.length){closeSweetLoader();return Swal.fire('Not Enough Copies',`You selected ${formValues.borrowers.length} learner(s), but only ${currentAvailable.length} exact Available copies remain.` ,'warning');}
+        const duplicates=formValues.borrowers.filter(p=>borrowerAlreadyHasBook(p,copies));
+        if(duplicates.length){closeSweetLoader();return Swal.fire({icon:'warning',title:'Borrowing Blocked',html:duplicates.map(p=>`<div style="color:#dc2626;font-weight:700;text-align:left">🔴 ${esc(p.name)} already has this book.</div>`).join('')});}
 
-rasmBackgroundPush(
-    ref(db, `libraryBorrowings/${schoolId}`),
-    {
-        bookId: bookId,
-
-        bookTitle: book.title,
-
-        // Copy number that was borrowed
-        bookNumber: selectedCopy,
-
-        borrowerName: formValues.borrowerName,
-
-        borrowerAdm: formValues.borrowerAdm,
-
-        borrowerType: formValues.borrowerType,
-
-      grade: formValues.selectedGrade,
-
-        year: new Date().getFullYear(),
-
-        borrowDate: new Date().toLocaleDateString(),
-
-        dueDate: formValues.dueDate,
-
-        returned: false,
-
-        createdAt: Date.now()
-    }
-);
-
+        const rootRef=ref(db);
+        const borrowRoot=ref(db,`libraryBorrowings/${schoolId}`);
+        const multi={};
+        const assigned=[];
+        const borrowDateDisplay=new Date(`${formValues.borrowDate}T12:00:00`).toLocaleDateString();
+        formValues.borrowers.forEach((person,i)=>{
+            const copyNumber=currentAvailable[i], oldCopy=copies[copyNumber]||{}, copy={...oldCopy};
+            copy.status='Borrowed'; copy.borrower=person.name; copy.borrowerName=person.name; copy.borrowId=person.id; copy.borrowerId=person.id; copy.borrowerAdm=person.number; copy.borrowerType=formValues.borrowerType; copy.borrowDate=borrowDateDisplay; copy.borrowDateISO=formValues.borrowDate; copy.dueDate=formValues.dueDate; copy.returnedDate=null;
+            if(typeof addCopyHistory==='function') addCopyHistory(copy,'Borrowed',`${person.name} (${person.number||person.id})`);
+            multi[`library/${schoolId}/${bookId}/copies/${copyNumber}`]=copy;
+            assigned.push({bookNumber:copyNumber,borrowerName:person.name,borrowerAdm:person.number,borrowerId:person.id});
+        });
+        const newAvailable=Object.values(copies).filter(c=>String(c?.status||'').trim().toLowerCase()==='available').length-formValues.borrowers.length;
+        // Correct count from the final assigned state.
+        const finalCopies={...copies};
+        assigned.forEach((row,i)=>{ finalCopies[row.bookNumber]={...(finalCopies[row.bookNumber]||{}),...multi[`library/${schoolId}/${bookId}/copies/${row.bookNumber}`]}; });
+        const exactAvailable=Object.values(finalCopies).filter(c=>String(c?.status||'').trim().toLowerCase()==='available').length;
+        multi[`library/${schoolId}/${bookId}/available`]=exactAvailable;
+        assigned.forEach(row=>{
+            const h=push(borrowRoot);
+            multi[`libraryBorrowings/${schoolId}/${h.key}`]={bookId,bookTitle:book.title||'',bookNumber:row.bookNumber,borrowerName:row.borrowerName,borrowerAdm:row.borrowerAdm,borrowerId:row.borrowerId,borrowerType:formValues.borrowerType,grade:formValues.selectedGrade,year:new Date().getFullYear(),borrowDate:borrowDateDisplay,borrowDateISO:formValues.borrowDate,dueDate:formValues.dueDate,returned:false,createdAt:Date.now()};
+        });
+        await update(rootRef,multi);
         closeSweetLoader();
 
-        Swal.fire(
-
-            "Success",
-
-            `${book.title}<br><br><b>Book Number:</b> ${selectedCopy}<br><br>Borrowed successfully.`,
-
-            "success"
-
-        );
-
-    } catch (error) {
-
-        console.error(error);
-
-        closeSweetLoader();
-
-        Swal.fire(
-
-            "Error",
-
-            error.message,
-
-            "error"
-
-        );
-
+        const assignedList=assigned.map(row=>`<div style="padding:7px 0;border-bottom:1px solid #eee"><b>${esc(row.bookNumber)}</b> → ${esc(row.borrowerName)}</div>`).join('');
+        await Swal.fire({icon:'success',title:assigned.length>1?'Bulk Borrowing Successful':'Borrowing Successful',html:`<div style="text-align:left"><b>${esc(book.title||'Book')}</b><br><br>${assignedList}<br><b>Due:</b> ${esc(formValues.dueDate)}<br><b>Available copies remaining:</b> ${exactAvailable}</div>`,confirmButtonText:'Done'});
+        if(typeof loadLibrary==='function') loadLibrary();
+    }catch(error){
+        console.error('Borrow book failed:',error); closeSweetLoader(); Swal.fire('Error',error.message||'Unable to borrow the book.','error');
     }
-
 };
-
-/* =========================================================
-   RETURN SPECIFIC BOOK COPY
-========================================================= */
-
-window.returnBookCopy = async function (bookId, bookNumber) {
-
-    try {
-
-        const schoolId = window.schoolId;
-
-        openSweetLoader("Returning Book...");
-
-        // =====================================
-        // FIND BORROW RECORD
-        // =====================================
-
-        const borrowRef = ref(db, `libraryBorrowings/${schoolId}`);
-
-        const borrowSnap = await fastGet(borrowRef);
-
-        let borrowId = null;
-
-        if (borrowSnap.exists()) {
-
-            borrowSnap.forEach(child => {
-
-                const d = child.val();
-
-                if (
-                    d.bookId === bookId &&
-                    d.bookNumber === bookNumber &&
-                    !d.returned
-                ) {
-
-                    borrowId = child.key;
-
-                }
-
-            });
-
-        }
-
-        if (!borrowId) {
-
-            closeSweetLoader();
-
-            return Swal.fire(
-                "Not Found",
-                "Borrow record not found.",
-                "warning"
-            );
-
-        }
-
-        // =====================================
-        // MARK BORROW RECORD RETURNED
-        // =====================================
-
-        rasmBackgroundUpdate(
-            ref(db, `libraryBorrowings/${schoolId}/${borrowId}`),
-            {
-
-                returned: true,
-
-                actualReturnDate:
-                    new Date().toLocaleDateString()
-
-            }
-        );
-
-        // =====================================
-        // LOAD BOOK
-        // =====================================
-
-        const bookRef =
-            ref(db, `library/${schoolId}/${bookId}`);
-
-        const bookSnap = await fastGet(bookRef);
-
-        if (!bookSnap.exists()) {
-
-            closeSweetLoader();
-
-            return Swal.fire(
-                "Error",
-                "Book not found.",
-                "error"
-            );
-
-        }
-
-        const book = bookSnap.val();
-
-        const copies = book.copies || {};
-
-        // =====================================
-        // RESTORE THE COPY
-        // =====================================
-
-        if (!copies[bookNumber]) {
-
-            closeSweetLoader();
-
-            return Swal.fire(
-                "Error",
-                "Copy not found.",
-                "error"
-            );
-
-        }
-
-        copies[bookNumber].status = "Available";
-        copies[bookNumber].borrower = null;
-        copies[bookNumber].borrowerAdm = null;
-        copies[bookNumber].borrowerType = null;
-        copies[bookNumber].borrowDate = null;
-        copies[bookNumber].dueDate = null;
-        copies[bookNumber].returnedDate =
-            new Date().toLocaleDateString();
-
-        // =====================================
-        // ADD HISTORY
-        // =====================================
-
-        addCopyHistory(
-
-            copies[bookNumber],
-
-            "Returned",
-
-            "Book returned to library"
-
-        );
-
-        // =====================================
-        // SAVE BOOK
-        // =====================================
-
-        rasmBackgroundUpdate(bookRef, {
-
-            copies
-
-        });
-
-        closeSweetLoader();
-
-        Swal.fire(
-
-            "Returned",
-
-            `${book.title}<br><br><b>${bookNumber}</b> returned successfully.`,
-
-            "success"
-
-        );
-
-        // Refresh copies window
-
-        viewBookCopies(bookId);
-
-        // Refresh Returns Center if open
-
-        if (typeof applyReturnsFilters === "function") {
-
-            applyReturnsFilters();
-
-        }
-
-    }
-
-    catch (error) {
-
-        console.error(error);
-
-        closeSweetLoader();
-
-        Swal.fire(
-
-            "Error",
-
-            error.message,
-
-            "error"
-
-        );
-
-    }
-
-};
-/* =========================================================
-   LOAD BORROWERS
-========================================================= */
-async function getStudentsForBorrow() {
-
-    const snap = await fastGet(schoolRef("students"));
-
-    const students = [];
-
-    if (snap.exists()) {
-
-        snap.forEach(child => {
-
-            const s = child.val();
-
-            students.push({
-
-                id: child.key,
-                name: s.name || "",
-                number: s.admissionNo || s.adm || "",
-                grade: s.grade || "Unknown"
-
-            });
-
-        });
-
-    }
-
-    students.sort((a,b)=>{
-
-        if(a.grade===b.grade)
-            return a.name.localeCompare(b.name);
-
-        return a.grade.localeCompare(b.grade);
-
-    });
-
-    return students;
-
-}
-
-function buildGradeOptions(students){
-
-    const grades = [...new Set(
-
-        students.map(x => x.grade)
-
-    )].sort();
-
-    return grades.map(g=>`
-
-        <option value="${g}">
-
-            ${g}
-
-        </option>
-
-    `).join("");
-
-}
-async function getTeachersForBorrow() {
-
-    const snap = await fastGet(schoolRef("teachers"));
-
-    const teachers = [];
-
-    if (snap.exists()) {
-
-        snap.forEach(child=>{
-
-            const t = child.val();
-
-            teachers.push({
-
-                id: child.key,
-
-                name: t.name || "",
-
-                number: t.staffNumber || ""
-
-            });
-
-        });
-
-    }
-
-    teachers.sort((a,b)=>a.name.localeCompare(b.name));
-
-    return teachers;
-
-}
-
-/* =========================================================
-   BUILD OPTIONS
-========================================================= */
-
-function buildBorrowerOptions(list){
-
-    return list.map(person=>`
-
-        <option
-            value="${person.id}"
-            data-name="${person.name}"
-            data-number="${person.number}">
-
-            ${person.name} (${person.number})
-
-        </option>
-
-    `).join("");
-
-}
-
-/* =========================================================
-   📚 VIEW BORROWING HISTORY (MODERN)
-========================================================= */
-
-window.viewBorrowings = function(bookId){
-
-  const schoolId = window.schoolId;
-
-  window.fastOnValue(
-    ref(db, `libraryBorrowings/${schoolId}`),
-    (snap)=>{
-
-      if(!snap.exists()){
-
-        Swal.fire(
-          "No Records",
-          "No borrowing history found.",
-          "info"
-        );
-
-        return;
-
-      }
-
-    let total = 0;
-let returned = 0;
-let html = "";
-
-const borrowers = {};
-
-html += `
-
-
-<div style="margin-bottom:15px;">
-
-<input
-id="borrowSearch"
-placeholder="🔍 Search borrower..."
-style="
-width:100%;
-padding:12px;
-border:1px solid #ddd;
-border-radius:10px;
-font-size:15px;
-">
-
-</div>
-
-<div style="
-display:flex;
-gap:15px;
-margin-bottom:20px;
-flex-wrap:wrap;
-">
-
-<div style="
-flex:1;
-background:#2563eb;
-color:white;
-padding:15px;
-border-radius:12px;
-text-align:center;
-">
-
-<h2 id="totalBorrowings">0</h2>
-
-<div>Total Borrowings</div>
-
-</div>
-
-<div style="
-flex:1;
-background:#16a34a;
-color:white;
-padding:15px;
-border-radius:12px;
-text-align:center;
-">
-
-<h2 id="returnedBooks">0</h2>
-
-<div>Returned</div>
-
-</div>
-
-</div>
-
-<div
-id="borrowCards"
-style="
-max-height:450px;
-overflow-y:auto;
-padding-right:5px;
-">
-
-`;
-
-     snap.forEach(child=>{
-
-    const d = child.val();
-
-    const key = child.key;
-
-    // Ignore records for other books
-    if (d.bookId !== bookId) return;
-
-    // Use Admission No. (or name if missing) as unique borrower ID
-    const borrowerId = d.borrowerAdm || d.borrowerName;
-
-    // Create borrower only once
-    if (!borrowers[borrowerId]) {
-
-        borrowers[borrowerId] = {
-
-            name: d.borrowerName,
-            adm: d.borrowerAdm,
-            type: d.borrowerType,
-
-            books: []
-
-        };
-
-    }
-
-    // Store this borrowed book under the borrower
-    borrowers[borrowerId].books.push({
-
-        key: key,
-
-        title: d.bookTitle || "Unknown Book",
-
-        borrowDate: d.borrowDate,
-
-        dueDate: d.dueDate,
-
-        returned: d.returned
-
-    });
-
-    total++;
-
-    if (d.returned) returned++;
-
- 
-
-      });
-
-      html+=`</div>`;
-Object.values(borrowers).forEach(person => {
-
-    const initials = (person.name || "")
-        .split(" ")
-        .map(n => n[0])
-        .join("")
-        .substring(0,2)
-        .toUpperCase();
-
-    let booksHTML = "";
-
-    let returnedCount = 0;
-
-    person.books.forEach(book => {
-
-        if (book.returned) returnedCount++;
-
-        booksHTML += `
-
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            padding:10px 0;
-            border-bottom:1px solid #eee;
-        ">
-
-            <div>
-
-                📚 ${book.title}
-
-                <br>
-
-                <small>
-                Borrowed:
-                ${book.borrowDate}
-                </small>
-
-            </div>
-
-            <div>
-
-                ${
-                    book.returned
-                    ? "<span style='color:green'>✅ Returned</span>"
-                    : "<span style='color:red'>📕 Pending</span>"
-                }
-
-            </div>
-
-        </div>
-
-        `;
-
-    });
-
-    html += `
-
-<div
-class="borrow-card"
-data-name="${person.name.toLowerCase()}"
-style="
-background:white;
-border-radius:14px;
-padding:18px;
-margin-bottom:15px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-">
-
-<div style="
-display:flex;
-justify-content:space-between;
-align-items:center;
-">
-
-<div style="
-display:flex;
-align-items:center;
-gap:12px;
-">
-
-<div style="
-width:55px;
-height:55px;
-border-radius:50%;
-background:#2563eb;
-display:flex;
-align-items:center;
-justify-content:center;
-color:white;
-font-weight:bold;
-font-size:18px;
-">
-
-${initials}
-
-</div>
-
-<div>
-
-<div style="
-font-size:18px;
-font-weight:bold;
-">
-
-${person.name}
-
-</div>
-
-<div style="color:#64748b;">
-
-${person.type}
-
-</div>
-
-<div style="font-size:13px;">
-
-Admission:
-${person.adm}
-
-</div>
-
-</div>
-
-</div>
-
-<div style="
-text-align:right;
-">
-
-<div>
-
-📚 ${person.books.length} Book(s)
-
-</div>
-
-<div>
-
-✅ ${returnedCount} Returned
-
-</div>
-
-<div style="color:#dc2626;">
-
-📕 ${person.books.length-returnedCount} Pending
-
-</div>
-
-</div>
-
-</div>
-
-<hr>
-
-${booksHTML}
-
-</div>
-
-`;
-
-});
-      Swal.fire({
-
-title:"📚 Book Borrowing History",
-
-html,
-
-width:850,
-
-didOpen:()=>{
-
-document.getElementById("totalBorrowings").innerText=total;
-document.getElementById("withdrawnCopiesCard").innerText = withdrawn;
-document.getElementById("returnedBooks").innerText=returned;
-
-const search=document.getElementById("borrowSearch");
-
-search.addEventListener("keyup",function(){
-
-const q=this.value.toLowerCase();
-
-document.querySelectorAll(".borrow-card").forEach(card=>{
-
-card.style.display=
-
-card.dataset.name.includes(q)
-
-?
-
-"block"
-
-:
-
-"none";
-
-});
-
-});
-
-}
-
-});
-
-    },
-    {onlyOnce:true}
-  );
-
-};
-window.loadReturnsCenter = function(){
-
-    const schoolId = window.schoolId;
-
-    openSweetLoader("Loading Borrowings...");
-
-    window.fastOnValue(
-
-        ref(db, `libraryBorrowings/${schoolId}`),
-
-        snapshot=>{
-
-            allBorrowings=[];
-
-            if(snapshot.exists()){
-
-                snapshot.forEach(child=>{
-
-                    const d=child.val();
-
-                    d.id=child.key;
-
-                    allBorrowings.push(d);
-
-                });
-
-            }
-
-            closeSweetLoader();
-
-            applyReturnsFilters();
-populateReturnFilters();
-            if (typeof loadLostBooksAccountabilityFilters === "function") {
-                loadLostBooksAccountabilityFilters();
-            }
-        }
-
-    );
-
-}
-function populateReturnFilters() {
-
-    const gradeSelect =
-        document.getElementById("returnGradeFilter");
-
-    const yearSelect =
-        document.getElementById("returnYearFilter");
-
-    if (!gradeSelect || !yearSelect) return;
-
-    const grades = new Set();
-
-    const years = new Set();
-
-    allBorrowings.forEach(item => {
-
-        if (item.grade)
-            grades.add(item.grade);
-
-        if (item.year)
-            years.add(item.year);
-
-    });
-
-    gradeSelect.innerHTML =
-        `<option value="All">All Grades</option>`;
-
-    [...grades]
-    .sort()
-    .forEach(g => {
-
-        gradeSelect.innerHTML +=
-            `<option value="${g}">${g}</option>`;
-
-    });
-
-    yearSelect.innerHTML =
-        `<option value="All">All Years</option>`;
-
-    [...years]
-    .sort()
-    .forEach(y => {
-
-        yearSelect.innerHTML +=
-            `<option value="${y}">${y}</option>`;
-
-    });
-
-}
-function applyReturnsFilters() {
-
-    const search =
-        document.getElementById("returnSearch")
-        .value
-        .toLowerCase();
-
-    const type =
-        document.getElementById("returnFilter")
-        .value;
-
-    const grade =
-        document.getElementById("returnGradeFilter")
-        .value;
-
-    const year =
-        document.getElementById("returnYearFilter")
-        .value;
-
-    filteredBorrowings = allBorrowings.filter(item => {
-
-        if (item.returned)
-            return false;
-
-        if (type !== "All" &&
-            item.borrowerType !== type)
-            return false;
-
-        if (grade !== "All" &&
-            item.grade !== grade)
-            return false;
-
-        if (year !== "All" &&
-            String(item.year) !== year)
-            return false;
-
-        const text = (
-
-            (item.borrowerName || "") + " " +
-            (item.borrowerAdm || "") + " " +
-            (item.bookTitle || "") + " " +
-            (item.bookNumber || "")
-
-        ).toLowerCase();
-
-        return text.includes(search);
-
-    });
-
-    renderBorrowings();
-
-}
-document
-.getElementById("returnGradeFilter")
-.addEventListener(
-    "change",
-    applyReturnsFilters
-);
-
-document
-.getElementById("returnYearFilter")
-.addEventListener(
-    "change",
-    applyReturnsFilters
-);
-/* =========================================================
-   CALCULATE OVERDUE DAYS
-========================================================= */
-
-function getOverdueInfo(dueDate) {
-
-    if (!dueDate) {
-        return {
-            overdue: false,
-            days: 0
-        };
-    }
-
-    const today = new Date();
-
-    today.setHours(0,0,0,0);
-
-    const due = new Date(dueDate);
-
-    due.setHours(0,0,0,0);
-
-    const diff = Math.floor(
-        (today - due) / (1000 * 60 * 60 * 24)
-    );
-
-    return {
-
-        overdue: diff > 0,
-
-        days: diff > 0 ? diff : 0
-
-    };
-
-}
-function renderReturnsDashboard(){
-
-    let borrowed=0;
-    let overdue=0;
-    let selected=selectedBorrowings.size;
-    let returnedToday=0;
-
-    const today=new Date().toLocaleDateString();
-
-    allBorrowings.forEach(item=>{
-
-        if(item.returned){
-
-            if(item.actualReturnDate===today)
-                returnedToday++;
-
-            return;
-        }
-
-        borrowed++;
-
-        if(getOverdueInfo(item.dueDate).overdue)
-            overdue++;
-
-    });
-
-    returnsDashboard.innerHTML=`
-
-        ${dashboardCard("Borrowed",borrowed,"#2563eb")}
-
-        ${dashboardCard("Overdue",overdue,"#dc2626")}
-
-        ${dashboardCard("Returned Today",returnedToday,"#16a34a")}
-
-        ${dashboardCard("Selected",selected,"#f59e0b")}
-
-    `;
-
-}
-
-function renderBorrowings() {
-
-    renderReturnsDashboard();
-
-    if (filteredBorrowings.length === 0) {
-
-        returnsContainer.innerHTML = `
-        <div style="
-            padding:40px;
-            text-align:center;
-            color:#888;
-        ">
-            No active borrowings
-        </div>`;
-
-        return;
-    }
-
-    //=========================================
-    // GROUP BY BORROWER
-    //=========================================
-
-    const borrowers = {};
-
-    filteredBorrowings.forEach(item => {
-
-        const key = item.borrowerAdm || item.borrowerName;
-
-        if (!borrowers[key]) {
-
-            borrowers[key] = {
-
-                name: item.borrowerName,
-                adm: item.borrowerAdm,
-                type: item.borrowerType,
-                books: []
-
-            };
-
-        }
-
-        borrowers[key].books.push(item);
-
-    });
-
-    let html = "";
-
-    Object.values(borrowers).forEach(person => {
-
-        const initials = (person.name || "")
-            .split(" ")
-            .map(x => x[0])
-            .join("")
-            .substring(0,2)
-            .toUpperCase();
-
-        html += `
-
-<div style="
-background:white;
-border-radius:18px;
-padding:20px;
-margin-bottom:20px;
-box-shadow:0 8px 25px rgba(0,0,0,.08);
-">
-
-<div style="
-display:flex;
-justify-content:space-between;
-align-items:center;
-flex-wrap:wrap;
-gap:15px;
-margin-bottom:20px;
-">
-
-<div style="
-display:flex;
-align-items:center;
-gap:15px;
-">
-
-<div style="
-width:60px;
-height:60px;
-border-radius:50%;
-background:#2563eb;
-color:white;
-display:flex;
-align-items:center;
-justify-content:center;
-font-weight:bold;
-font-size:20px;
-">
-
-${initials}
-
-</div>
-
-<div>
-
-<h3 style="margin:0;">
-${person.name}
-</h3>
-
-<div style="color:#64748b;">
-${person.type}
-</div>
-
-<div style="font-size:13px;color:#777;">
-Admission: ${person.adm}
-</div>
-
-</div>
-
-</div>
-
-<div style="
-background:#eff6ff;
-padding:10px 18px;
-border-radius:10px;
-font-weight:bold;
-color:#2563eb;
-">
-
-📚 ${person.books.length} Book(s)
-
-</div>
-
-</div>
-
-
-<!-- BOOK GRID -->
-
-<div style="
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-gap:15px;
-">
-
-`;
-
-        person.books.forEach(item => {
-
-            const late = getOverdueInfo(item.dueDate);
-
-            html += `
-
-<div style="
-border:1px solid #e5e7eb;
-border-radius:12px;
-padding:15px;
-background:#fafafa;
-">
-
-<div style="
-font-size:14px;
-line-height:1.8;
-color:#555;
-">
-
-📚 <b>${item.bookTitle}</b>
-
-<br>
-
-🔖 Book No:
-<b style="
-color:#2563eb;
-font-size:15px;
-">
-${item.bookNumber}
-</b>
-
-<br>
-
-📅 Borrowed:
-<b>${item.borrowDate}</b>
-
-<br>
-
-⏰ Due:
-<b>${item.dueDate}</b>
-
-</div>
-
-<div style="margin-top:12px;">
-
-${late.overdue ?
-
-`<span style="
-background:#dc2626;
-color:white;
-padding:6px 12px;
-border-radius:30px;
-font-size:12px;
-display:inline-block;
-">
-
-🔴 ${late.days} Day(s) Late
-
-</span>`
-
-:
-
-`<span style="
-background:#16a34a;
-color:white;
-padding:6px 12px;
-border-radius:30px;
-font-size:12px;
-display:inline-block;
-">
-
-✅ Active
-
-</span>`
-
-}
-
-</div>
-
-<div style="
-display:flex;
-gap:10px;
-margin-top:18px;
-flex-wrap:wrap;
-">
-
-<button
-onclick="returnBorrowedBook('${item.id}','${item.bookId}')"
-style="
-flex:1;
-background:#16a34a;
-color:white;
-border:none;
-padding:10px;
-border-radius:10px;
-cursor:pointer;
-font-weight:bold;
-">
-
-↩️ Return
-
-</button>
-
-<button
-onclick="markBorrowedReturnItem('${item.id}','${item.bookId}','${item.bookNumber}','Lost')"
-style="
-background:#dc2626;
-color:white;
-border:none;
-padding:10px 14px;
-border-radius:10px;
-cursor:pointer;
-font-weight:bold;
-">
-
-❌ Mark Lost
-
-</button>
-
-<button
-onclick="markBorrowedReturnItem('${item.id}','${item.bookId}','${item.bookNumber}','Damaged')"
-style="
-background:#d97706;
-color:white;
-border:none;
-padding:10px 14px;
-border-radius:10px;
-cursor:pointer;
-font-weight:bold;
-">
-
-⚠️ Mark Damaged
-
-</button>
-
-<button
-onclick="toggleBorrowSelection('${item.id}')"
-style="
-background:#2563eb;
-color:white;
-border:none;
-padding:10px 14px;
-border-radius:10px;
-cursor:pointer;
-font-weight:bold;
-">
-
-☑️ Select
-
-</button>
-
-</div>
-
-</div>
-
-`;
-
-        });
-
-        html += `
-
-</div>
-
-<div style="
-text-align:right;
-margin-top:18px;
-">
-
-<button
-onclick="returnAllForLearner('${person.adm}')"
-style="
-background:#f59e0b;
-color:white;
-border:none;
-padding:12px 20px;
-border-radius:12px;
-cursor:pointer;
-font-weight:bold;
-font-size:14px;
-">
-
-📦 Return All Books
-
-</button>
-
-</div>
-
-</div>
-
-`;
-
-    });
-
-    returnsContainer.innerHTML = html;
-
-}
-window.toggleBorrowSelection=function(id){
-
-    if(selectedBorrowings.has(id))
-        selectedBorrowings.delete(id);
-
-    else
-        selectedBorrowings.add(id);
-
-    renderReturnsDashboard();
-
-}
-
-document
-.getElementById("selectAllBorrowings")
-.addEventListener("change",function(){
-
-    selectedBorrowings.clear();
-
-    if(this.checked){
-
-        filteredBorrowings.forEach(item=>{
-
-            selectedBorrowings.add(item.id);
-
-        });
-
-    }
-
-    renderBorrowings();
-
-});
-
-document
-.getElementById("returnSearch")
-.addEventListener("input",applyReturnsFilters);
-
-document
-.getElementById("returnFilter")
-.addEventListener("change",applyReturnsFilters);
-
-window.returnAllForLearner=async function(adm){
-
-    const learner=filteredBorrowings.filter(x=>
-
-        x.borrowerAdm===adm && !x.returned
-
-    );
-
-    if(learner.length===0)
-        return;
-
-    const ok=await Swal.fire({
-
-        title:"Return All Books?",
-
-        text:`Return ${learner.length} books?`,
-
-        icon:"question",
-
-        showCancelButton:true
-
-    });
-
-    if(!ok.isConfirmed)
-        return;
-
-    openSweetLoader("Returning Books...");
-
-    for(const item of learner){
-
-        await returnBorrowedBook(item.id,item.bookId,true);
-
-    }
-
-    closeSweetLoader();
-
-    Swal.fire(
-
-        "Success",
-
-        "All books returned",
-
-        "success"
-
-    );
-
-}
-
-document
-.getElementById("returnSelectedBtn")
-.addEventListener("click",async()=>{
-
-    if(selectedBorrowings.size===0){
-
-        Swal.fire(
-
-            "Nothing Selected",
-
-            "Select borrowings first",
-
-            "warning"
-
-        );
-
-        return;
-
-    }
-
-    const ok=await Swal.fire({
-
-        title:"Return Selected Books?",
-
-        text:`Return ${selectedBorrowings.size} books?`,
-
-        icon:"question",
-
-        showCancelButton:true
-
-    });
-
-    if(!ok.isConfirmed)
-        return;
-
-    openSweetLoader("Returning Books...");
-
-    const selected=filteredBorrowings.filter(item=>
-
-        selectedBorrowings.has(item.id)
-
-    );
-
-    for(const item of selected){
-
-        await returnBorrowedBook(item.id,item.bookId,true);
-
-    }
-
-    selectedBorrowings.clear();
-
-    document.getElementById("selectAllBorrowings").checked=false;
-
-    closeSweetLoader();
-
-    Swal.fire(
-
-        "Completed",
-
-        "Selected books returned",
-
-        "success"
-
-    );
-
-});
-/* =========================================================
-   SEND BOOK FOR REPAIR
-========================================================= */
-
-window.sendBookForRepair = async function(bookId, bookNumber){
-
-try{
-
-    const schoolId = window.schoolId;
-
-    const {value:remarks} = await Swal.fire({
-
-        title:"Send Book For Repair",
-
-        input:"textarea",
-
-        inputLabel:"Repair Remarks",
-
-        inputPlaceholder:"Describe the repair required...",
-
-        showCancelButton:true,
-
-        confirmButtonText:"Send For Repair"
-
-    });
-
-    if(remarks===undefined) return;
-
-    openSweetLoader("Sending Book For Repair...");
-
-    const bookRef = ref(db, `library/${schoolId}/${bookId}`);
-
-    const snap = await fastGet(bookRef);
-
-    if(!snap.exists()){
-
-        closeSweetLoader();
-
-        return Swal.fire(
-            "Error",
-            "Book not found.",
-            "error"
-        );
-
-    }
-
-    const book = snap.val();
-
-    const copies = book.copies || {};
-
-    if(!copies[bookNumber]){
-
-        closeSweetLoader();
-
-        return Swal.fire(
-            "Error",
-            "Copy not found.",
-            "error"
-        );
-
-    }
-
-    // =====================================
-    // UPDATE COPY
-    // =====================================
-
-    copies[bookNumber].status = "Under Repair";
-
-    copies[bookNumber].repairDate =
-        new Date().toLocaleDateString();
-
-    copies[bookNumber].repairRemarks =
-        remarks || "No remarks provided";
-
-    // =====================================
-    // ADD HISTORY
-    // =====================================
-
-    addCopyHistory(
-
-        copies[bookNumber],
-
-        "Sent For Repair",
-
-        remarks || "No remarks provided"
-
-    );
-
-    // =====================================
-    // SAVE
-    // =====================================
-
-    rasmBackgroundUpdate(bookRef,{
-
-        copies
-
-    });
-
-    closeSweetLoader();
-
-    Swal.fire(
-
-        "Success",
-
-        `${bookNumber} has been sent for repair.`,
-
-        "success"
-
-    );
-
-    viewBookCopies(bookId);
-
-}
-catch(err){
-
-    console.error(err);
-
-    closeSweetLoader();
-
-    Swal.fire(
-
-        "Error",
-
-        err.message,
-
-        "error"
-
-    );
-
-}
-
-};
-
 /* =========================================================
    RETURN BOOK
 ========================================================= */
@@ -122653,7 +121097,7 @@ window.getGrade1To6ReportLabel = function(level) {
   }
   async function panelRecords(learner){
     const schoolId=window.schoolId; if(!schoolId) throw new Error('School session missing');
-    const snap=await fastGet(ref(db,`library/${schoolId}`)); const rows=[];
+    const libraryRef=ref(db,`library/${schoolId}`); const snap=await (window.rasmFreshGet?window.rasmFreshGet(libraryRef):fastGet(libraryRef)); const rows=[];
     if(!snap.exists()) return rows;
     snap.forEach(bookChild=>{const book=bookChild.val()||{}; Object.entries(book.copies||{}).forEach(([key,c])=>{c=c||{}; const status=norm(c.status); if(!['lost','damaged'].includes(status)) return; if(!copyBelongsTo(c,learner)) return; const resolved=!!c.replacementDate||!!c.replacedAt||!!c.damageResolved||!!c.repairCompletedDate||!!c.lostAccountability?.replaced; rows.push({bookId:bookChild.key,bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',bookNumber:c.bookNumber||key,status,resolved,borrower:c.borrower||c.borrowerName||''});});});
     return rows;
@@ -122839,7 +121283,7 @@ window.getGrade1To6ReportLabel = function(level) {
     const prompt=kind==='Lost'?['Lost Book','Reason / Remarks','Describe what happened...']:['Damaged Book','Damage Description','Describe the damage...'];
     const {value:reason}=await Swal.fire({title:prompt[0],input:'textarea',inputLabel:prompt[1],inputPlaceholder:prompt[2],showCancelButton:true,confirmButtonText:`Mark ${kind}`});
     if(reason===undefined)return;
-    const schoolId=window.schoolId, bookRef=ref(db,`library/${schoolId}/${bookId}`), snap=await fastGet(bookRef);
+    const schoolId=window.schoolId, bookRef=ref(db,`library/${schoolId}/${bookId}`), snap=await (window.rasmFreshGet?window.rasmFreshGet(bookRef):fastGet(bookRef));
     if(!snap.exists()) return Swal.fire('Error','Book not found.','error');
     const book=snap.val()||{}, copies=book.copies||{}, copy=copies[bookNumber];
     if(!copy) return Swal.fire('Error','Copy not found.','error');
@@ -122849,7 +121293,8 @@ window.getGrade1To6ReportLabel = function(level) {
     else {copy.damageReason=reason||'No reason provided';copy.damagedDate=date;}
     copy.lostAccountability={...(copy.lostAccountability||{}),bookId:String(bookId),bookNumber:String(bookNumber),bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',learnerId:String(borrower.id),learnerName:borrower.name||'Unknown Learner',reason:reason||'No reason provided',year:String(now.getFullYear()),grade:copy.grade||copy.class||copy.gradeName||'',status:kind.toLowerCase(),replaced:false,resolved:false,markedAt:Date.now(),lostDate:kind==='Lost'?date:(copy.lostAccountability?.lostDate||''),damagedDate:kind==='Damaged'?date:(copy.lostAccountability?.damagedDate||'')};
     if(typeof addCopyHistory==='function') addCopyHistory(copy,`Marked ${kind}`,reason||'No reason provided');
-    rasmBackgroundUpdate(bookRef,{copies});
+    const finalAvailable=Object.values(copies).filter(c=>String(c?.status||'').trim().toLowerCase()==='available').length;
+    await rasmBackgroundUpdate(bookRef,{copies,available:finalAvailable});
     Swal.fire('Success',`${bookNumber} marked as ${kind.toLowerCase()}. This learner's library clearance is now blocked until replacement/resolution is recorded.`,'success');
     viewBookCopies(bookId);
   }
@@ -122913,22 +121358,8 @@ window.getGrade1To6ReportLabel = function(level) {
   window.replaceLostBook=(id,no)=>replacement(id,no,'Lost').catch(e=>{console.error(e);Swal.fire('Error',e.message||'Could not record replacement.','error')});
   window.replaceDamagedBook=(id,no)=>replacement(id,no,'Damaged').catch(e=>{console.error(e);Swal.fire('Error',e.message||'Could not record replacement.','error')});
 
-  function makeActionMenus(root=document){
-    root.querySelectorAll('button[onclick*="markBorrowedReturnItem"]').forEach(btn=>{
-      if(btn.dataset.actionGrouped)return;
-      const parent=btn.parentElement; if(!parent)return;
-      const pair=[...parent.querySelectorAll('button[onclick*="markBorrowedReturnItem"]')];
-      if(pair.length<2)return;
-      pair.forEach(b=>{b.style.display='none';b.dataset.actionGrouped='1';});
-      const menu=document.createElement('details'); menu.className='borrowed-book-actions'; menu.style.cssText='position:relative;display:inline-block;';
-      menu.innerHTML='<summary style="list-style:none;background:#475569;color:#fff;border:none;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:bold;">⚙️ Action</summary><div style="position:absolute;right:0;top:46px;z-index:1000;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:6px;min-width:170px;box-shadow:0 10px 25px rgba(0,0,0,.18)"><button type="button" style="width:100%;margin:2px 0;padding:9px;border:0;border-radius:7px;background:#fee2e2;color:#991b1b;font-weight:bold;cursor:pointer">❌ Mark Lost</button><button type="button" style="width:100%;margin:2px 0;padding:9px;border:0;border-radius:7px;background:#fef3c7;color:#92400e;font-weight:bold;cursor:pointer">⚠️ Mark Damaged</button></div>';
-      const [lost,damaged]=pair.sort((a,b)=>(a.textContent.includes('Lost')?-1:1));
-      const choices=menu.querySelectorAll('button'); choices[0].onclick=()=>lost.click(); choices[1].onclick=()=>damaged.click();
-      parent.insertBefore(menu,pair[0]);
-    });
-  }
-  makeActionMenus();
-  new MutationObserver(m=>m.forEach(x=>x.addedNodes.forEach(n=>{if(n.nodeType===1)makeActionMenus(n)}))).observe(document.body,{childList:true,subtree:true});
+  // Lost/Damaged controls are intentionally removed from Return Center.
+  // Condition marking is handled from the single Book Copies workflow.
 
   function swapBadges(){
     const schools=document.getElementById('floatingSchoolsCounter'), login=document.getElementById('rasmLoggedInRoleBadge');
