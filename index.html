@@ -6842,6 +6842,235 @@ button.primary{
 #teachers .teacher-action-dropdown{display:inline-block!important;position:relative!important;z-index:100!important;}
 #supportStaffTable td:last-child select{display:block!important;width:200px!important;min-width:200px!important;max-width:200px!important;margin:0 auto!important;}
 </style>
+
+<style id="rasm360-sidebar-visibility-fix">
+/* =========================================================
+   RASM 360 — MAIN MENU COMFORT / NO-SQUEEZE PATCH
+========================================================= */
+.sidebar-scroll{
+    width:100% !important;
+    min-width:0 !important;
+    box-sizing:border-box !important;
+    padding-left:14px !important;
+    padding-right:14px !important;
+}
+
+.sidebar-scroll > .menu-section,
+.sidebar-scroll #mainMenu,
+.sidebar-scroll #usersMenu,
+.sidebar-scroll #schoolManagementMenu,
+.sidebar-scroll .submenu{
+    width:100% !important;
+    min-width:0 !important;
+    box-sizing:border-box !important;
+}
+
+.sidebar button,
+.sidebar .dropdown{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    min-height:54px !important;
+    height:auto !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-start !important;
+    gap:10px !important;
+    white-space:normal !important;
+    overflow:visible !important;
+    text-overflow:clip !important;
+    text-align:left !important;
+    padding:13px 15px !important;
+    margin:0 0 10px 0 !important;
+    line-height:1.35 !important;
+    box-sizing:border-box !important;
+}
+
+.sidebar button.menu-btn,
+.sidebar #menuSchoolManagement,
+.sidebar #menuUsers{
+    min-height:56px !important;
+    font-size:14px !important;
+    font-weight:750 !important;
+}
+
+.submenu{
+    width:calc(100% - 4px) !important;
+    margin:0 0 8px 4px !important;
+    padding-left:12px !important;
+    box-sizing:border-box !important;
+}
+
+.submenu button{
+    min-height:50px !important;
+    margin-bottom:8px !important;
+    font-size:13.5px !important;
+    padding-left:14px !important;
+}
+
+@media(max-width:700px){
+    .sidebar-scroll{
+        padding-left:10px !important;
+        padding-right:10px !important;
+    }
+
+    .sidebar button,
+    .sidebar .dropdown{
+        min-height:56px !important;
+        font-size:14px !important;
+        padding:14px 14px !important;
+    }
+}
+
+/* =========================================================
+   RASM 360 — SIDEBAR VISIBILITY + SCROLL FIX
+   Makes the menu easier to read and the scroll position
+   much easier to see without changing the navigation logic.
+========================================================= */
+
+.sidebar{
+    background:#0b1220 !important;
+}
+
+.sidebar-scroll{
+    padding:16px 11px 22px !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+    scrollbar-width:auto !important;
+    scrollbar-color:#94a3b8 #172033 !important;
+    scrollbar-gutter:stable !important;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+}
+
+.sidebar-scroll::-webkit-scrollbar{
+    width:11px !important;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track{
+    background:#172033 !important;
+    border-radius:10px !important;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb{
+    background:#94a3b8 !important;
+    border:2px solid #172033 !important;
+    border-radius:10px !important;
+    background-clip:padding-box !important;
+    min-height:45px !important;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover{
+    background:#cbd5e1 !important;
+}
+
+.sidebar button,
+.sidebar .dropdown{
+    min-height:50px !important;
+    margin-bottom:9px !important;
+    padding:13px 15px !important;
+
+    background:#1e293b !important;
+    color:#f8fafc !important;
+
+    border:1px solid rgba(148,163,184,.26) !important;
+    border-left:4px solid transparent !important;
+
+    font-size:14px !important;
+    font-weight:650 !important;
+    line-height:1.25 !important;
+
+    text-shadow:0 1px 1px rgba(0,0,0,.35);
+
+    box-shadow:
+        0 2px 7px rgba(0,0,0,.18) !important;
+}
+
+.sidebar button:hover,
+.sidebar .dropdown:hover{
+    background:#334155 !important;
+    color:#ffffff !important;
+    border-left-color:#38bdf8 !important;
+    box-shadow:
+        0 5px 14px rgba(0,0,0,.25) !important;
+    transform:translateX(2px);
+}
+
+.sidebar button:focus-visible,
+.sidebar .dropdown:focus-visible{
+    outline:3px solid rgba(56,189,248,.55) !important;
+    outline-offset:2px !important;
+}
+
+.sidebar button.active{
+    background:#16a34a !important;
+    color:#ffffff !important;
+    border-left-color:#bbf7d0 !important;
+    font-weight:800 !important;
+    box-shadow:
+        0 0 0 1px rgba(255,255,255,.12),
+        0 6px 18px rgba(22,163,74,.32) !important;
+}
+
+.submenu{
+    padding-left:15px !important;
+    border-left:3px solid rgba(148,163,184,.30) !important;
+}
+
+.submenu.open{
+    max-height:none !important;
+    overflow:visible !important;
+}
+
+.submenu button{
+    min-height:46px !important;
+    background:#172033 !important;
+    color:#f8fafc !important;
+    border:1px solid rgba(148,163,184,.22) !important;
+    border-left:4px solid #475569 !important;
+    font-size:13px !important;
+}
+
+.submenu button:hover{
+    background:#334155 !important;
+    border-left-color:#38bdf8 !important;
+}
+
+.submenu button.active{
+    background:#15803d !important;
+    border-left-color:#ffffff !important;
+    color:#ffffff !important;
+}
+
+.menu-section h4{
+    color:#cbd5e1 !important;
+    font-weight:800 !important;
+    text-shadow:0 1px 1px rgba(0,0,0,.35);
+}
+
+.sidebar-footer{
+    background:#0b1220 !important;
+}
+
+.sidebar-footer .logout-btn{
+    min-height:48px !important;
+    font-size:14px !important;
+    box-shadow:0 4px 12px rgba(0,0,0,.22) !important;
+}
+
+@media (max-width:900px){
+    .sidebar-scroll{
+        padding-bottom:28px !important;
+    }
+
+    .sidebar button,
+    .sidebar .dropdown{
+        min-height:52px !important;
+        font-size:14px !important;
+    }
+}
+</style>
+
 </head>
 
 <body>
@@ -16444,6 +16673,47 @@ Generate
 <!-- ===================================================== -->
 
 <style>
+
+/* =========================================================
+   RASM 360 — FIND LEARNER RESULTS INTERNAL SCROLL
+========================================================= */
+#checkResultsSearchCard{
+    max-height:calc(100vh - 230px) !important;
+    min-height:420px !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+    scrollbar-width:auto !important;
+    scrollbar-color:#94a3b8 rgba(15,23,42,.55) !important;
+    scrollbar-gutter:stable !important;
+    -webkit-overflow-scrolling:touch !important;
+    overscroll-behavior:contain !important;
+}
+
+#checkResultsSearchCard::-webkit-scrollbar{
+    width:10px !important;
+}
+
+#checkResultsSearchCard::-webkit-scrollbar-track{
+    background:rgba(15,23,42,.55) !important;
+    border-radius:10px !important;
+}
+
+#checkResultsSearchCard::-webkit-scrollbar-thumb{
+    background:#cbd5e1 !important;
+    border:2px solid rgba(15,23,42,.55) !important;
+    border-radius:10px !important;
+}
+
+#checkResultsSearchCard::-webkit-scrollbar-thumb:hover{
+    background:#ffffff !important;
+}
+
+@media(max-width:850px){
+    #checkResultsSearchCard{
+        max-height:70vh !important;
+        min-height:0 !important;
+    }
+}
 
     /* =================================================
        FORCE ALL CHECK RESULTS ELEMENTS TO BE VISIBLE
@@ -86779,7 +87049,7 @@ window.deleteAllHostels = async function () {
   }
 
 };
-async function addDevice() {
+window.addDevice = async function addDevice() {
 
   try {
 
@@ -91146,76 +91416,124 @@ function getICTAvailableQuantity(device) {
 
 window.loadICTBorrowers = async function () {
 
-  const schoolId =
-    getICTSchoolId();
+  const schoolId = getICTSchoolId();
 
   if (!schoolId) {
-    throw new Error(
-      "School session is not ready."
-    );
+    throw new Error("School session is not ready.");
   }
-
-  const usersSnap =
-    await firebaseGet(
-      ref(db, "users")
-    );
 
   const users = [];
+  const seen = new Set();
 
-  if (!usersSnap.exists()) {
-    return users;
-  }
+  const addStaff = (uid, person, role, department = "") => {
 
-  usersSnap.forEach(child => {
-
-    const user =
-      child.val() || {};
-
-    const uid =
-      child.key;
-
-    /* School filtering */
-
-    if (
-      user.schoolId &&
-      String(user.schoolId) !==
-      String(schoolId)
-    ) {
-      return;
-    }
+    person = person || {};
 
     const name =
-      user.fullName ||
-      user.name ||
-      user.displayName ||
-      user.username ||
+      person.fullName ||
+      person.name ||
+      person.displayName ||
+      person.username ||
+      person.teacherName ||
+      person.staffName ||
+      person.employeeName ||
       "";
 
-    if (!name) return;
+    if (!String(name).trim()) return;
+
+    const cleanName = String(name).trim();
+    const key =
+      `${String(role).toLowerCase()}|${cleanName.toLowerCase()}`;
+
+    if (seen.has(key)) return;
+    seen.add(key);
 
     users.push({
-
-      uid,
-
-      name,
-
-      role:
-        user.role ||
-        user.userRole ||
-        "User",
-
+      uid: String(uid || ""),
+      name: cleanName,
+      role: String(role),
       department:
-        user.department ||
+        person.department ||
+        person.section ||
+        department ||
         ""
-
     });
 
-  });
+  };
+
+  /* =========================================================
+     ONLY TEACHERS
+     schools/{schoolId}/teachers
+  ========================================================= */
+  try {
+
+    const teacherSnap =
+      await firebaseGet(
+        ref(db, `schools/${schoolId}/teachers`)
+      );
+
+    if (teacherSnap.exists()) {
+
+      teacherSnap.forEach(child => {
+
+        addStaff(
+          `teacher_${child.key}`,
+          child.val() || {},
+          "Teacher",
+          "Teaching Staff"
+        );
+
+      });
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "ICT teacher list could not be loaded:",
+      error
+    );
+
+  }
+
+  /* =========================================================
+     ONLY SUPPORT STAFF
+     schools/{schoolId}/supportStaff
+  ========================================================= */
+  try {
+
+    const supportSnap =
+      await firebaseGet(
+        ref(db, `schools/${schoolId}/supportStaff`)
+      );
+
+    if (supportSnap.exists()) {
+
+      supportSnap.forEach(child => {
+
+        addStaff(
+          `support_${child.key}`,
+          child.val() || {},
+          "Support Staff",
+          "Support Staff"
+        );
+
+      });
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "ICT support staff list could not be loaded:",
+      error
+    );
+
+  }
 
   users.sort(
     (a, b) =>
-      String(a.name)
-        .localeCompare(String(b.name))
+      String(a.name).localeCompare(String(b.name))
   );
 
   return users;
@@ -91287,31 +91605,37 @@ window.borrowICT = async function (id) {
 
     }
 
-    /* -----------------------------------------
-       CONDITION CHECK
-    ----------------------------------------- */
+  /* -----------------------------------------
+   CONDITION CHECK
+----------------------------------------- */
 
-    const condition =
-      String(
-        device.condition ||
-        device.status ||
-        "Working"
-      ).toLowerCase();
+const condition = String(
+  device.condition || "Working"
+).trim().toLowerCase();
 
-    if (
-      condition.includes("faulty") ||
-      condition.includes("repair") ||
-      condition.includes("destroyed")
-    ) {
+const blockedConditions = [
+  "faulty",
+  "under repair",
+  "repair",
+  "destroyed",
+  "damaged"
+];
 
-      return Swal.fire(
-        "Device Unavailable",
-        "This device is currently marked as faulty or under repair.",
-        "warning"
-      );
+const isBlockedCondition = blockedConditions.some(
+  blocked =>
+    condition === blocked ||
+    condition.includes(blocked)
+);
 
-    }
+if (isBlockedCondition) {
 
+  return Swal.fire(
+    "Device Unavailable",
+    `This device is marked as "${device.condition}". Please repair or restore it before borrowing.`,
+    "warning"
+  );
+
+}
 
     /* -----------------------------------------
        USERS
@@ -91467,6 +91791,15 @@ window.borrowICT = async function (id) {
               margin-bottom:6px;
             ">
               Number of Devices
+              <span style="
+                display:block;
+                margin-top:3px;
+                color:#64748b;
+                font-size:12px;
+                font-weight:600;
+              ">
+                You can borrow any whole number from 1 to ${available}.
+              </span>
             </label>
 
             <input
@@ -91627,11 +91960,17 @@ window.borrowICT = async function (id) {
        UNIQUE BORROWING ID
     ----------------------------------------- */
 
+    /* ---------------------------------------------------------
+       HISTORY KEY
+       Generate a key only; do NOT write to a second Firebase
+       path. The actual history record is saved atomically
+       inside the device record below.
+    --------------------------------------------------------- */
     const borrowingRef =
       firebasePush(
         ref(
           db,
-          `ictBorrowings/${schoolId}/${id}`
+          `ict/${schoolId}/${id}/borrowHistory`
         )
       );
 
@@ -91771,6 +92110,43 @@ window.borrowICT = async function (id) {
             activeBorrowings:
               active,
 
+            /* =================================================
+               BORROW HISTORY
+               Saved inside the same device transaction so the
+               operation does not fail on a separate
+               ictBorrowings permission rule.
+            ================================================= */
+            borrowHistory: {
+              ...(current.borrowHistory || {}),
+              [borrowingId]: {
+                deviceId: id,
+                deviceName:
+                  current.deviceName ||
+                  "ICT Device",
+                deviceType:
+                  current.deviceType ||
+                  "",
+                serialNo:
+                  current.serialNo ||
+                  "",
+                borrowerUid:
+                  form.borrowerUid,
+                borrowerName:
+                  form.borrowerName,
+                borrowerRole:
+                  form.borrowerRole,
+                borrowerDepartment:
+                  form.borrowerDepartment,
+                quantity:
+                  form.quantity,
+                borrowDate,
+                returnDate:
+                  form.returnDate,
+                status:
+                  "Borrowed"
+              }
+            },
+
             /* Compatibility */
             borrowerName:
               form.borrowerName,
@@ -91803,55 +92179,6 @@ window.borrowICT = async function (id) {
 
     }
 
-
-    /* -----------------------------------------
-       SAVE HISTORY
-    ----------------------------------------- */
-
-    await firebaseSet(
-      borrowingRef,
-      {
-
-        deviceId:
-          id,
-
-        deviceName:
-          device.deviceName ||
-          "ICT Device",
-
-        deviceType:
-          device.deviceType ||
-          "",
-
-        serialNo:
-          device.serialNo ||
-          "",
-
-        borrowerUid:
-          form.borrowerUid,
-
-        borrowerName:
-          form.borrowerName,
-
-        borrowerRole:
-          form.borrowerRole,
-
-        borrowerDepartment:
-          form.borrowerDepartment,
-
-        quantity:
-          form.quantity,
-
-        borrowDate,
-
-        returnDate:
-          form.returnDate,
-
-        status:
-          "Borrowed"
-
-      }
-    );
 
 
     closeSweetLoader();
@@ -92645,14 +92972,19 @@ window.returnICT = async function (id) {
             borrowHistory:
               history,
 
+            /*
+               IMPORTANT:
+               The return condition is authoritative.
+               Previously this preserved current.condition,
+               which could leave a returned device permanently
+               marked as "Destroyed" even after selecting
+               "Good Condition".
+            */
             condition:
-              form.condition ===
-              "Destroyed"
-                ? "Destroyed"
-                : (
-                    current.condition ||
-                    "Working"
-                  ),
+              String(
+                form.condition ||
+                "Good Condition"
+              ).trim(),
 
             updatedAt:
               new Date().toISOString()
