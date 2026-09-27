@@ -20604,7 +20604,13 @@ const RASM_PACKAGES = {
 
 /* ============================================================
    📦 SHOW SUBSCRIPTION PACKAGES
-   NOW USES REAL FIREBASE LEARNER COUNT
+   RASM 360 LEARNER-BASED PRICING
+
+   TERM     = 1% DISCOUNT
+   ANNUAL   = 10% DISCOUNT
+   LIFETIME = 1% DISCOUNT
+
+   PRICING IS BASED ON REAL FIREBASE LEARNER COUNT
 ============================================================ */
 
 window.showRasmPackages =
@@ -20614,6 +20620,10 @@ async function(message = "") {
 
     let learnerCountError = false;
 
+
+    // ========================================================
+    // LOAD REAL LEARNER COUNT
+    // ========================================================
 
     try {
 
@@ -20634,14 +20644,11 @@ async function(message = "") {
     }
 
 
-    /*
-     * Do not display a false learner count if
-     * Firebase failed.
-     */
+    // ========================================================
+    // DO NOT DISPLAY FALSE LEARNER COUNT
+    // ========================================================
 
-    if (
-        learnerCountError
-    ) {
+    if (learnerCountError) {
 
         Swal.fire({
 
@@ -20667,9 +20674,12 @@ async function(message = "") {
     }
 
 
-    /* ========================================================
-       CALCULATE REAL PRICES
-    ======================================================== */
+    // ========================================================
+    // REAL LEARNER RATE
+    //
+    // BELOW 500 = KES 20
+    // 500+      = KES 15
+    // ========================================================
 
     const rate =
         getRasmLearnerRate(
@@ -20677,39 +20687,96 @@ async function(message = "") {
         );
 
 
-    const termPrice =
-        calculateRasmTermPrice(
-            learnerCount
+    // ========================================================
+    // STANDARD TERM PRICE BEFORE DISCOUNT
+    // ========================================================
+
+    const normalTerm =
+        learnerCount * rate;
+
+
+    // ========================================================
+    // TERM DISCOUNT
+    // ⭐ 1%
+    // ========================================================
+
+    const termDiscountRate =
+        0.01;
+
+
+    const termDiscount =
+        Math.round(
+            normalTerm *
+            termDiscountRate
         );
 
+
+    const termPrice =
+        Math.round(
+            normalTerm -
+            termDiscount
+        );
+
+
+    // ========================================================
+    // ANNUAL PRICE
+    // 3 TERMS
+    // ⭐ 10% DISCOUNT
+    // ========================================================
 
     const normalAnnual =
-        calculateRasmNormalAnnualPrice(
-            learnerCount
-        );
+        normalTerm * 3;
+
+
+    const annualDiscountRate =
+        0.10;
 
 
     const annualDiscount =
-        calculateRasmAnnualDiscount(
-            learnerCount
+        Math.round(
+            normalAnnual *
+            annualDiscountRate
         );
 
 
     const annualPrice =
-        calculateRasmAnnualPrice(
-            learnerCount
+        Math.round(
+            normalAnnual -
+            annualDiscount
+        );
+
+
+    // ========================================================
+    // LIFETIME PRICE
+    // 5 × NORMAL ANNUAL
+    // ⭐ 1% DISCOUNT
+    // ========================================================
+
+    const normalLifetime =
+        normalAnnual * 5;
+
+
+    const lifetimeDiscountRate =
+        0.01;
+
+
+    const lifetimeDiscount =
+        Math.round(
+            normalLifetime *
+            lifetimeDiscountRate
         );
 
 
     const lifetimePrice =
-        calculateRasmLifetimePrice(
-            learnerCount
+        Math.round(
+            normalLifetime -
+            lifetimeDiscount
         );
 
 
-    /* ========================================================
-       SAVE CURRENT QUOTE
-    ======================================================== */
+    // ========================================================
+    // SAVE CURRENT QUOTE
+    // ========================================================
 
     window.rasmCurrentSubscriptionQuote = {
 
@@ -20717,22 +20784,36 @@ async function(message = "") {
 
         rate,
 
+        normalTerm,
+
+        termDiscountRate,
+
+        termDiscount,
+
         termPrice,
 
         normalAnnual,
 
+        annualDiscountRate,
+
         annualDiscount,
 
         annualPrice,
+
+        normalLifetime,
+
+        lifetimeDiscountRate,
+
+        lifetimeDiscount,
 
         lifetimePrice
 
     };
 
 
-    /* ========================================================
-       DISPLAY
-    ======================================================== */
+    // ========================================================
+    // DISPLAY
+    // ========================================================
 
     Swal.fire({
 
@@ -20773,6 +20854,11 @@ async function(message = "") {
                 max-width:900px;
                 margin:auto;
             ">
+
+
+                <!-- ====================================== -->
+                <!-- SUBSCRIPTION REQUIRED -->
+                <!-- ====================================== -->
 
                 <div style="
                     display:inline-block;
@@ -20819,7 +20905,9 @@ async function(message = "") {
                 </p>
 
 
-                <!-- REAL LEARNER COUNT -->
+                <!-- ====================================== -->
+                <!-- ACTUAL LEARNERS -->
+                <!-- ====================================== -->
 
                 <div style="
                     margin:20px auto 25px;
@@ -20865,9 +20953,11 @@ async function(message = "") {
                     ">
 
                         Current rate:
+
                         <strong>
                             ${formatRasmMoney(rate)}
                         </strong>
+
                         per learner per term
 
                     </div>
@@ -20877,7 +20967,9 @@ async function(message = "") {
             </div>
 
 
-            <!-- DYNAMIC LEARNER PLANS -->
+            <!-- ================================================= -->
+            <!-- SUBSCRIPTION CARDS -->
+            <!-- ================================================= -->
 
             <div style="
                 max-width:1080px;
@@ -20890,19 +20982,63 @@ async function(message = "") {
             ">
 
 
+                <!-- ================================================= -->
                 <!-- TERM -->
+                <!-- ================================================= -->
 
                 <div style="
                     background:white;
-                    border:1px solid #e2e8f0;
+                    border:1px solid #bbf7d0;
                     border-radius:20px;
-                    padding:25px;
+                    padding:38px 25px 25px;
                     box-shadow:
                         0 8px 25px
                         rgba(15,23,42,.06);
+                    position:relative;
+                    overflow:visible;
                 ">
 
+
+                    <!-- ⭐ TOP-ATTACHED DISCOUNT BADGE -->
+
                     <div style="
+                        position:absolute;
+                        top:-13px;
+                        left:50%;
+                        transform:translateX(-50%);
+                        z-index:20;
+
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+
+                        min-width:150px;
+                        height:32px;
+                        padding:0 16px;
+
+                        background:#16a34a;
+                        color:white;
+
+                        border-radius:0 0 14px 14px;
+
+                        font-size:11px;
+                        font-weight:900;
+                        letter-spacing:.4px;
+
+                        white-space:nowrap;
+
+                        box-shadow:
+                            0 5px 12px
+                            rgba(22,163,74,.25);
+                    ">
+
+                        ⭐ 1% DISCOUNT
+
+                    </div>
+
+
+                    <div style="
+                        margin-top:4px;
                         color:#16a34a;
                         font-size:12px;
                         font-weight:900;
@@ -20937,6 +21073,38 @@ async function(message = "") {
 
 
                     <div style="
+                        margin-top:13px;
+                        color:#64748b;
+                        font-size:12px;
+                    ">
+
+                        Normal price:
+
+                        <span style="
+                            text-decoration:line-through;
+                        ">
+
+                            ${formatRasmMoney(normalTerm)}
+
+                        </span>
+
+                    </div>
+
+
+                    <div style="
+                        margin-top:4px;
+                        color:#16a34a;
+                        font-size:12px;
+                        font-weight:900;
+                    ">
+
+                        You save
+                        ${formatRasmMoney(termDiscount)}
+
+                    </div>
+
+
+                    <div style="
                         margin-top:18px;
                         color:#475569;
                         font-size:12px;
@@ -20946,6 +21114,8 @@ async function(message = "") {
                         ✓ ${learnerCount.toLocaleString()} learners<br>
 
                         ✓ ${formatRasmMoney(rate)} per learner<br>
+
+                        ✓ 1% term discount<br>
 
                         ✓ Full RASM 360 access<br>
 
@@ -20980,40 +21150,63 @@ async function(message = "") {
                 </div>
 
 
+                <!-- ================================================= -->
                 <!-- ANNUAL -->
+                <!-- ================================================= -->
 
                 <div style="
                     background:white;
                     border:2px solid #2563eb;
                     border-radius:20px;
-                    padding:25px;
+                    padding:38px 25px 25px;
                     box-shadow:
                         0 15px 40px
                         rgba(37,99,235,.12);
                     position:relative;
+                    overflow:visible;
                 ">
+
+
+                    <!-- ⭐ TOP-ATTACHED DISCOUNT BADGE -->
 
                     <div style="
                         position:absolute;
                         top:-13px;
                         left:50%;
-                        transform:
-                            translateX(-50%);
+                        transform:translateX(-50%);
+                        z-index:20;
+
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+
+                        min-width:150px;
+                        height:32px;
+                        padding:0 16px;
+
                         background:#2563eb;
                         color:white;
-                        padding:6px 15px;
-                        border-radius:999px;
-                        font-size:10px;
+
+                        border-radius:0 0 14px 14px;
+
+                        font-size:11px;
                         font-weight:900;
+                        letter-spacing:.4px;
+
                         white-space:nowrap;
+
+                        box-shadow:
+                            0 5px 12px
+                            rgba(37,99,235,.25);
                     ">
 
-                        ⭐ 15% ANNUAL DISCOUNT
+                        ⭐ 10% DISCOUNT
 
                     </div>
 
 
                     <div style="
+                        margin-top:4px;
                         color:#2563eb;
                         font-size:12px;
                         font-weight:900;
@@ -21042,7 +21235,7 @@ async function(message = "") {
                         font-size:12px;
                     ">
 
-                        1 Year
+                        1 Year / 3 Terms
 
                     </div>
 
@@ -21054,10 +21247,13 @@ async function(message = "") {
                     ">
 
                         Normal price:
+
                         <span style="
                             text-decoration:line-through;
                         ">
+
                             ${formatRasmMoney(normalAnnual)}
+
                         </span>
 
                     </div>
@@ -21087,9 +21283,11 @@ async function(message = "") {
 
                         ✓ 3 terms covered<br>
 
-                        ✓ 15% annual discount<br>
+                        ✓ 10% annual discount<br>
 
-                        ✓ Full RASM 360 access
+                        ✓ Full RASM 360 access<br>
+
+                        ✓ Technical support
 
                     </div>
 
@@ -21120,19 +21318,63 @@ async function(message = "") {
                 </div>
 
 
+                <!-- ================================================= -->
                 <!-- LIFETIME -->
+                <!-- ================================================= -->
 
                 <div style="
                     background:white;
                     border:1px solid #ddd6fe;
                     border-radius:20px;
-                    padding:25px;
+                    padding:38px 25px 25px;
                     box-shadow:
                         0 8px 25px
                         rgba(15,23,42,.06);
+                    position:relative;
+                    overflow:visible;
                 ">
 
+
+                    <!-- ⭐ TOP-ATTACHED DISCOUNT BADGE -->
+
                     <div style="
+                        position:absolute;
+                        top:-13px;
+                        left:50%;
+                        transform:translateX(-50%);
+                        z-index:20;
+
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+
+                        min-width:150px;
+                        height:32px;
+                        padding:0 16px;
+
+                        background:#7c3aed;
+                        color:white;
+
+                        border-radius:0 0 14px 14px;
+
+                        font-size:11px;
+                        font-weight:900;
+                        letter-spacing:.4px;
+
+                        white-space:nowrap;
+
+                        box-shadow:
+                            0 5px 12px
+                            rgba(124,58,237,.25);
+                    ">
+
+                        ⭐ 1% DISCOUNT
+
+                    </div>
+
+
+                    <div style="
+                        margin-top:4px;
                         color:#7c3aed;
                         font-size:12px;
                         font-weight:900;
@@ -21167,7 +21409,39 @@ async function(message = "") {
 
 
                     <div style="
-                        margin-top:18px;
+                        margin-top:13px;
+                        font-size:12px;
+                        color:#64748b;
+                    ">
+
+                        Normal price:
+
+                        <span style="
+                            text-decoration:line-through;
+                        ">
+
+                            ${formatRasmMoney(normalLifetime)}
+
+                        </span>
+
+                    </div>
+
+
+                    <div style="
+                        margin-top:4px;
+                        color:#16a34a;
+                        font-size:12px;
+                        font-weight:900;
+                    ">
+
+                        You save
+                        ${formatRasmMoney(lifetimeDiscount)}
+
+                    </div>
+
+
+                    <div style="
+                        margin-top:15px;
                         color:#475569;
                         font-size:12px;
                         line-height:1.9;
@@ -21180,6 +21454,8 @@ async function(message = "") {
                         ✓ Lifetime updates<br>
 
                         ✓ Future ERP modules<br>
+
+                        ✓ 1% lifetime discount<br>
 
                         ✓ No recurring renewal fee
 
@@ -21215,7 +21491,9 @@ async function(message = "") {
             </div>
 
 
+            <!-- ================================================= -->
             <!-- EXISTING LEGACY PACKAGES -->
+            <!-- ================================================= -->
 
             <details style="
                 max-width:1080px;
@@ -21226,6 +21504,7 @@ async function(message = "") {
                 border-radius:14px;
                 padding:14px 18px;
             ">
+
 
                 <summary style="
                     cursor:pointer;
@@ -21254,10 +21533,13 @@ async function(message = "") {
 
                 </div>
 
+
             </details>
 
 
+            <!-- ================================================= -->
             <!-- PROCESS -->
+            <!-- ================================================= -->
 
             <div style="
                 max-width:850px;
@@ -21281,13 +21563,14 @@ async function(message = "") {
 
             </div>
 
+
+        </div>
+
         `
 
     });
 
 };
-
-
 /* ============================================================
    💳 OPEN LEARNER-BASED ACTIVATION
 ============================================================ */
