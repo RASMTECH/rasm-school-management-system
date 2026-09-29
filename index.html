@@ -47345,6 +47345,149 @@ Printed on ${generated}
 ========================================================= -->
 
 
+
+<style id="rasm360-unified-report-styles">
+/* =========================================================
+   RASM 360 — UNIFIED REPORT TABLES
+   MERIT LIST + COMBINED MARKS
+   ========================================================= */
+
+/* The report itself becomes the vertical scroll surface.
+   This makes sticky headers reliable even with hundreds of learners. */
+.merit-report-scroll,
+.combined-marks-scroll{
+  width:100% !important;
+  max-width:100% !important;
+  max-height:70vh !important;
+  overflow-x:auto !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  overscroll-behavior:contain;
+  position:relative;
+  scrollbar-width:auto;
+  background:#fff;
+}
+
+/* Keep one fixed table geometry from header to last learner row. */
+.merit-report-table,
+.combined-marks-scroll .report-table{
+  width:max-content !important;
+  min-width:1300px !important;
+  border-collapse:separate !important;
+  border-spacing:0 !important;
+  table-layout:auto !important;
+}
+
+/* Every header cell participates in the sticky two-row header. */
+.merit-report-table thead th,
+.combined-marks-scroll .report-table thead th{
+  position:sticky !important;
+  z-index:50 !important;
+  white-space:nowrap !important;
+  background:#111827 !important;
+  color:#fff !important;
+  vertical-align:middle !important;
+  box-shadow:0 1px 0 #000, 0 2px 5px rgba(0,0,0,.12);
+}
+
+/* Subject-name row. */
+.merit-report-table thead tr:first-child th,
+.combined-marks-scroll .report-table thead tr:first-child th{
+  top:0 !important;
+  height:38px !important;
+  min-height:38px !important;
+  line-height:1.15 !important;
+}
+
+/* Score / Level / Points row. */
+.merit-report-table thead tr:nth-child(2) th,
+.combined-marks-scroll .report-table thead tr:nth-child(2) th{
+  top:38px !important;
+  height:34px !important;
+  min-height:34px !important;
+  line-height:1.1 !important;
+  background:#1f2937 !important;
+}
+
+/* Row-spanned cells such as Rank/Name/Grade/Total/Avg remain aligned
+   with both header rows. */
+.merit-report-table thead th[rowspan="2"],
+.combined-marks-scroll .report-table thead th[rowspan="2"]{
+  top:0 !important;
+  z-index:55 !important;
+  height:72px !important;
+  min-height:72px !important;
+}
+
+/* Subject names are always the full canonical names. */
+.merit-report-table .subhead,
+.combined-marks-scroll .report-table .subhead{
+  font-weight:800 !important;
+  letter-spacing:.1px;
+}
+
+/* Keep TOTAL and AVG columns visually stable and perfectly centered. */
+.merit-report-table th:last-child,
+.merit-report-table td:last-child,
+.combined-marks-scroll .report-table th:last-child,
+.combined-marks-scroll .report-table td:last-child{
+  text-align:center !important;
+  vertical-align:middle !important;
+  white-space:nowrap !important;
+}
+
+/* Prevent cell borders from appearing to move independently while scrolling. */
+.merit-report-table th,
+.merit-report-table td,
+.combined-marks-scroll .report-table th,
+.combined-marks-scroll .report-table td{
+  box-sizing:border-box !important;
+  vertical-align:middle !important;
+}
+
+/* Consistent report body alignment. */
+.merit-report-table tbody td,
+.combined-marks-scroll .report-table tbody td{
+  text-align:center !important;
+  white-space:nowrap !important;
+}
+
+/* Keep learner names readable without changing the numeric columns. */
+.merit-report-table td.name-cell,
+.combined-marks-scroll .report-table td.name-cell{
+  text-align:left !important;
+  white-space:nowrap !important;
+}
+
+/* Mobile: use almost the full viewport for the report scroll area. */
+@media (max-width:768px){
+  .merit-report-scroll,
+  .combined-marks-scroll{
+    max-height:72vh !important;
+  }
+
+  .merit-report-table,
+  .combined-marks-scroll .report-table{
+    min-width:1300px !important;
+  }
+}
+
+/* Printing should use the full report instead of a clipped scroll box. */
+@media print{
+  .merit-report-scroll,
+  .combined-marks-scroll{
+    max-height:none !important;
+    overflow:visible !important;
+  }
+
+  .merit-report-table thead th,
+  .combined-marks-scroll .report-table thead th{
+    position:static !important;
+    box-shadow:none !important;
+  }
+}
+</style>
+
 </body>
 
 </html>
@@ -49549,22 +49692,29 @@ function getMarksPaperOutOf() {
 }
 
 function getConvertedPercentage(rawValue, paperOutOf) {
+
     const raw = Number(rawValue);
-    const max = Number(paperOutOf);
+    const maximum = Number(paperOutOf);
 
     if (
         !Number.isFinite(raw) ||
-        !Number.isFinite(max) ||
-        max <= 0
+        !Number.isFinite(maximum) ||
+        maximum <= 0
     ) {
-        return 0;
+        return null;
     }
 
-    const percentage = (raw / max) * 100;
+    if (raw < 0 || raw > maximum) {
+        return null;
+    }
 
-    // Always store/display a whole-number percentage
-    return Math.round(percentage);
+    // Convert raw marks to a whole-number percentage.
+    // Examples: 45.6 -> 46, 45.1 -> 45, 45.5 -> 46.
+    return Math.round(
+        (raw / maximum) * 100
+    );
 }
+
 function updateMarksPercentagePreview() {
 
     const markInput =
@@ -50788,13 +50938,23 @@ async function loadMarksUnifiedClean() {
         });
     });
 
-    subjects = [...selectedFamilySubjects].filter(subject => {
-        if (!selectedGradeIsSpecific) return true;
-        const isSub = isGrade13SubLearningAreaKey(subject);
-        return selectedGradeIs13 ? true : !isSub;
-    }).sort();
+    subjects = [...selectedFamilySubjects]
+        .filter(subject => !isMarksMetadataField(subject))
+        .filter(subject => {
+            if (!selectedGradeIsSpecific) return true;
+            const isSub = isGrade13SubLearningAreaKey(subject);
+            return selectedGradeIs13 ? true : !isSub;
+        })
+        .filter(subject => isValidRecordedSubject(subject, selectedGradeFamily))
+        .sort();
 
-    window.schoolSubjects = subjects;
+    /*
+     * FINAL GLOBAL CLEANUP:
+     * window.schoolSubjects is used by many reports. It must never contain
+     * Firebase metadata, timestamps, IDs, or subjects without real marks.
+     */
+    window.schoolSubjects = getCleanRecordedSubjects(subjects)
+        .filter(subject => isValidRecordedSubject(subject, selectedGradeFamily));
 
 
 
@@ -50980,22 +51140,83 @@ document.addEventListener("DOMContentLoaded", () => {
 // MARKS FIELD CLEANUP + SHARED DISPLAY/CALCULATION SUBJECT RULES
 // ===============================================================
 const MARKS_METADATA_FIELDS = new Set([
-    "schoolId","school_id","uid","id","learnerId","studentId","name","grade",
-    "examPeriod","period","timestamp","createdAt","updatedAt","createdBy",
-    "recordedBy","teacherId"
+    "schoolid","school_id","uid","id","key","learnerid","studentid",
+    "admissionno","admissionnumber","adm","name","fullname","studentname",
+    "grade","class","stream","gender","parentphone","parentname",
+    "examperiod","period","exam","term","year","timestamp","createdat",
+    "updatedat","createdby","recordedby","teacherid","teachername",
+    "userid","school","schoolname","schooladdress","schoolmotto",
+    "average","total","points","rank","position","status","date",
+    "createddate","updateddate","lastupdated","lastupdatedat"
 ]);
 
+/*
+ * CENTRAL SUBJECT SAFETY GATE
+ * -------------------------------------------------------------
+ * A Firebase learner record can contain metadata beside marks.
+ * Examples: updatedAt, createdAt, timestamp, learnerId, etc.
+ *
+ * These fields are NEVER subjects, even when their value is numeric.
+ * This function deliberately normalizes spaces, underscores, hyphens
+ * and punctuation so both "updatedAt" and "Updated At" are rejected.
+ */
 function isMarksMetadataField(key) {
     const value = String(key ?? "").trim();
-    return !value ||
-        MARKS_METADATA_FIELDS.has(value) ||
-        /^school_[A-Za-z0-9_-]+$/.test(value) ||
-        /^\d{10,}$/.test(value);
+    if (!value) return true;
+
+    const normalized = value
+        .toLowerCase()
+        .replace(/[\s_\-—–./:()&]+/g, "");
+
+    if (!normalized) return true;
+
+    if (MARKS_METADATA_FIELDS.has(value.toLowerCase()) ||
+        MARKS_METADATA_FIELDS.has(normalized)) {
+        return true;
+    }
+
+    /* Firebase/database IDs and millisecond timestamps are not subjects. */
+    if (/^\d{6,}$/.test(normalized)) return true;
+    if (/^\d{10,}$/.test(value)) return true;
+
+    /* Date/time-shaped keys are never subjects. */
+    if (/^(?:19|20)\d{2}(?:\\d{2}|[-_/]\\d{1,2}(?:[-_/]\\d{1,2})?)?$/.test(value)) {
+        return true;
+    }
+
+    if (/^(?:updated|created|last)date(?:time)?$/.test(normalized)) return true;
+
+    if (/^(?:updated|created|last)(?:at|on|time)$/.test(normalized)) return true;
+
+    if (/^(?:school|student|learner|parent|teacher)(?:id|name|phone|email|address)$/.test(normalized)) {
+        return true;
+    }
+
+    return false;
 }
 
 function getCleanRecordedSubjects(subjects) {
-    return (subjects || []).map(s => String(s ?? "").trim())
-        .filter(s => s && !isMarksMetadataField(s));
+    return [...new Set(
+        (subjects || [])
+            .map(s => String(s ?? "").trim())
+            .filter(s => s && !isMarksMetadataField(s))
+    )];
+}
+
+/*
+ * A subject must also have a real recorded numeric mark before it can
+ * enter a performance report. This prevents arbitrary record properties
+ * from becoming report subjects.
+ */
+function isValidRecordedSubject(subject, learners) {
+    const key = String(subject ?? "").trim();
+    if (!key || isMarksMetadataField(key)) return false;
+
+    return (learners || []).some(learner => {
+        const raw = learner?.marks?.[key];
+        const value = getNumericRecordedValue(raw);
+        return value !== null && Number.isFinite(value);
+    });
 }
 
 function isCREStandaloneSubject(subject) {
@@ -53065,26 +53286,7 @@ let reportMeta = null;
 // REPORT SUBJECT DISPLAY NAME
 // ======================================================
 function subjectDisplayNameForReport(subject) {
-
-    return (
-        window.subjectDisplayNames?.[subject] ||
-        ({
-            eng: "English",
-            math: "Mathematics",
-            maths: "Mathematics",
-            kiswahili: "Kiswahili",
-            science: "Integrated Science",
-            social: "Social Studies",
-            agriculture: "Agriculture",
-            cre: "Religious Education",
-            preTech: "Pre-Technical Studies",
-            creativeArt: "Creative Arts"
-        }[subject]) ||
-        String(subject || "")
-            .replace(/([A-Z])/g, " $1")
-            .replace(/^./, c => c.toUpperCase())
-    );
-
+    return rasmCanonicalSubjectName(subject);
 }
 
 // ==========================
@@ -56695,16 +56897,78 @@ function rasmReportLevelLearners(selectedGrade=rasmSelectedGrade(), selectedPeri
   });
 }
 function rasmCanonicalSubjectName(value){
+  /*
+   * =========================================================
+   * RASM 360 — SINGLE CANONICAL SUBJECT DISPLAY NAME
+   * ---------------------------------------------------------
+   * Database keys may contain historical/short aliases such as:
+   *   Agric / agriculture
+   *   Scien / scie / science
+   *   Eng / English
+   *   Math / Maths / Mathematics
+   * The database key is NOT changed here. This function only
+   * controls the human-readable subject name shown throughout
+   * reports, tables, headers and summaries.
+   * =========================================================
+   */
   const raw=String(value??'').trim();
+  if(!raw) return '';
+
   const parts=raw.split(/\s*[—–-]\s*/);
   const head=parts.shift()||raw;
   const tail=parts.join(' — ');
-  const k=head.toLowerCase().replace(/[^a-z]/g,'');
-  let canonical=head;
-  if(['eng','english'].includes(k)) canonical='English';
-  else if(['kiswa','kisw','kiswahili'].includes(k)) canonical='Kiswahili';
-  else if(['envcre','environmentalcre'].includes(k)) canonical='Environmental and CRE';
-  else if(['math','maths','mathematics'].includes(k)) canonical='Mathematics';
+  const k=head.toLowerCase().replace(/[^a-z0-9]/g,'');
+
+  const canonicalMap={
+    eng:'English',
+    english:'English',
+
+    math:'Mathematics',
+    maths:'Mathematics',
+    mathematics:'Mathematics',
+
+    kiswa:'Kiswahili',
+    kisw:'Kiswahili',
+    kiswahili:'Kiswahili',
+
+    agric:'Agriculture',
+    agriculture:'Agriculture',
+    agricultureandnutrition:'Agriculture',
+
+    scien:'Integrated Science',
+    sci:'Integrated Science',
+    science:'Integrated Science',
+    integratedscience:'Integrated Science',
+
+    social:'Social Studies',
+    socialstudies:'Social Studies',
+    sst:'Social Studies',
+
+    cre:'Christian Religious Education',
+    christianreligiouseducation:'Christian Religious Education',
+    religiouseducation:'Christian Religious Education',
+    christianreligion:'Christian Religious Education',
+
+    pretech:'Pre-Technical Studies',
+    pretechnical:'Pre-Technical Studies',
+    pretechnicalstudies:'Pre-Technical Studies',
+    technical:'Pre-Technical Studies',
+
+    creativeart:'Creative Arts',
+    creativearts:'Creative Arts',
+    creativeartsandsports:'Creative Arts & Sports'
+  };
+
+  let canonical=canonicalMap[k];
+
+  if(!canonical){
+    canonical=head
+      .replace(/[_-]+/g,' ')
+      .replace(/\s+/g,' ')
+      .trim()
+      .replace(/^./,c=>c.toUpperCase());
+  }
+
   return tail ? `${canonical} — ${tail}` : canonical;
 }
 function rasmValidMark(value){
@@ -57720,8 +57984,16 @@ function generateTermPerformance(selectedGrade, selectedExamPeriod) {
 
         filteredLearners.forEach(l => {
 
-          const rawKey = Object.keys(l.marks||{}).find(k => rasmCanonicalSubjectName(k) === subject);
-          const mark = rasmValidMark(rawKey ? l.marks?.[rawKey] : null);
+          // Match subject aliases safely (e.g. Maths / Math / Mathematics)
+          // so the dashboard reads the actual recorded marks instead of
+          // treating an alias mismatch as a missing mark.
+          const canonicalSubject = rasmCanonicalSubjectName(subject);
+          const rawKey = Object.keys(l.marks||{}).find(k =>
+            rasmCanonicalSubjectName(k) === canonicalSubject
+          );
+          const mark = rasmValidMark(
+            rawKey ? l.marks?.[rawKey] : null
+          );
 
           if(mark !== null){
 
@@ -58850,15 +59122,21 @@ function getReportMainSubjectKeysForLearner(learner) {
     const grade = getGradeNumber(learner?.grade);
     const recordedKeys = Object.keys(learner?.marks || {});
 
+    /*
+     * FIRST GATE: metadata is never a report subject.
+     * This is intentionally applied before curriculum filtering.
+     */
+    const cleanKeys = recordedKeys.filter(key => !isMarksMetadataField(key));
+
     if (grade >= 1 && grade <= 3) {
         // Grade 1-3 reports must contain ONLY the five main learning areas.
-        return recordedKeys.filter(key =>
+        return cleanKeys.filter(key =>
             REPORT_GRADE13_MAIN_SUBJECTS.includes(String(key).trim())
         );
     }
 
     // Grade 4-12 must never receive Grade 1-3 sub-learning-area columns.
-    return recordedKeys.filter(key => !isReportSubLearningArea(key));
+    return cleanKeys.filter(key => !isReportSubLearningArea(key));
 }
 
 function normalizeLearnerForMainSubjectReports(learner) {
@@ -58907,17 +59185,35 @@ function getMainSubjectsForGradeFromAnySource(gradeValue, subjectSource, learner
     const grade = getGradeNumber(gradeValue);
     const candidate = new Set();
 
-    (subjectSource || []).forEach(s => candidate.add(String(s).trim()));
+    /*
+     * Never trust subjectSource blindly. It may have been built from a
+     * learner object containing metadata. Learner marks are the final
+     * source of truth for performance reports.
+     */
+    getCleanRecordedSubjects(subjectSource).forEach(s => candidate.add(s));
+
     (learners || []).forEach(learner => {
-        if (getGradeNumber(learner?.grade) === grade) {
-            Object.keys(learner?.marks || {}).forEach(s => candidate.add(String(s).trim()));
-        }
+        if (grade && getGradeNumber(learner?.grade) !== grade) return;
+
+        getCleanRecordedSubjects(
+            Object.keys(learner?.marks || {})
+        ).forEach(s => candidate.add(s));
     });
 
-    const list = [...candidate].filter(Boolean);
+    let list = [...candidate].filter(Boolean);
+
+    /* A report subject must have at least one real numeric mark. */
+    list = list.filter(subject =>
+        isValidRecordedSubject(subject, learners)
+    );
 
     if (grade >= 1 && grade <= 3) {
-        return REPORT_GRADE13_MAIN_SUBJECTS.filter(subject => list.includes(subject));
+        return REPORT_GRADE13_MAIN_SUBJECTS.filter(subject =>
+            list.some(item =>
+                String(item).trim().toLowerCase() ===
+                String(subject).trim().toLowerCase()
+            )
+        );
     }
 
     return list.filter(subject => !isReportSubLearningArea(subject));
@@ -59048,16 +59344,36 @@ const isGrade1To6 =
  // ===============================
 // 🔹 USE ONLY RECORDED SUBJECTS
 // ===============================
-const subjects = getMainSubjectsForGradeFromAnySource(gradeFromUI, window.schoolSubjects || [], getFilteredLearners(gradeFromUI, selectedExamPeriod)).map(subject => ({
+/*
+ * SUBJECT DISPLAY NAME
+ * Never expose metadata keys as human subjects.
+ */
+function subjectDisplayNameForChampion(subject) {
+    const key = String(subject ?? "").trim();
+    if (!key || isMarksMetadataField(key)) return "";
+    return rasmCanonicalSubjectName(key);
+}
 
-  key: subject,
+/*
+ * SUBJECT CHAMPIONS — HARD SUBJECT VALIDATION
+ * -------------------------------------------
+ * Do NOT build this list from arbitrary keys in window.schoolSubjects.
+ * The active learners' marks are the authoritative source, while
+ * getMainSubjectsForGradeFromAnySource applies the central metadata gate.
+ */
+const subjectLearners = learners;
 
-  // Convert camelCase into readable names
-  name: subject
+const championSubjectKeys = getMainSubjectsForGradeFromAnySource(
+    gradeFromUI,
+    window.schoolSubjects || [],
+    subjectLearners
+).filter(subject =>
+    isValidRecordedSubject(subject, subjectLearners)
+);
 
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, c => c.toUpperCase())
-
+const subjects = championSubjectKeys.map(subject => ({
+    key: subject,
+    name: subjectDisplayNameForChampion(subject)
 }));
 
 function getLevel(score) {
@@ -59141,9 +59457,12 @@ function getLevel(score) {
 
   });
 
-  if (top) {
+  if (top && sub.name && !isMarksMetadataField(sub.key)) {
 
-    champions[sub.name] = top;
+    champions[sub.key] = {
+      ...top,
+      subjectName: sub.name
+    };
 
   }
 
@@ -59237,7 +59556,13 @@ function getLevel(score) {
 
   let i = 1;
 
-  Object.entries(champions).forEach(([subject, data]) => {
+  Object.entries(champions).forEach(([subjectKey, data]) => {
+
+    /* FINAL RENDERING GATE — metadata can never become a subject. */
+    if (isMarksMetadataField(subjectKey)) return;
+
+    const subject = data.subjectName || subjectDisplayNameForChampion(subjectKey);
+    if (!subject) return;
 
     const level = getLevel(data.score);
     const points = getPoints(level);
@@ -61833,7 +62158,7 @@ reportSubjects.forEach(subject => {
 
         <th class="subject-col">
 
-            ${subject}
+            ${rasmCanonicalSubjectName(subject)}
 
         </th>
 
@@ -67279,6 +67604,53 @@ if (
   let html = `
 <style>
 
+/* =========================================================
+   MERIT LIST + COMBINED MARKS REPORTS
+   Floating / sticky two-row headers while scrolling
+========================================================= */
+.merit-report-scroll,
+.combined-marks-scroll{
+  width:100%;
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:visible;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:auto;
+}
+
+.merit-report-table,
+.combined-marks-scroll .report-table{
+  width:max-content;
+  min-width:1300px;
+  border-collapse:separate;
+  border-spacing:0;
+}
+
+.merit-report-table thead th,
+.combined-marks-scroll .report-table thead th{
+  position:sticky;
+  z-index:30;
+  white-space:nowrap;
+}
+
+/* First header row stays at the top of the screen. */
+.merit-report-table thead tr:first-child th,
+.combined-marks-scroll .report-table thead tr:first-child th{
+  top:0;
+}
+
+/* Second header row sits directly underneath the first header row. */
+.merit-report-table thead tr:nth-child(2) th,
+.combined-marks-scroll .report-table thead tr:nth-child(2) th{
+  top:31px;
+}
+
+/* Keep the floating headers opaque so report rows never show through. */
+.merit-report-table thead th,
+.combined-marks-scroll .report-table thead th{
+  box-shadow:0 2px 0 #000;
+}
+
 .report-table{
   width:100%;
   border-collapse:collapse;
@@ -67372,7 +67744,8 @@ ${window.getSchoolPrintHeader("MERIT LIST REPORT")}
 
 </div>
 
-<table class="report-table">
+<div class="merit-report-scroll table-responsive">
+<table class="report-table merit-report-table">
 
 <thead>
 
@@ -67521,6 +67894,7 @@ const score =
 
 </tbody>
 </table>
+</div>
 
 <!-- ================= SUBJECT LEVEL SUMMARY ================= -->
 
@@ -68080,7 +68454,7 @@ learnerCount++;
  ${window.getSchoolPrintHeader("COMBINED MARKS REPORT")}
 ${rasmReportMetaLine(rawGrade || "All Grades", year, rawPeriod || "All Periods")}
     <div class="combined-marks-scroll table-responsive" style="width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;">
-    <table class="report-table" style="width:max-content;min-width:1300px;">
+    <table class="report-table combined-report-table" style="width:max-content;min-width:1300px;">
       <thead>
         <tr>
           <th rowspan="2">No</th>
@@ -134148,6 +134522,41 @@ function getCBCGradeResult(score, grade) {
 
 <script>
 /* =========================================================
+   RASM 360 — GLOBAL CANONICAL SUBJECT NAME SERVICE
+   Must be available before any report/analysis script executes.
+   ========================================================= */
+window.rasmCanonicalSubjectName = function(value){
+  const raw=String(value ?? '').trim();
+  if(!raw) return '';
+  const parts=raw.split(/\s*[—–-]\s*/);
+  const head=parts.shift() || raw;
+  const tail=parts.join(' — ');
+  const k=head.toLowerCase().replace(/[^a-z0-9]/g,'');
+  const map={
+    eng:'English', english:'English',
+    math:'Mathematics', maths:'Mathematics', mathematics:'Mathematics',
+    kiswa:'Kiswahili', kisw:'Kiswahili', kiswahili:'Kiswahili',
+    agric:'Agriculture', agriculture:'Agriculture', agricultureandnutrition:'Agriculture',
+    scien:'Integrated Science', scie:'Integrated Science', sci:'Integrated Science',
+    science:'Integrated Science', integratedscience:'Integrated Science',
+    social:'Social Studies', socialstudies:'Social Studies', sst:'Social Studies',
+    cre:'Christian Religious Education',
+    christianreligiouseducation:'Christian Religious Education',
+    religiouseducation:'Christian Religious Education',
+    christianreligion:'Christian Religious Education',
+    pretech:'Pre-Technical Studies', pretechnical:'Pre-Technical Studies',
+    pretechnicalstudies:'Pre-Technical Studies', technical:'Pre-Technical Studies',
+    creativeart:'Creative Arts', creativearts:'Creative Arts',
+    creativeartsandsports:'Creative Arts & Sports'
+  };
+  const canonical=map[k] || head.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim().replace(/^./,c=>c.toUpperCase());
+  return tail ? `${canonical} — ${tail}` : canonical;
+};
+function rasmCanonicalSubjectName(value){
+  return window.rasmCanonicalSubjectName(value);
+}
+
+/* =========================================================
    RASM 360 — SEPARATE EXAMINATION ANALYSIS REPORTS
    - Whole-school analysis
    - Subject analysis for EACH GRADE
@@ -134246,14 +134655,24 @@ function getCBCGradeResult(score, grade) {
       const marks=s.marks?.[period]; if(!marks) return;
       const grade=marks.grade||s.grade||"-";
       if(gradeFilter && String(grade)!==String(gradeFilter)) return;
-      Object.keys(marks).forEach(subject=>{
-        if(META.has(subject) || !isMainSubjectX(subject,grade)) return;
-        const n=numX(marks[subject]); if(n===null || n<0 || n>100) return;
-        if(!map[subject]) map[subject]={subject,sum:0,count:0};
-        map[subject].sum+=n; map[subject].count++;
+      Object.keys(marks).forEach(rawSubject=>{
+        if(META.has(rawSubject) || !isMainSubjectX(rawSubject,grade)) return;
+        const n=numX(marks[rawSubject]); if(n===null || n<0 || n>100) return;
+
+        // Always aggregate historical aliases into ONE canonical subject.
+        // This is important when one exam stores "Agric" and another stores
+        // "Agriculture", or "Scien"/"Science"/"Integrated Science".
+        const subject=rasmCanonicalSubjectName(rawSubject);
+        const key=String(subject).trim().toLowerCase();
+        if(!key) return;
+        if(!map[key]) map[key]={subject,sum:0,count:0};
+        map[key].sum+=n;
+        map[key].count++;
       });
     });
-    return Object.values(map).map(x=>({...x,avg:x.sum/x.count})).sort((a,b)=>b.avg-a.avg);
+    return Object.values(map)
+      .map(x=>({...x,avg:x.sum/x.count}))
+      .sort((a,b)=>b.avg-a.avg || a.subject.localeCompare(b.subject));
   }
   function schoolHeaderX(title){
     try{
@@ -134405,7 +134824,8 @@ const subjectSections = subjectGrades.map(g => {
     const previousMap = {};
 
     previousSubs.forEach(s => {
-        previousMap[String(s.subject).trim().toLowerCase()] = s;
+        const canonical = rasmCanonicalSubjectName(s.subject);
+        previousMap[String(canonical).trim().toLowerCase()] = s;
     });
 
     /* ---------------------------------------------
@@ -134416,10 +134836,11 @@ const subjectSections = subjectGrades.map(g => {
     const subjectMap = {};
 
     currentSubs.forEach(s => {
-        const key = String(s.subject).trim().toLowerCase();
+        const canonicalSubject = rasmCanonicalSubjectName(s.subject);
+        const key = String(canonicalSubject).trim().toLowerCase();
 
         subjectMap[key] = {
-            subject: s.subject,
+            subject: canonicalSubject,
             currentAvg: s.avg,
             currentCount: s.count,
             previousAvg: null,
@@ -134428,11 +134849,12 @@ const subjectSections = subjectGrades.map(g => {
     });
 
     previousSubs.forEach(s => {
-        const key = String(s.subject).trim().toLowerCase();
+        const canonicalSubject = rasmCanonicalSubjectName(s.subject);
+        const key = String(canonicalSubject).trim().toLowerCase();
 
         if (!subjectMap[key]) {
             subjectMap[key] = {
-                subject: s.subject,
+                subject: canonicalSubject,
                 currentAvg: null,
                 currentCount: 0,
                 previousAvg: s.avg,
@@ -134872,14 +135294,19 @@ return `
 
         <!-- SUBJECT TABLE -->
         <div style="
-            overflow-x:auto;
+            overflow:auto;
             width:100%;
+            max-height:520px;
+            border:1px solid #dbeafe;
+            border-radius:10px;
         ">
 
             <table class="rasm-report-table"
                    style="
                        width:100%;
-                       border-collapse:collapse;
+                       min-width:900px;
+                       border-collapse:separate;
+                       border-spacing:0;
                    ">
 
                 <thead>
@@ -134891,6 +135318,10 @@ return `
                             color:#111827 !important;
                             font-weight:900;
                             padding:10px;
+                            position:sticky;
+                            top:0;
+                            z-index:5;
+                            box-shadow:inset 0 -1px 0 rgba(0,0,0,.15);
                         ">
                             #
                         </th>
@@ -134900,6 +135331,10 @@ return `
                             color:#111827 !important;
                             font-weight:900;
                             padding:10px;
+                            position:sticky;
+                            top:0;
+                            z-index:5;
+                            box-shadow:inset 0 -1px 0 rgba(0,0,0,.15);
                         ">
                             Subject
                         </th>
@@ -134909,6 +135344,10 @@ return `
                             color:#1e3a8a !important;
                             font-weight:900;
                             padding:10px;
+                            position:sticky;
+                            top:0;
+                            z-index:5;
+                            box-shadow:inset 0 -1px 0 rgba(0,0,0,.15);
                         ">
                             Current Exam<br>Average
                         </th>
@@ -134918,6 +135357,10 @@ return `
                             color:#1e3a8a !important;
                             font-weight:900;
                             padding:10px;
+                            position:sticky;
+                            top:0;
+                            z-index:5;
+                            box-shadow:inset 0 -1px 0 rgba(0,0,0,.15);
                         ">
                             Previous Exam<br>Average
                         </th>
@@ -134927,6 +135370,10 @@ return `
                             color:#166534 !important;
                             font-weight:900;
                             padding:10px;
+                            position:sticky;
+                            top:0;
+                            z-index:5;
+                            box-shadow:inset 0 -1px 0 rgba(0,0,0,.15);
                         ">
                             Deviation
                         </th>
@@ -134936,6 +135383,10 @@ return `
                             color:#166534 !important;
                             font-weight:900;
                             padding:10px;
+                            position:sticky;
+                            top:0;
+                            z-index:5;
+                            box-shadow:inset 0 -1px 0 rgba(0,0,0,.15);
                         ">
                             Direction
                         </th>
@@ -134945,6 +135396,10 @@ return `
                             color:#111827 !important;
                             font-weight:900;
                             padding:10px;
+                            position:sticky;
+                            top:0;
+                            z-index:5;
+                            box-shadow:inset 0 -1px 0 rgba(0,0,0,.15);
                         ">
                             Current Entries
                         </th>
@@ -134954,6 +135409,10 @@ return `
                             color:#1e3a8a !important;
                             font-weight:900;
                             padding:10px;
+                            position:sticky;
+                            top:0;
+                            z-index:5;
+                            box-shadow:inset 0 -1px 0 rgba(0,0,0,.15);
                         ">
                             Performance
                         </th>
