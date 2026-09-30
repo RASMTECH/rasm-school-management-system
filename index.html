@@ -2554,6 +2554,52 @@ button.primary{
    🖱️ ROW HOVER
 ========================================================= */
 
+/* =========================================================
+   🎨 LOADED MARKS — SAME PALETTE AS MERIT LIST
+   Score = soft blue | Points = muted beige/gold | Level = soft green
+========================================================= */
+.marks-table td.loaded-name-cell,
+.marks-table td.loaded-grade-cell{
+    background:#f8fafc !important;
+    color:#243447 !important;
+    font-weight:700;
+}
+.marks-table td.loaded-score-cell{
+    background:#eaf2f8 !important;
+    color:#243447 !important;
+    font-weight:700;
+}
+.marks-table td.loaded-points-cell{
+    background:#f6f0df !important;
+    color:#5f4b20 !important;
+    font-weight:700;
+}
+.marks-table td.loaded-level-cell{
+    background:#e8f1ea !important;
+    color:#31543a !important;
+    font-weight:700;
+}
+.marks-table td.loaded-total-cell,
+.marks-table td.loaded-average-cell{
+    background:#eaf2f8 !important;
+    color:#243447 !important;
+    font-weight:700;
+}
+.marks-table td.loaded-total-points-cell{
+    background:#f6f0df !important;
+    color:#5f4b20 !important;
+    font-weight:700;
+}
+.marks-table td.loaded-action-cell{
+    background:#f8fafc !important;
+}
+
+.marks-table tr:hover td.loaded-name-cell,
+.marks-table tr:hover td.loaded-grade-cell,
+.marks-table tr:hover td.loaded-action-cell{
+    background:#f1f5f9 !important;
+}
+
 .marks-table tr:hover{
 
     background:#eef4ff;
@@ -16893,6 +16939,50 @@ Generate
         width:100%;
         border-collapse:collapse;
         min-width:650px;
+    }
+
+    /* =========================================================
+       CHECK RESULTS — SCORE / POINTS / LEVEL COLUMNS
+    ========================================================= */
+    #resultsContainer .results-score-cell {
+        background:#eaf2f8 !important;
+        color:#243447 !important;
+        font-weight:700 !important;
+        text-align:center !important;
+    }
+
+    #resultsContainer .results-points-cell {
+        background:#f6f0df !important;
+        color:#5f4b20 !important;
+        font-weight:700 !important;
+        text-align:center !important;
+    }
+
+    #resultsContainer .results-level-cell {
+        background:#e8f1ea !important;
+        color:#31543a !important;
+        font-weight:700 !important;
+        text-align:center !important;
+    }
+
+    /* Keep the exact Merit List palette visible on EVERY Results row. */
+    #resultsContainer table tbody td.results-score-cell {
+        background:#eaf2f8 !important;
+        color:#243447 !important;
+    }
+    #resultsContainer table tbody td.results-points-cell {
+        background:#f6f0df !important;
+        color:#5f4b20 !important;
+    }
+    #resultsContainer table tbody td.results-level-cell {
+        background:#e8f1ea !important;
+        color:#31543a !important;
+    }
+
+    #resultsContainer .results-score-cell,
+    #resultsContainer .results-points-cell,
+    #resultsContainer .results-level-cell {
+        border-color:#d5dde5 !important;
     }
 
 
@@ -37582,6 +37672,17 @@ try {
 
 }; 
 
+window.escapeHTML = window.escapeHTML || function (value) {
+
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/\'/g, "&#039;");
+
+};
+
 window.escapeHTMLSafe = window.escapeHTMLSafe || function (value) {
 
     return String(value ?? "")
@@ -47346,148 +47447,6 @@ Printed on ${generated}
 
 
 
-<style id="rasm360-unified-report-styles">
-/* =========================================================
-   RASM 360 — UNIFIED REPORT TABLES
-   MERIT LIST + COMBINED MARKS
-   ========================================================= */
-
-/* The report itself becomes the vertical scroll surface.
-   This makes sticky headers reliable even with hundreds of learners. */
-.merit-report-scroll,
-.combined-marks-scroll{
-  width:100% !important;
-  max-width:100% !important;
-  max-height:70vh !important;
-  overflow-x:auto !important;
-  overflow-y:auto !important;
-  -webkit-overflow-scrolling:touch !important;
-  overscroll-behavior:contain;
-  position:relative;
-  scrollbar-width:auto;
-  background:#fff;
-}
-
-/* Keep one fixed table geometry from header to last learner row. */
-.merit-report-table,
-.combined-marks-scroll .report-table{
-  width:max-content !important;
-  min-width:1300px !important;
-  border-collapse:separate !important;
-  border-spacing:0 !important;
-  table-layout:auto !important;
-}
-
-/* Every header cell participates in the sticky two-row header. */
-.merit-report-table thead th,
-.combined-marks-scroll .report-table thead th{
-  position:sticky !important;
-  z-index:50 !important;
-  white-space:nowrap !important;
-  background:#111827 !important;
-  color:#fff !important;
-  vertical-align:middle !important;
-  box-shadow:0 1px 0 #000, 0 2px 5px rgba(0,0,0,.12);
-}
-
-/* Subject-name row. */
-.merit-report-table thead tr:first-child th,
-.combined-marks-scroll .report-table thead tr:first-child th{
-  top:0 !important;
-  height:38px !important;
-  min-height:38px !important;
-  line-height:1.15 !important;
-}
-
-/* Score / Level / Points row. */
-.merit-report-table thead tr:nth-child(2) th,
-.combined-marks-scroll .report-table thead tr:nth-child(2) th{
-  top:38px !important;
-  height:34px !important;
-  min-height:34px !important;
-  line-height:1.1 !important;
-  background:#1f2937 !important;
-}
-
-/* Row-spanned cells such as Rank/Name/Grade/Total/Avg remain aligned
-   with both header rows. */
-.merit-report-table thead th[rowspan="2"],
-.combined-marks-scroll .report-table thead th[rowspan="2"]{
-  top:0 !important;
-  z-index:55 !important;
-  height:72px !important;
-  min-height:72px !important;
-}
-
-/* Subject names are always the full canonical names. */
-.merit-report-table .subhead,
-.combined-marks-scroll .report-table .subhead{
-  font-weight:800 !important;
-  letter-spacing:.1px;
-}
-
-/* Keep TOTAL and AVG columns visually stable and perfectly centered. */
-.merit-report-table th:last-child,
-.merit-report-table td:last-child,
-.combined-marks-scroll .report-table th:last-child,
-.combined-marks-scroll .report-table td:last-child{
-  text-align:center !important;
-  vertical-align:middle !important;
-  white-space:nowrap !important;
-}
-
-/* Prevent cell borders from appearing to move independently while scrolling. */
-.merit-report-table th,
-.merit-report-table td,
-.combined-marks-scroll .report-table th,
-.combined-marks-scroll .report-table td{
-  box-sizing:border-box !important;
-  vertical-align:middle !important;
-}
-
-/* Consistent report body alignment. */
-.merit-report-table tbody td,
-.combined-marks-scroll .report-table tbody td{
-  text-align:center !important;
-  white-space:nowrap !important;
-}
-
-/* Keep learner names readable without changing the numeric columns. */
-.merit-report-table td.name-cell,
-.combined-marks-scroll .report-table td.name-cell{
-  text-align:left !important;
-  white-space:nowrap !important;
-}
-
-/* Mobile: use almost the full viewport for the report scroll area. */
-@media (max-width:768px){
-  .merit-report-scroll,
-  .combined-marks-scroll{
-    max-height:72vh !important;
-  }
-
-  .merit-report-table,
-  .combined-marks-scroll .report-table{
-    min-width:1300px !important;
-  }
-}
-
-/* Printing should use the full report instead of a clipped scroll box. */
-@media print{
-  .merit-report-scroll,
-  .combined-marks-scroll{
-    max-height:none !important;
-    overflow:visible !important;
-  }
-
-  .merit-report-table thead th,
-  .combined-marks-scroll .report-table thead th{
-    position:static !important;
-    box-shadow:none !important;
-  }
-}
-</style>
-
 </body>
 
 </html>
@@ -51355,7 +51314,7 @@ function buildMarksHeader(gradeOverride = "", learnersOverride = null) {
     subjects.forEach(subject => {
 
         html += `
-            <th>${rasmCanonicalSubjectName(subject)}</th>
+            <th>${getLoadedMarksSubjectDisplayName(subject)}</th>
             <th>Level</th>
         `;
 
@@ -51473,8 +51432,8 @@ const subjects = getMarksDisplaySubjects(
         (!isGrade13 || !isGrade13SubLearningAreaKey(subject) || rasmGrade13SubHasLevel(subject));
 
       subjectCells += `
-        <td>${value ?? "-"}</td>
-        <td>${showLevel ? getLevelDisplay(value, learner.grade) : "-"}</td>
+        <td class="loaded-score-cell">${value ?? "-"}</td>
+        <td class="loaded-level-cell">${showLevel ? getLevelDisplay(value, learner.grade) : "-"}</td>
       `;
     });
 
@@ -51491,23 +51450,43 @@ const subjects = getMarksDisplaySubjects(
             value="${learner.id}">
         </td>
 
-        <td>${index + 1}</td>
+        <td class="loaded-name-cell">${index + 1}</td>
 
-        <td>${learner.name}</td>
+        <td class="loaded-name-cell">
+          <button
+            type="button"
+            class="rasm-results-learner-link"
+            onclick="openLearnerProgressFromResults('${String(learner.id).replace(/'/g, "\\'")}')"
+            title="View current and previous exam progress"
+            style="
+              border:none;
+              background:transparent;
+              color:#1d4ed8;
+              font-weight:800;
+              cursor:pointer;
+              padding:4px 6px;
+              text-align:left;
+              text-decoration:underline;
+              text-underline-offset:2px;
+            "
+          >
+            ${escapeHTML(learner.name || "Unknown Learner")}
+          </button>
+        </td>
 
-        <td>${learner.grade}</td>
+        <td class="loaded-grade-cell">${learner.grade}</td>
 
         ${subjectCells}
 
-        <td><b>${total}</b></td>
+        <td class="loaded-total-cell"><b>${total}</b></td>
 
-        <td><b>${average}</b></td>
+        <td class="loaded-average-cell"><b>${average}</b></td>
 
-        <td><b>${pts.total}</b></td>
+        <td class="loaded-total-points-cell"><b>${pts.total}</b></td>
 
-        <td>-</td>
+        <td class="loaded-level-cell">-</td>
 
-        <td>
+        <td class="loaded-action-cell">
 
           <button
             onclick="deleteLearnerMarks('${learner.id}',document.getElementById('resultsExamPeriod').value)"
@@ -51534,6 +51513,306 @@ const subjects = getMarksDisplaySubjects(
   tbody.insertAdjacentHTML("beforeend", html);
 
 }
+
+// =========================================================
+// 📈 RASM 360 — LEARNER PROGRESS FROM RESULTS TABLE
+// Clicking a learner name compares the selected exam with the
+// immediately preceding recorded exam for that learner.
+// =========================================================
+(function(){
+  if (window.__rasmLearnerProgressInstalled) return;
+  window.__rasmLearnerProgressInstalled = true;
+
+  const META_KEYS = new Set([
+    "name","grade","createdAt","updatedAt","schoolId",
+    "studentId","teacherId","examPeriod"
+  ]);
+
+  function progressEscape(value){
+    if (typeof escapeHTML === "function") return escapeHTML(String(value ?? ""));
+    return String(value ?? "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  }
+
+  function progressPeriodInfo(period){
+    const raw = String(period || "").trim();
+    const clean = raw.toLowerCase().replace(/,/g," ").replace(/\s+/g," ");
+    const yearMatch = clean.match(/\b(20\d{2})\b/);
+    const termMatch = clean.match(/term\s*([123])/);
+    let examOrder = 0;
+    if (/end\s*term/.test(clean) || /endterm/.test(clean)) examOrder = 3;
+    else if (/midterm/.test(clean)) examOrder = 2;
+    else if (/opener/.test(clean)) examOrder = 1;
+    return {
+      year: yearMatch ? Number(yearMatch[1]) : 0,
+      term: termMatch ? Number(termMatch[1]) : 0,
+      exam: examOrder,
+      raw
+    };
+  }
+
+  function progressPeriodKey(period){
+    const p = progressPeriodInfo(period);
+    return [p.year,p.term,p.exam].join("-");
+  }
+
+  function progressPeriodLabel(period){
+    const raw = String(period || "").trim();
+    const p = progressPeriodInfo(raw);
+    if (!p.year) return raw || "Exam Period";
+    const term = p.term ? `Term ${p.term}` : "";
+    const exam = /end\s*term/i.test(raw) ? "End Term" : /midterm/i.test(raw) ? "Midterm" : /opener/i.test(raw) ? "Opener" : "";
+    return [p.year,term,exam].filter(Boolean).join(" ");
+  }
+
+  function progressNumeric(value){
+    if (value === null || value === undefined || value === "") return null;
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+  }
+
+  // Canonicalize every subject before comparison so aliases such as
+  // Agriculture/Agric, Mathematics/Maths, Kiswahili/Kisw, etc.
+  // can NEVER create two rows for the same subject.
+  function progressCanonicalSubject(value){
+    const raw = String(value ?? "").trim();
+    if (!raw) return "";
+    try {
+      if (typeof rasmCanonicalSubjectName === "function") {
+        return String(rasmCanonicalSubjectName(raw) || raw).trim();
+      }
+    } catch(e) {}
+    return raw;
+  }
+
+  function progressMarkForSubject(marks, canonicalSubject){
+    if (!marks || typeof marks !== "object") return null;
+    const target = progressCanonicalSubject(canonicalSubject).toLowerCase();
+    let fallback = null;
+    for (const key of Object.keys(marks)) {
+      if (META_KEYS.has(key)) continue;
+      const value = progressNumeric(marks[key]);
+      if (value === null) continue;
+      const canonical = progressCanonicalSubject(key);
+      if (canonical.toLowerCase() !== target) continue;
+      // Prefer an exact canonical database key when several aliases exist.
+      if (String(key).trim().toLowerCase() === target) return value;
+      if (fallback === null) fallback = value;
+    }
+    return fallback;
+  }
+
+  function progressSubjects(marksMap){
+    const canonicalMap = new Map();
+    Object.values(marksMap || {}).forEach(marks => {
+      if (!marks || typeof marks !== "object") return;
+      Object.keys(marks).forEach(key => {
+        if (META_KEYS.has(key)) return;
+        if (progressNumeric(marks[key]) === null) return;
+        const canonical = progressCanonicalSubject(key);
+        if (!canonical) return;
+        canonicalMap.set(canonical.toLowerCase(), canonical);
+      });
+    });
+    return [...canonicalMap.values()].sort((a,b) => String(a).localeCompare(String(b)));
+  }
+
+  function progressLevel(score, grade){
+    if (score === null) return {short:"—", full:"No score"};
+    const display = typeof getLevelDisplay === "function" ? getLevelDisplay(score, grade) : "-";
+    let full = display;
+    if (typeof getCBCLevel === "function" && isGrade1To6Value && isGrade1To6Value(grade)) {
+      full = getCBCLevel(score).name;
+    } else if (typeof levelLabels !== "undefined") {
+      const lvl = typeof getLevel === "function" ? getLevel(score, grade) : null;
+      full = lvl && levelLabels[lvl] ? levelLabels[lvl] : display;
+    }
+    return {short:display, full};
+  }
+
+  function levelChange(current, previous, grade){
+    if (current === null || previous === null) return "";
+    const c = typeof getLevel === "function" ? getLevel(current, grade) : null;
+    const p = typeof getLevel === "function" ? getLevel(previous, grade) : null;
+    if (c === null || p === null || c === "-" || p === "-") return "";
+    if (c > p) return "Improved";
+    if (c < p) return "Dropped";
+    return "Same";
+  }
+
+  function recommendationText(drops, missingPrevious, grade){
+    if (!drops.length && !missingPrevious.length) {
+      return {
+        title:"Keep the current momentum",
+        body:"No subject has dropped compared with the previous recorded exam. Continue reinforcing the learner's current study routine and regular practice.",
+        tone:"#166534",
+        bg:"#ecfdf5"
+      };
+    }
+    if (!drops.length && missingPrevious.length) {
+      return {
+        title:"Continue monitoring",
+        body:`There is no previous recorded score for ${missingPrevious.length} subject${missingPrevious.length===1?"":"s"}. Keep these subjects under observation as more exams are recorded.`,
+        tone:"#92400e",
+        bg:"#fffbeb"
+      };
+    }
+    const focus = drops.slice(0,5).map(x => `${x.subject} (${x.deviation > 0 ? "+" : ""}${x.deviation.toFixed(1)})`).join(", ");
+    return {
+      title:"Subjects to look at",
+      body:`Give additional attention to: ${focus}. Review the work, identify the specific topics where marks were lost, and provide targeted practice before the next assessment.`,
+      tone:"#991b1b",
+      bg:"#fef2f2"
+    };
+  }
+
+  window.openLearnerProgressFromResults = async function(studentId){
+    try {
+      if (typeof window.canAccessResults === "function" && !window.canAccessResults(studentId)) {
+        return Swal.fire("Access Denied","You cannot view results for this learner.","error");
+      }
+
+      const schoolId = window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId");
+      if (!schoolId) return Swal.fire("School missing","Please login again so learner progress can be loaded.","error");
+
+      const currentPeriod = document.getElementById("resultsExamPeriod")?.value || window.currentLoadedExamPeriod || "";
+      if (!currentPeriod) return Swal.fire("Exam Period Missing","Select an exam period first, then click the learner name.","warning");
+
+      const snap = await fastGet(ref(db, `schools/${schoolId}/students/${studentId}`));
+      const learner = snap.val();
+      if (!learner || !learner.marks) return Swal.fire("No Results","No examination history was found for this learner.","info");
+
+      const marksMap = learner.marks || {};
+      const keys = Object.keys(marksMap).filter(k => marksMap[k] && typeof marksMap[k] === "object");
+      const currentKey = keys.find(k => typeof normalizeExamPeriod === "function" ? normalizeExamPeriod(k) === normalizeExamPeriod(currentPeriod) : k === currentPeriod);
+      if (!currentKey) return Swal.fire("No Results","The selected exam has no recorded marks for this learner.","info");
+
+      const currentInfo = progressPeriodInfo(currentKey);
+      const chronological = keys
+        .map(k => ({key:k, info:progressPeriodInfo(k)}))
+        .filter(x => x.info.year || x.info.term || x.info.exam)
+        .sort((a,b) => (a.info.year-b.info.year) || (a.info.term-b.info.term) || (a.info.exam-b.info.exam));
+
+      const currentIndex = chronological.findIndex(x => x.key === currentKey);
+      const previousEntry = currentIndex > 0 ? chronological[currentIndex - 1] : null;
+      const previousKey = previousEntry?.key || null;
+      const currentMarks = marksMap[currentKey] || {};
+      const previousMarks = previousKey ? (marksMap[previousKey] || {}) : {};
+      const grade = learner.grade || window.currentResultGrade || "";
+      const subjects = progressSubjects({[currentKey]:currentMarks,[previousKey||"__previous__"]:previousMarks});
+
+      let totalCurrent=0, totalPrevious=0, countCurrent=0, countPrevious=0;
+      const rows=[];
+      const drops=[];
+      const missingPrevious=[];
+
+      subjects.forEach(subject => {
+        const cur = progressMarkForSubject(currentMarks, subject);
+        const prev = progressMarkForSubject(previousMarks, subject);
+        const deviation = cur !== null && prev !== null ? cur-prev : null;
+        if(cur !== null){ totalCurrent += cur; countCurrent++; }
+        if(prev !== null){ totalPrevious += prev; countPrevious++; }
+        if(deviation !== null && deviation < 0) drops.push({subject,deviation});
+        if(cur !== null && prev === null) missingPrevious.push(subject);
+        const canonical = typeof rasmCanonicalSubjectName === "function" ? rasmCanonicalSubjectName(subject) : subject;
+        const curLevel = progressLevel(cur,grade);
+        const prevLevel = progressLevel(prev,grade);
+        const status = deviation === null ? "" : levelChange(cur,prev,grade);
+        const devText = deviation === null ? "—" : `${deviation > 0 ? "+" : ""}${deviation.toFixed(1)}`;
+        const devClass = deviation === null ? "neutral" : deviation > 0 ? "up" : deviation < 0 ? "down" : "same";
+        rows.push(`
+          <tr>
+            <td class="progress-subject">${progressEscape(canonical)}</td>
+            <td>${cur === null ? "—" : cur.toFixed(1)}</td>
+            <td><span class="progress-level current">${progressEscape(curLevel.short)}</span></td>
+            <td>${prev === null ? "—" : prev.toFixed(1)}</td>
+            <td><span class="progress-level previous">${progressEscape(prevLevel.short)}</span></td>
+            <td><span class="progress-deviation ${devClass}">${progressEscape(devText)}</span></td>
+            <td><span class="progress-status ${devClass}">${progressEscape(status || (prev===null ? "New" : "—"))}</span></td>
+          </tr>`);
+      });
+
+      drops.sort((a,b) => a.deviation-b.deviation);
+      const currentAvg = countCurrent ? totalCurrent/countCurrent : 0;
+      const previousAvg = countPrevious ? totalPrevious/countPrevious : 0;
+      const overallDeviation = countCurrent && countPrevious ? currentAvg-previousAvg : null;
+      const advice = recommendationText(drops,missingPrevious,grade);
+      const previousLabel = previousKey ? progressPeriodLabel(previousKey) : "No previous exam recorded";
+      const currentLabel = progressPeriodLabel(currentKey);
+
+      const html = `
+        <style>
+          .rasm-progress-wrap{font-family:Arial,Helvetica,sans-serif;color:#0f172a;text-align:left}
+          .rasm-progress-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 20px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff;margin-bottom:16px}
+          .rasm-progress-title{font-size:22px;font-weight:900;margin:0 0 5px;color:#1e3a8a}
+          .rasm-progress-meta{color:#64748b;font-size:13px;line-height:1.7}
+          .rasm-progress-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+          .rasm-progress-card{border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#fff}
+          .rasm-progress-card small{display:block;color:#64748b;font-weight:700;margin-bottom:5px}
+          .rasm-progress-card strong{font-size:20px;color:#0f172a}
+          .rasm-progress-table-wrap{overflow:auto;border:1px solid #cbd5e1;border-radius:12px;max-height:55vh}
+          .rasm-progress-table{width:100%;min-width:760px;border-collapse:collapse}
+          .rasm-progress-table th{position:sticky;top:0;z-index:2;background:#0f172a;color:#fff;padding:10px 8px;font-size:12px;text-align:center;border:1px solid #334155}
+          .rasm-progress-table td{padding:9px 8px;border:1px solid #e2e8f0;text-align:center;font-size:13px;font-weight:700;background:#fff}
+          .rasm-progress-table tr:nth-child(even) td{background:#fff}
+          .rasm-progress-table td:nth-child(2){background:#eaf2f8 !important;color:#243447 !important}
+          .rasm-progress-table td:nth-child(3){background:#e8f1ea !important;color:#31543a !important}
+          .rasm-progress-table td:nth-child(4){background:#eaf2f8 !important;color:#243447 !important}
+          .rasm-progress-table td:nth-child(5){background:#e8f1ea !important;color:#31543a !important}
+          .rasm-progress-table td:nth-child(6){background:#f6f0df !important;color:#5f4b20 !important}
+          .rasm-progress-table td:nth-child(7){background:#f6f0df !important;color:#5f4b20 !important}
+          .rasm-progress-table .progress-subject{text-align:left;color:#1e293b;min-width:180px}
+          .progress-level{display:inline-block;padding:4px 7px;border-radius:6px;font-size:11px;font-weight:800}
+          .progress-level.current{background:#e0f2fe;color:#075985}.progress-level.previous{background:#f1f5f9;color:#475569}
+          .progress-deviation{font-weight:900}.progress-deviation.up,.progress-status.up{color:#15803d}.progress-deviation.down,.progress-status.down{color:#b91c1c}.progress-deviation.same,.progress-status.same{color:#475569}.progress-deviation.neutral,.progress-status.neutral{color:#64748b}
+          .progress-status{font-size:11px;font-weight:900}
+          .rasm-progress-advice{border-radius:12px;padding:14px 16px;margin-top:16px;border:1px solid #fecaca}
+          .rasm-progress-advice h4{margin:0 0 7px;font-size:15px}.rasm-progress-advice p{margin:0;line-height:1.6;font-size:13px}
+          .rasm-progress-focus{margin-top:12px;border:1px solid #fde68a;background:#fffbeb;border-radius:12px;padding:12px 14px}
+          .rasm-progress-focus b{color:#92400e}.rasm-progress-focus ul{margin:8px 0 0 18px;padding:0}.rasm-progress-focus li{margin:4px 0;color:#78350f}
+          @media(max-width:700px){.rasm-progress-cards{grid-template-columns:1fr}.rasm-progress-head{flex-direction:column}}
+        </style>
+        <div class="rasm-progress-wrap">
+          <div class="rasm-progress-head">
+            <div>
+              <h3 class="rasm-progress-title">📈 ${progressEscape(learner.name || "Learner")} — Progress Monitor</h3>
+              <div class="rasm-progress-meta"><b>Grade:</b> ${progressEscape(grade)} &nbsp; | &nbsp; <b>Current:</b> ${progressEscape(currentLabel)}<br><b>Previous:</b> ${progressEscape(previousLabel)}</div>
+            </div>
+          </div>
+          <div class="rasm-progress-cards">
+            <div class="rasm-progress-card"><small>Current Average</small><strong>${currentAvg.toFixed(1)}%</strong></div>
+            <div class="rasm-progress-card"><small>Previous Average</small><strong>${countPrevious ? previousAvg.toFixed(1)+"%" : "—"}</strong></div>
+            <div class="rasm-progress-card"><small>Overall Deviation</small><strong style="color:${overallDeviation===null?'#64748b':overallDeviation>0?'#15803d':overallDeviation<0?'#b91c1c':'#475569'}">${overallDeviation===null?'—':(overallDeviation>0?'+':'')+overallDeviation.toFixed(1)}</strong></div>
+          </div>
+          <div class="rasm-progress-table-wrap">
+            <table class="rasm-progress-table">
+              <thead><tr><th>Subject</th><th>Current Score</th><th>Current Level</th><th>Previous Score</th><th>Previous Level</th><th>Deviation</th><th>Progress</th></tr></thead>
+              <tbody>${rows.length ? rows.join("") : `<tr><td colspan="7" style="padding:20px">No subject scores found.</td></tr>`}</tbody>
+            </table>
+          </div>
+          <div class="rasm-progress-advice" style="background:${advice.bg};border-color:${advice.tone}55;color:${advice.tone}">
+            <h4>💡 ${progressEscape(advice.title)}</h4><p>${progressEscape(advice.body)}</p>
+          </div>
+          ${drops.length ? `<div class="rasm-progress-focus"><b>🔎 Subjects to monitor first</b><ul>${drops.slice(0,5).map(d=>`<li><strong>${progressEscape(typeof rasmCanonicalSubjectName === "function" ? rasmCanonicalSubjectName(d.subject) : d.subject)}</strong> — ${d.deviation.toFixed(1)} marks from the previous exam.</li>`).join("")}</ul></div>` : ""}
+        </div>`;
+
+      await Swal.fire({
+        title:"Learner Progress",
+        html,
+        width:"min(1200px, 96vw)",
+        confirmButtonText:"Close",
+        confirmButtonColor:"#2563eb",
+        showCloseButton:true,
+        customClass:{popup:"rasm-learner-progress-popup"}
+      });
+    } catch(err){
+      console.error("Learner progress error:",err);
+      Swal.fire("Progress Error",err?.message || "Unable to load learner progress.","error");
+    }
+  };
+})();
 
 // =========================================================
 // 🚀 CLEAR TABLE
@@ -53287,6 +53566,27 @@ let reportMeta = null;
 // ======================================================
 function subjectDisplayNameForReport(subject) {
     return rasmCanonicalSubjectName(subject);
+}
+
+// ======================================================
+// LOADED MARKS — COMPACT SUBJECT DISPLAY NAMES
+// IMPORTANT:
+// - Changes ONLY what is displayed in the Loaded Marks table.
+// - Does NOT rename Firebase/database keys.
+// - Does NOT change marks calculations, totals, levels or ranks.
+// ======================================================
+function getLoadedMarksSubjectDisplayName(subject) {
+    const canonical = rasmCanonicalSubjectName(subject);
+    const key = String(canonical || "").trim().toLowerCase();
+
+    const displayMap = {
+        "integrated science": "Science",
+        "christian religious education": "Cre",
+        "religious education": "Cre",
+        "mathematics": "Maths"
+    };
+
+    return displayMap[key] || canonical;
 }
 
 // ==========================
@@ -58584,20 +58884,8 @@ function generateTopGrade() {
       const maxAverage =
         Math.max(...grades.map(g=>g.average));
 
-      function getLevel(avg, gradeValue = ""){
+      /* RASM 360 OPTIMIZER: removed exact duplicate function getLevel */
 
-        if(isGrade1To6Value(gradeValue)){
-          if(avg>=75) return {label:"EE (4)", color:"#2e7d32"};
-          if(avg>=50) return {label:"ME (3)", color:"#4CAF50"};
-          if(avg>=30) return {label:"AE (2)", color:"#FF9800"};
-          return {label:"BE (1)", color:"#F44336"};
-        }
-
-        if(avg>=90) return {label:"EE", color:"#2e7d32"};
-        if(avg>=75) return {label:"ME", color:"#4CAF50"};
-        if(avg>=50) return {label:"AE", color:"#FF9800"};
-        return {label:"BE", color:"#F44336"};
-      }
 
      // ======================================
 // EXECUTIVE DASHBOARD
@@ -67479,18 +67767,58 @@ const recordedSubjects = new Set();
 
 });
 
+// =========================================================
+// COMPACT SUBJECT DISPLAY NAMES
+// Keep the original subject key/name for all calculations.
+// Only the visible Merit List heading/summary label is shortened.
+// =========================================================
+function getMeritSubjectShortName(subjectName) {
+    const full = String(subjectName || "").trim();
+
+    const abbreviations = {
+        "Integrated Science": "Science",
+        "Christian Religious Education": "Cre",
+        "Religious Education": "Cre",
+        "Mathematics": "Maths",
+        "Pre-Technical Studies": "Pre-Tech",
+        "Pre Technical Studies": "Pre-Tech",
+        "Social Studies": "Social St.",
+        "Creative Arts & Sports": "C. Arts & Sports",
+        "Creative Arts and Sports": "C. Arts & Sports",
+        "Creative Arts": "Creative Arts",
+        "Environmental Activities": "Env. Activities",
+        "Environmental Activity": "Env. Activity",
+        "Business Studies": "Business St.",
+        "Computer Studies": "Computer St.",
+        "Computer Science": "Comp. Science",
+        "Life Skills": "Life Skills",
+        "Health Education": "Health Ed.",
+        "Agriculture": "Agric.",
+        "Kiswahili": "Kiswahili",
+        "Mathematics": "Math",
+        "English": "English"
+    };
+
+    if (abbreviations[full]) return abbreviations[full];
+
+    // Safe fallback for any future long subject name.
+    return full
+        .replace(/\bStudies\b/g, "St.")
+        .replace(/\bEducation\b/g, "Ed.")
+        .replace(/\bTechnology\b/g, "Tech.")
+        .replace(/\bScience\b/g, "Sci.")
+        .replace(/\bActivities\b/g, "Act.")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+}
+
 const subjects = (window.schoolSubjects || [])
 
     .filter(subject => recordedSubjects.has(subject))
 
-    .map(subject => ({
-
-        key: subject,
-
-        name:
-
+    .map(subject => {
+        const fullName =
             window.subjectDisplayNames?.[subject] ||
-
             ({
                 eng: "English",
                 ENG: "English",
@@ -67505,12 +67833,16 @@ const subjects = (window.schoolSubjects || [])
                 preTech: "Pre-Technical Studies",
                 creativeArt: "Creative Arts"
             }[subject]) ||
-
             subject
                 .replace(/([A-Z])/g, " $1")
-                .replace(/^./, c => c.toUpperCase())
+                .replace(/^./, c => c.toUpperCase());
 
-    }));  // ================= TOTALS =================
+        return {
+            key: subject,
+            name: fullName,
+            shortName: getMeritSubjectShortName(fullName)
+        };
+    });  // ================= TOTALS =================
   updateProgress(40, "Calculating totals...");
   await new Promise(r => setTimeout(r, 300));
 
@@ -67603,128 +67935,139 @@ if (
 
   let html = `
 <style>
+@media screen {
+  #reportOutput .merit-report-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+    padding: 4px;
+    box-sizing: border-box;
+  }
 
-/* =========================================================
-   MERIT LIST + COMBINED MARKS REPORTS
-   Floating / sticky two-row headers while scrolling
-========================================================= */
-.merit-report-scroll,
-.combined-marks-scroll{
-  width:100%;
-  max-width:100%;
-  overflow-x:auto;
-  overflow-y:visible;
-  -webkit-overflow-scrolling:touch;
-  scrollbar-width:auto;
+  #reportOutput .merit-report-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+    table-layout: auto;
+    background: #ffffff;
+  }
+
+  #reportOutput .merit-report-table th,
+  #reportOutput .merit-report-table td {
+    border: 2px solid #111827;
+    padding: 7px 6px;
+    text-align: center;
+    vertical-align: middle;
+    box-sizing: border-box;
+    white-space: nowrap;
+    min-height: 34px;
+  }
+
+  #reportOutput .merit-report-table thead th {
+    border: 2px solid #000000;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  #reportOutput .merit-report-table tbody td {
+    border: 2px solid #111827;
+  }
+
+  #reportOutput .merit-report-table tbody tr {
+    height: 36px;
+  }
+
+  #reportOutput .merit-report-table td.name-cell {
+    text-align: left;
+    min-width: 190px;
+    white-space: nowrap;
+  }
+
+  #reportOutput .merit-report-table th.subhead {
+    min-width: 70px;
+  }
+
+  /* =========================================================
+     GENERATED MERIT LIST — SCORE / POINTS / LEVEL
+     Calm professional column colours; compact SCO / PTS / LEV
+  ========================================================= */
+  #reportOutput .merit-report-table th.merit-spl-header {
+    background: #111111 !important;
+    color: #ffffff !important;
+    font-size: 10px !important;
+    letter-spacing: .2px;
+    padding: 4px 5px !important;
+    min-width: 42px;
+  }
+
+  #reportOutput .merit-report-table td.merit-score-cell {
+    background: #eaf2f8 !important;
+    color: #243447 !important;
+    font-weight: 700;
+  }
+
+  #reportOutput .merit-report-table td.merit-points-cell {
+    background: #f6f0df !important;
+    color: #5f4b20 !important;
+    font-weight: 700;
+  }
+
+  #reportOutput .merit-report-table td.merit-level-cell {
+    background: #e8f1ea !important;
+    color: #31543a !important;
+    font-weight: 700;
+  }
+
+  #reportOutput .merit-report-table tr:hover td.merit-score-cell {
+    background: #dfeaf3 !important;
+  }
+
+  #reportOutput .merit-report-table tr:hover td.merit-points-cell {
+    background: #eee6d1 !important;
+  }
+
+  #reportOutput .merit-report-table tr:hover td.merit-level-cell {
+    background: #dce9df !important;
+  }
+
+
+  #reportOutput .merit-report-table .total-row td,
+  #reportOutput .merit-report-table .avg-row td {
+    border: 2px solid #111827;
+    font-weight: 800;
+  }
+
+  #reportOutput .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+    background: #ffffff;
+    margin-top: 10px;
+  }
+
+  #reportOutput .summary-table th,
+  #reportOutput .summary-table td {
+    border: 2px solid #111827;
+    padding: 7px 6px;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  #reportOutput .summary-table th {
+    font-weight: 800;
+  }
+
+  #reportOutput .summary-table .subject-name {
+    text-align: left;
+    font-weight: 700;
+  }
 }
-
-.merit-report-table,
-.combined-marks-scroll .report-table{
-  width:max-content;
-  min-width:1300px;
-  border-collapse:separate;
-  border-spacing:0;
-}
-
-.merit-report-table thead th,
-.combined-marks-scroll .report-table thead th{
-  position:sticky;
-  z-index:30;
-  white-space:nowrap;
-}
-
-/* First header row stays at the top of the screen. */
-.merit-report-table thead tr:first-child th,
-.combined-marks-scroll .report-table thead tr:first-child th{
-  top:0;
-}
-
-/* Second header row sits directly underneath the first header row. */
-.merit-report-table thead tr:nth-child(2) th,
-.combined-marks-scroll .report-table thead tr:nth-child(2) th{
-  top:31px;
-}
-
-/* Keep the floating headers opaque so report rows never show through. */
-.merit-report-table thead th,
-.combined-marks-scroll .report-table thead th{
-  box-shadow:0 2px 0 #000;
-}
-
-.report-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:14px;
-  margin-bottom:25px;
-}
-
-.report-table th,
-.report-table td{
-  border:2px solid #000;
-  padding:6px;
-  text-align:center;
-}
-
-.report-table th{
-  background:#000;
-  color:#fff;
-}
-
-.subhead{
-  background:#222 !important;
-  color:#fff;
-}
-
-.name-cell{
-  text-align:left;
-  background:#f5f5f5;
-}
-
-.total-row{
-  background:#e6e6e6;
-  font-weight:bold;
-}
-
-.avg-row{
-  background:#d9f2ff;
-  font-weight:bold;
-}
-
-.summary-title{
-  background:#1e3a8a;
-  color:white;
-  padding:10px;
-  margin-top:25px;
-  border-radius:6px;
-  font-size:18px;
-  font-weight:bold;
-}
-
-.summary-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:10px;
-}
-
-.summary-table th,
-.summary-table td{
-  border:2px solid #000;
-  padding:8px;
-  text-align:center;
-}
-
-.summary-table th{
-  background:#111827;
-  color:white;
-}
-
-.subject-name{
-  background:#f3f4f6;
-  text-align:left;
-  font-weight:bold;
-}
-
 </style>
+
 
 <div id="reportOutput">
 
@@ -67759,7 +68102,7 @@ ${window.getSchoolPrintHeader("MERIT LIST REPORT")}
   subjects.forEach(s => {
 
     html += `
-      <th colspan="${isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key) ? 1 : 3}" class="subhead">${rasmCanonicalSubjectName(s.name)}</th>
+      <th colspan="${isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key) ? 1 : 3}" class="subhead">${s.shortName}</th>
     `;
   });
 
@@ -67777,8 +68120,8 @@ subjects.forEach(s => {
         !rasmGrade13SubHasLevel(s.key);
 
     html += scoreOnly
-        ? `<th>Sco</th>`
-        : `<th>Sco</th><th>${isGrade1To6 ? "Lvl" : "Pts"}</th><th>${isGrade1To6 ? "Band" : "Lev"}</th>`;
+        ? `<th class="merit-spl-header">SCO</th>`
+        : `<th class="merit-spl-header">SCO</th><th class="merit-spl-header">PTS</th><th class="merit-spl-header">LEV</th>`;
 });
 
   html += `
@@ -67838,8 +68181,8 @@ const score =
         !rasmGrade13SubHasLevel(s.key);
 
     html += scoreOnly
-      ? `<td>${score}</td>`
-      : `<td>${score}</td><td>${score === "" ? "" : getLevel(score)}</td><td>${score === "" ? "" : getLevelName(score)}</td>`;
+      ? `<td class="merit-score-cell">${score}</td>`
+      : `<td class="merit-score-cell">${score}</td><td class="merit-points-cell">${score === "" ? "" : getLevel(score)}</td><td class="merit-level-cell">${score === "" ? "" : getLevelName(score)}</td>`;
     });
 
     html += `
@@ -67863,7 +68206,7 @@ const score =
   subjects.forEach(s => {
 
     const scoreOnly = isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
-    html += scoreOnly ? `<td>${totals[s.key]}</td>` : `<td>${totals[s.key]}</td><td>-</td><td>-</td>`;
+    html += scoreOnly ? `<td class="merit-score-cell">${totals[s.key]}</td>` : `<td class="merit-score-cell">${totals[s.key]}</td><td class="merit-points-cell">-</td><td class="merit-level-cell">-</td>`;
   });
 
   html += `
@@ -67884,7 +68227,7 @@ const score =
   subjects.forEach(s => {
 
     const scoreOnly = isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
-    html += scoreOnly ? `<td>${avg(totals[s.key])}</td>` : `<td>${avg(totals[s.key])}</td><td>-</td><td>-</td>`;
+    html += scoreOnly ? `<td class="merit-score-cell">${avg(totals[s.key])}</td>` : `<td class="merit-score-cell">${avg(totals[s.key])}</td><td class="merit-points-cell">-</td><td class="merit-level-cell">-</td>`;
   });
 
   html += `
@@ -67945,7 +68288,7 @@ isGrade1To6
 <tr>
 
 <td class="subject-name">
-  ${subject.name}
+  ${subject.shortName}
 </td>
 ${
 isGrade1To6
@@ -68306,13 +68649,8 @@ function getLevelName(score) {
   // ===============================
   // 🔥 EXTRACT BASE GRADE (5A → 5)
   // ===============================
-  function getGradeBase(grade) {
-    return (grade || "")
-      .toString()
-      .trim()
-      .toUpperCase()
-      .match(/\d+/)?.[0];
-  }
+  /* RASM 360 OPTIMIZER: removed exact duplicate function getGradeBase */
+
 
   const selectedBase = getGradeBase(gradeFromUI);
   const learnerBase = getGradeBase(gradeText);
@@ -85063,8 +85401,8 @@ const commonPrintStyles = `
   }
 
   @page{
-    size:auto;
-    margin:10mm;
+    size:A4 landscape;
+    margin:4mm;
   }
 
   @media print {
@@ -85074,13 +85412,102 @@ const commonPrintStyles = `
       print-color-adjust:exact !important;
     }
 
+    /* Generated Merit List: force the complete table into A4 landscape. */
+    #reportOutput .merit-report-scroll{
+      width:100% !important;
+      max-width:100% !important;
+      max-height:none !important;
+      overflow:visible !important;
+      margin:0 !important;
+      padding:0 !important;
+    }
+
+    /* Merit List: readability first. Allow the report to span several A4 pages vertically. */
+    #reportOutput .merit-report-table{
+      width:100% !important;
+      min-width:0 !important;
+      max-width:100% !important;
+      table-layout:auto !important;
+      border-collapse:collapse !important;
+      font-size:9px !important;
+      line-height:1.2 !important;
+      margin:0 !important;
+    }
+
+    #reportOutput .merit-report-table th,
+    #reportOutput .merit-report-table td{
+      padding:3px 3px !important;
+      border:1px solid #000 !important;
+      box-sizing:border-box !important;
+      white-space:normal !important;
+      overflow-wrap:anywhere !important;
+      vertical-align:middle !important;
+    }
+
+    #reportOutput .merit-report-table thead th{
+      position:static !important;
+      font-size:8px !important;
+      white-space:normal !important;
+      padding:3px 2px !important;
+    }
+
+    #reportOutput .merit-report-table .subhead{
+      font-size:7.5px !important;
+      line-height:1.1 !important;
+      white-space:normal !important;
+      overflow-wrap:anywhere !important;
+      word-break:normal !important;
+      padding:3px 2px !important;
+    }
+
+    #reportOutput .merit-report-table td.name-cell{
+      text-align:left !important;
+      white-space:normal !important;
+      font-size:9px !important;
+    }
+
+    #reportOutput .summary-title{
+      margin:5px 0 2px !important;
+      padding:3px !important;
+      font-size:7px !important;
+    }
+
+    #reportOutput .summary-table{
+      width:100% !important;
+      table-layout:fixed !important;
+      font-size:8px !important;
+      margin-top:2px !important;
+    }
+
+    #reportOutput .summary-table th,
+    #reportOutput .summary-table td{
+      padding:3px 2px !important;
+      border:1px solid #000 !important;
+      white-space:normal !important;
+      overflow-wrap:anywhere !important;
+      line-height:1.05 !important;
+    }
+
     table{
       page-break-inside:auto;
     }
 
+    thead{
+      display:table-header-group !important;
+    }
+
+    tfoot{
+      display:table-footer-group !important;
+    }
+
     tr{
-      page-break-inside:avoid;
-      page-break-after:auto;
+      page-break-inside:avoid !important;
+      break-inside:avoid !important;
+      page-break-after:auto !important;
+    }
+
+    .merit-report-table tbody tr{
+      height:auto !important;
     }
 
   }
@@ -119573,10 +120000,13 @@ const level = getCBCLevel(numericScore);
         <td style="padding:8px;border:1px solid #ddd;">
           ${subject}
         </td>
-<td style="padding:8px;border:1px solid #ddd;font-weight:bold;">
-    ${numericScore} (${level.code})
+<td class="results-score-cell" style="padding:8px;border:1px solid #ddd;">
+    ${numericScore}
 </td>
-<td style="padding:8px;border:1px solid #ddd;font-weight:bold;color:#1565c0;">
+<td class="results-points-cell" style="padding:8px;border:1px solid #ddd;">
+    ${points}
+</td>
+<td class="results-level-cell" style="padding:8px;border:1px solid #ddd;">
   ${level.name}
 </td>
       </tr>
@@ -119725,6 +120155,10 @@ return `
 
               <th style="text-align:left;padding:10px;border:1px solid #ddd;">
                   Score
+              </th>
+
+              <th style="text-align:left;padding:10px;border:1px solid #ddd;">
+                  Points
               </th>
 
               <th style="text-align:left;padding:10px;border:1px solid #ddd;">
