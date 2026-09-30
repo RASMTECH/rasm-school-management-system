@@ -13303,7 +13303,7 @@ T
 </div>
 
 <div id="topStudentsSection" class="section" style="display:none; padding:20px;">
-  <h2>👨🎓 Top 5 Students</h2>
+  
   <div id="topStudentsContent"></div>
 </div>
 
@@ -57897,7 +57897,7 @@ letter-spacing:3px;
 text-transform:uppercase;
 opacity:.8;
 ">
-RASM TECH 360
+🎓 Top 5 Students
 </div>
 
 <h1 style="
@@ -68523,65 +68523,67 @@ const filteredLearners = learners.filter(l => {
 
 });
 
-// Find only subjects that actually have marks
+// =========================================================
+// ⚡ FAST SUBJECT DETECTION
+// Do not scan every learner once per subject. Build the set in
+// a single pass instead. This is critical for large schools.
+// =========================================================
 const recordedSubjects = new Set();
 
-(window.schoolSubjects || []).forEach(subject => {
+filteredLearners.forEach(learner => {
+    const marks = learner?.marks;
+    if (!marks || typeof marks !== "object") return;
 
-    const hasMarks = filteredLearners.some(learner => {
-
-        const value = learner.marks?.[subject];
-
-        return (
-            value !== undefined &&
-            value !== null &&
-            value !== "" &&
-            !isNaN(Number(value))
-        );
-
+    Object.keys(marks).forEach(key => {
+        const value = marks[key];
+        if (value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value))) {
+            recordedSubjects.add(key);
+        }
     });
-
-    if (hasMarks) {
-
-        recordedSubjects.add(subject);
-
-    }
-
 });
 
-// Build subject list
-const subjects = (window.schoolSubjects || [])
+// Keep the configured school-subject order, then append any recorded
+// subject that exists in the data but is not currently in schoolSubjects.
+const configuredSubjects = Array.isArray(window.schoolSubjects)
+    ? window.schoolSubjects
+    : [];
 
-    .filter(subject => recordedSubjects.has(subject))
+const subjectKeys = [];
+const subjectSeen = new Set();
 
-    .map(subject => ({
+function combinedCanonicalSubject(value){
+    try {
+        if (typeof rasmCanonicalSubjectName === "function") {
+            return String(rasmCanonicalSubjectName(value) || value || "").trim();
+        }
+    } catch(e) {}
+    return String(value || "").trim();
+}
 
-        key: subject,
+function addCombinedSubject(rawSubject){
+    const raw = String(rawSubject || "").trim();
+    if (!raw) return;
+    const canonical = combinedCanonicalSubject(window.subjectDisplayNames?.[raw] || raw);
+    const k = canonical.toLowerCase();
+    if (!k || subjectSeen.has(k)) return;
+    subjectSeen.add(k);
+    subjectKeys.push(canonical);
+}
 
-        name:
+configuredSubjects.forEach(addCombinedSubject);
+recordedSubjects.forEach(addCombinedSubject);
 
-            window.subjectDisplayNames?.[subject] ||
-
-            ({
-                eng: "English",
-                ENG: "English",
-                kiswa: "Kiswahili",
-                KISWA: "Kiswahili",
-                math: "Mathematics",
-                kiswahili: "Kiswahili",
-                science: "Integrated Science",
-                social: "Social Studies",
-                agriculture: "Agriculture",
-                cre: "Religious Education",
-                preTech: "Pre-Technical Studies",
-                creativeArt: "Creative Arts"
-            }[subject]) ||
-
-            subject
-                .replace(/([A-Z])/g, " $1")
-                .replace(/^./, c => c.toUpperCase())
-
-    }));
+// Use the exact compact subject labels used by the Merit List report.
+const subjects = subjectKeys.map(subject => {
+    const fullName = combinedCanonicalSubject(subject) || subject;
+    return {
+        key: fullName,
+        name: fullName,
+        shortName: typeof getMeritSubjectShortName === "function"
+            ? getMeritSubjectShortName(fullName)
+            : fullName
+    };
+});
 
 function getLevel(score) {
 
@@ -68633,43 +68635,34 @@ function getLevelName(score) {
 }
 
   // ===============================
-  // 🔥 FILTER + COMPUTE
+  // 🔥 FILTER + COMPUTE — OPTIMIZED
   // ===============================
   const learnersData = [];
   let learnerCount = 0;
 
-  updateProgress(40, "Processing student marks...");
-  await new Promise(r => setTimeout(r, 300));
+  updateProgress(40, `Processing student marks... 0/${filteredLearners.length}`);
+  await new Promise(r => setTimeout(r, 50));
 
-  filteredLearners.forEach(l => {
+  // The grade/period filter was already applied above. Do not repeat it
+  // for every learner here. Repeating it was a major source of slowdown.
+  for (let index = 0; index < filteredLearners.length; index++) {
+    const l = filteredLearners[index];
 
-  const gradeText = normalize(l.grade);
-  const examPeriod = normalize(l.examPeriod || l.period);
+  // Normalize marks once per learner so large reports do not repeatedly
+  // scan subject aliases while rendering every cell.
+  const canonicalMarks = {};
+  if (l.marks && typeof l.marks === "object") {
+    Object.keys(l.marks).forEach(rawKey => {
+      const rawValue = l.marks[rawKey];
+      if (rawValue === undefined || rawValue === null || rawValue === "") return;
+      if (!Number.isFinite(Number(rawValue))) return;
+      const canonicalKey = combinedCanonicalSubject(window.subjectDisplayNames?.[rawKey] || rawKey);
+      if (!canonicalKey) return;
+      if (canonicalMarks[canonicalKey] === undefined) canonicalMarks[canonicalKey] = Number(rawValue);
+    });
+  }
 
-  // ===============================
-  // 🔥 EXTRACT BASE GRADE (5A → 5)
-  // ===============================
-  /* RASM 360 OPTIMIZER: removed exact duplicate function getGradeBase */
-
-
-  const selectedBase = getGradeBase(gradeFromUI);
-  const learnerBase = getGradeBase(gradeText);
-
-  // ===============================
-  // 🔥 FIXED FILTER LOGIC (GRADE GROUP + PERIOD)
-  // ===============================
-  const gradeMatch =
-    !selectedBase ||
-    selectedBase === "ALL" ||
-    learnerBase === selectedBase;
-
-  const periodMatch =
-    !periodFromUI ||
-    periodFromUI === "all periods" ||
-    examPeriod === periodFromUI;
-
-  if (!gradeMatch || !periodMatch) return;
-const learner = {
+  const learner = {
     name: l.name,
     grade: l.grade
 };
@@ -68686,7 +68679,7 @@ const isGrade1To3Learner =
 
 subjects.forEach(subject => {
 
-    const rawValue = l.marks?.[subject.key];
+    const rawValue = canonicalMarks[subject.key];
 
     if (
         rawValue !== undefined &&
@@ -68725,9 +68718,17 @@ learner.average =
         ? total / enteredSubjects
         : 0;
 
-learnersData.push(learner);
-learnerCount++;
-  });
+    learnersData.push(learner);
+    learnerCount++;
+
+    // Yield periodically so the browser can repaint the loader and remain
+    // responsive even when hundreds/thousands of learners are processed.
+    if (index % 100 === 0 || index === filteredLearners.length - 1) {
+      const pct = 40 + ((index + 1) / Math.max(filteredLearners.length, 1)) * 18;
+      updateProgress(pct, `Processing student marks... ${index + 1}/${filteredLearners.length}`);
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
 
   if (!learnersData.length) {
     hideLoader();
@@ -68746,46 +68747,40 @@ learnerCount++;
   await new Promise(r => setTimeout(r, 300));
 
   // ===============================
-  // 🔥 STYLES (UNCHANGED - PRESERVED)
+  // 🎨 COMBINED MARKS — SAME COMPACT CSS + PALETTE AS MERIT LIST
   // ===============================
   let html = `
     <style>
-      .report-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 14px;
-      }
+      .combined-marks-scroll{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;background:#fff;padding:4px;box-sizing:border-box}
+      .combined-report-table{width:max-content;min-width:100%;border-collapse:collapse;border-spacing:0;table-layout:auto;background:#fff}
+      .combined-report-table th,.combined-report-table td{border:2px solid #111827;padding:5px 4px;text-align:center;vertical-align:middle;box-sizing:border-box;white-space:nowrap;line-height:1.15}
+      .combined-report-table thead th{border:2px solid #000;font-weight:800;background:#000;color:#fff}
+      .combined-report-table th.subhead{background:#222 !important;color:#fff !important;min-width:58px;font-size:10px;padding:5px 3px}
+      .combined-report-table th.combined-spl-header{background:#111 !important;color:#fff !important;font-size:9px !important;letter-spacing:.15px;padding:3px 4px !important;min-width:35px}
+      .combined-report-table td.combined-score-cell{background:#eaf2f8 !important;color:#243447 !important;font-weight:700}
+      .combined-report-table td.combined-points-cell{background:#f6f0df !important;color:#5f4b20 !important;font-weight:700}
+      .combined-report-table td.combined-level-cell{background:#e8f1ea !important;color:#31543a !important;font-weight:700}
+      .combined-report-table td.combined-name-cell,.combined-report-table td.combined-grade-cell{background:#f8fafc !important;color:#243447 !important;font-weight:700}
+      .combined-report-table td.combined-total-cell,.combined-report-table td.combined-average-cell{background:#eaf2f8 !important;color:#243447 !important;font-weight:800}
+      .combined-report-table .total-row td{background:#eaf2f8 !important;color:#243447 !important;font-weight:800}
+      .combined-report-table .avg-row td{background:#f6f0df !important;color:#5f4b20 !important;font-weight:800}
+      .combined-report-table tr:hover td.combined-score-cell{background:#dfeaf3 !important}
+      .combined-report-table tr:hover td.combined-points-cell{background:#eee6d1 !important}
+      .combined-report-table tr:hover td.combined-level-cell{background:#dce9df !important}
 
-      .report-table th,
-      .report-table td {
-        border: 2px solid #000;
-        padding: 6px;
-        text-align: center;
-      }
-
-      .report-table th {
-        background: #000;
-        color: #fff;
-      }
-
-      .subhead {
-        background: #222 !important;
-        color: #fff;
-      }
-
-      .name-cell {
-        text-align: left;
-        background: #f5f5f5;
-      }
-
-      .total-row {
-        background: #e6e6e6;
-        font-weight: bold;
-      }
-
-      .avg-row {
-        background: #d9f2ff;
-        font-weight: bold;
+      @media print{
+        @page{size:A4 landscape;margin:7mm}
+        html,body{width:100%;margin:0 !important;padding:0 !important;background:#fff !important}
+        .combined-marks-scroll{width:100% !important;max-width:none !important;overflow:visible !important;padding:0 !important;background:#fff !important}
+        .combined-report-table{width:100% !important;min-width:0 !important;table-layout:fixed !important;font-size:7.2px !important}
+        .combined-report-table th,.combined-report-table td{border:1px solid #111827 !important;padding:2.5px 2px !important;white-space:nowrap !important;line-height:1.05 !important}
+        .combined-report-table th.subhead{font-size:7.2px !important;min-width:0 !important;padding:2px 1px !important}
+        .combined-report-table th.combined-spl-header{font-size:6.5px !important;min-width:0 !important;padding:2px 1px !important}
+        .combined-report-table th:first-child,.combined-report-table td:first-child{width:4% !important}
+        .combined-report-table th:nth-child(2),.combined-report-table td:nth-child(2){width:15% !important;text-align:left !important}
+        .combined-report-table th:nth-child(3),.combined-report-table td:nth-child(3){width:6% !important}
+        .combined-report-table .combined-name-cell{overflow:hidden;text-overflow:ellipsis}
+        *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
       }
     </style>
 
@@ -68801,7 +68796,7 @@ ${rasmReportMetaLine(rawGrade || "All Grades", year, rawPeriod || "All Periods")
   `;
 
   subjects.forEach(s => {
-    html += `<th colspan="${isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key) ? 1 : 3}" class="subhead">${rasmCanonicalSubjectName(s.name)}</th>`;
+    html += `<th colspan="${isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key) ? 1 : 3}" class="subhead">${s.shortName}</th>`;
 });
 
   html += `
@@ -68813,7 +68808,9 @@ ${rasmReportMetaLine(rawGrade || "All Grades", year, rawPeriod || "All Periods")
 
 subjects.forEach(s => {
     const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
-    html += scoreOnly ? `<th>Score</th>` : `<th>Score</th><th>${isGrade1To6 ? "Lvl" : "Pts"}</th><th>Level</th>`;
+    html += scoreOnly
+      ? `<th class="combined-spl-header">SCO</th>`
+      : `<th class="combined-spl-header">SCO</th><th class="combined-spl-header">PTS</th><th class="combined-spl-header">LEV</th>`;
 });
 
   html += `</tr></thead><tbody>`;
@@ -68828,47 +68825,54 @@ subjects.forEach(s => {
     html += `
       <tr>
         <td>${i + 1}</td>
-        <td class="name-cell">${l.name}</td>
-        <td>${l.grade}</td>
+        <td class="combined-name-cell">${l.name}</td>
+        <td class="combined-grade-cell">${l.grade}</td>
     `;
 subjects.forEach(s => {
 
     const mark = l[s.key];
 
     const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
-    html += scoreOnly ? `<td>${mark ?? ""}</td>` : `<td>${mark ?? ""}</td><td>${mark != null ? getLevel(mark) : ""}</td><td>${mark != null ? getLevelName(mark) : ""}</td>`;
+    html += scoreOnly
+      ? `<td class="combined-score-cell">${mark ?? ""}</td>`
+      : `<td class="combined-score-cell">${mark ?? ""}</td><td class="combined-points-cell">${mark != null ? getLevel(mark) : ""}</td><td class="combined-level-cell">${mark != null ? getLevelName(mark) : ""}</td>`;
 
 });
     html += `
-        <td><b>${l.totalMarks}</b></td>
-        <td><b>${avg}</b></td>
+        <td class="combined-total-cell"><b>${l.totalMarks}</b></td>
+        <td class="combined-average-cell"><b>${avg}</b></td>
       </tr>
     `;
   });
 
 // ===============================
-// TOTALS + AVERAGES
+// TOTALS + AVERAGES — PRECOMPUTED
+// Avoid one .reduce()/.filter() scan per subject.
 // ===============================
+const subjectStats = new Map();
+subjects.forEach(s => subjectStats.set(s.key, { total: 0, entered: 0 }));
+
+let grandTotal = 0;
+learnersData.forEach(learner => {
+    grandTotal += Number(learner.totalMarks || 0);
+    subjects.forEach(s => {
+        const value = learner[s.key];
+        if (value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))) {
+            const stat = subjectStats.get(s.key);
+            stat.total += Number(value);
+            stat.entered++;
+        }
+    });
+});
+
 html += `<tr class="total-row"><td colspan="3">TOTALS</td>`;
 
 subjects.forEach(s => {
-
-    const total = learnersData.reduce((sum, learner) => {
-
-        return sum + Number(learner[s.key] || 0);
-
-    }, 0);
-
+    const stat = subjectStats.get(s.key) || { total: 0, entered: 0 };
+    const total = stat.total;
     const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
-    html += scoreOnly ? `<td>${total}</td>` : `<td>${total}</td><td>-</td><td>-</td>`;
-
+    html += scoreOnly ? `<td class="combined-score-cell">${total}</td>` : `<td class="combined-score-cell">${total}</td><td class="combined-points-cell">-</td><td class="combined-level-cell">-</td>`;
 });
-
-const grandTotal = learnersData.reduce((sum, learner) => {
-
-    return sum + Number(learner.totalMarks || 0);
-
-}, 0);
 
 html += `<td>${grandTotal}</td><td>-</td></tr>`;
 
@@ -68878,24 +68882,13 @@ html += `<td>${grandTotal}</td><td>-</td></tr>`;
 html += `<tr class="avg-row"><td colspan="3">AVERAGE</td>`;
 
 subjects.forEach(s => {
-
-    const total = learnersData.reduce((sum, learner) => {
-
-        return sum + Number(learner[s.key] || 0);
-
-    }, 0);
-
-    const entered = learnersData.filter(learner => learner[s.key] != null).length;
-
-  const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
-  html += scoreOnly ? `<td>${entered ? (total / entered).toFixed(2) : ""}</td>` : `<td>${entered ? (total / entered).toFixed(2) : ""}</td><td>-</td><td>-</td>`;
-
+    const stat = subjectStats.get(s.key) || { total: 0, entered: 0 };
+    const average = stat.entered ? (stat.total / stat.entered).toFixed(2) : "";
+    const scoreOnly = isGrade1To3Value(rawGrade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
+    html += scoreOnly ? `<td class="combined-score-cell">${average}</td>` : `<td class="combined-score-cell">${average}</td><td class="combined-points-cell">-</td><td class="combined-level-cell">-</td>`;
 });
 
-const overallAverage = learnerCount > 0
-    ? grandTotal / learnerCount
-    : 0;
-
+const overallAverage = learnerCount > 0 ? grandTotal / learnerCount : 0;
 html += `<td>${overallAverage.toFixed(2)}</td><td>-</td></tr>`;
 
 html += "</tbody></table></div>";
