@@ -13303,7 +13303,7 @@ T
 </div>
 
 <div id="topStudentsSection" class="section" style="display:none; padding:20px;">
-  
+  <h2>👨🎓 Top 5 Students</h2>
   <div id="topStudentsContent"></div>
 </div>
 
@@ -47449,6 +47449,7 @@ Printed on ${generated}
 
 </body>
 
+
 </html>
 
 `);
@@ -47680,7 +47681,8 @@ const feeBreakdown = Object.entries(feesObj)
       </div>
 
     </body>
-    </html>
+    
+</html>
   `);
 
   receiptWindow.document.close();
@@ -48618,7 +48620,8 @@ window.generateBulkReceiptsByGrade = async function () {
 
             </body>
 
-            </html>
+            
+</html>
 
         `);
 
@@ -49924,9 +49927,17 @@ function subLearningAreaHasLevel(key) {
 }
 
 function isCalculableMainSubject(subject, gradeValue) {
+    // Christian Religious Education is a standalone report/calculation
+    // subject for Grades 1-6. It must NOT be treated as a Grade 1-3
+    // sub-learning area.
+    if (isCREStandaloneSubject(subject)) {
+        return true;
+    }
+
     if (isGrade1To6Value(gradeValue)) {
         return !isGrade13SubLearningAreaKey(subject);
     }
+
     return true;
 }
 
@@ -51232,10 +51243,23 @@ function getLoadedMarksMainSubjects(subjects, gradeValue) {
     const grade = getGradeNumber(gradeValue);
     const list = (subjects || []).map(s => String(s).trim()).filter(s => s && !isMarksMetadataField(s));
     if (grade >= 1 && grade <= 3) {
-        const canonicalMain = new Set(REPORT_GRADE13_MAIN_SUBJECTS.map(s => rasmCanonicalSubjectName(s)));
-        return list.filter(s => canonicalMain.has(rasmCanonicalSubjectName(s)));
+        const canonicalMain = new Set(
+            REPORT_GRADE13_MAIN_SUBJECTS.map(s => rasmCanonicalSubjectName(s))
+        );
+
+        // CRE is standalone for Grades 1-6, so include it even when
+        // the stored key is "CRE" or "Christian Religious Education".
+        return list.filter(s =>
+            isCREStandaloneSubject(s) ||
+            canonicalMain.has(rasmCanonicalSubjectName(s))
+        );
     }
-    return list.filter(s => isCREStandaloneSubject(s) || !isReportSubLearningArea(s));
+
+    // Grades 4-12: include standalone CRE as a normal calculable subject.
+    return list.filter(s =>
+        isCREStandaloneSubject(s) ||
+        !isReportSubLearningArea(s)
+    );
 }
 function calculateLoadedLearnerPerformance(learner, subjects, gradeValue) {
     const grade = getGradeNumber(gradeValue || learner?.grade);
@@ -57897,7 +57921,7 @@ letter-spacing:3px;
 text-transform:uppercase;
 opacity:.8;
 ">
-🎓 Top 5 Students
+RASM TECH 360
 </div>
 
 <h1 style="
@@ -61679,7 +61703,8 @@ subjects.forEach(subject => {
 
         </body>
 
-        </html>
+        
+</html>
       `);
 
       w.document.close();
@@ -69995,7 +70020,8 @@ window.generateParentList = async function () {
 
                     </body>
 
-                    </html>
+                    
+</html>
 
                 `);
 
@@ -77572,6 +77598,7 @@ padding:8px;
 ${content}
 
 </body>
+
 
 </html>
 `);
@@ -85560,7 +85587,8 @@ if (isTableBody || isFeeTable) {
 
     </body>
 
-    </html>
+    
+</html>
 
   `;
 
@@ -85601,7 +85629,8 @@ else {
 
     </body>
 
-    </html>
+    
+</html>
 
   `;
 
@@ -97292,7 +97321,8 @@ window.generateLibraryCardsByGrade = async function () {
 
             </body>
 
-            </html>
+            
+</html>
 
         `);
 
@@ -123312,7 +123342,8 @@ window.printReceipt = function(receipt) {
             <p><b>Transaction:</b> ${receipt.transactionId}</p>
             <p><b>Issued:</b> ${receipt.issuedAt}</p>
         </body>
-        </html>
+        
+</html>
     `);
 
     w.document.close();
@@ -124576,6 +124607,7 @@ img{
 ${content.innerHTML}
 
 </body>
+
 
 </html>
 
@@ -126867,6 +126899,7 @@ ${reportClone.innerHTML}
 
 
 </body>
+
 
 </html>
 
@@ -131323,6 +131356,7 @@ for (
 printWindow.document.write(`
 </body>
 
+
 </html>
 
 `);
@@ -131561,6 +131595,7 @@ window.getGrade1To6ReportLabel = function(level) {
   installLazyBorrowedBooks();
 })();
 </script>
+
 
 
 
@@ -134903,7 +134938,8 @@ function getCBCGradeResult(score, grade) {
     const school=window.currentSchool||{};
     const win=window.open("","_blank","width=1200,height=850");
     if(!win){ try{ Swal.fire("Print Blocked","Please allow pop-ups for RASM 360, then try again.","warning"); }catch(_){} return; }
-    win.document.write(`<!doctype html><html><head><title>${esc(school.name||"RASM 360")} — Examination Analysis</title><meta charset="utf-8"><style>body{font-family:Arial,Helvetica,sans-serif;color:#111827;padding:24px}h1{font-size:22px;margin:0 0 4px}h2,h3{color:#111827}table{width:100%;border-collapse:collapse;margin:10px 0 20px;font-size:11px}th{background:#111827;color:#fff;padding:7px;text-align:left}td{border:1px solid #ddd;padding:7px}.rasm-analysis-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.rasm-analysis-card{border:1px solid #ddd;padding:10px;border-radius:8px}.rasm-analysis-card .k{font-size:9px;color:#666}.rasm-analysis-card .v{font-size:18px;font-weight:bold}.rasm-analysis-card .s{font-size:9px;color:#666}.rasm-analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.rasm-analysis-panel{border:1px solid #ddd;padding:10px;border-radius:8px;margin-bottom:12px}.rasm-analysis-note{padding:8px;background:#f3f6fa}.rasm-analysis-list{line-height:1.7}@media print{body{padding:0}}</style></head><body><h1>${esc(school.name||"RASM 360 School")}</h1><div>${esc(school.motto||"")}</div><hr>${report.innerHTML}</body></html>`);
+    win.document.write(`<!doctype html><html><head><title>${esc(school.name||"RASM 360")} — Examination Analysis</title><meta charset="utf-8"><style>body{font-family:Arial,Helvetica,sans-serif;color:#111827;padding:24px}h1{font-size:22px;margin:0 0 4px}h2,h3{color:#111827}table{width:100%;border-collapse:collapse;margin:10px 0 20px;font-size:11px}th{background:#111827;color:#fff;padding:7px;text-align:left}td{border:1px solid #ddd;padding:7px}.rasm-analysis-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.rasm-analysis-card{border:1px solid #ddd;padding:10px;border-radius:8px}.rasm-analysis-card .k{font-size:9px;color:#666}.rasm-analysis-card .v{font-size:18px;font-weight:bold}.rasm-analysis-card .s{font-size:9px;color:#666}.rasm-analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.rasm-analysis-panel{border:1px solid #ddd;padding:10px;border-radius:8px;margin-bottom:12px}.rasm-analysis-note{padding:8px;background:#f3f6fa}.rasm-analysis-list{line-height:1.7}@media print{body{padding:0}}</style></head><body><h1>${esc(school.name||"RASM 360 School")}</h1><div>${esc(school.motto||"")}</div><hr>${report.innerHTML}</body>
+</html>`);
     win.document.close(); win.focus(); setTimeout(()=>win.print(),250);
   }
   window.runRasmExamAnalysis=runExamAnalysis;
@@ -136104,7 +136140,8 @@ return `
       </style></head><body>
       ${schoolHeaderX(title)}
       ${body}
-      </body></html>`);
+      </body>
+</html>`);
     win.document.close();
   };
 
@@ -138928,7 +138965,6 @@ window.openAdminRecycleBin = function () {
     {module:"transport",     label:"Transport",      list:"#transportList",      section:"#transport",     single:"deleteTransport",     path:(sid,id)=>`schools/${sid}/transport/${id}`},
     {module:"hostel",        label:"Hostel",         list:"#hostelList",         section:"#hostel",        single:"deleteHostel",        path:(sid,id)=>`hostel/${sid}/${id}`},
     {module:"inventory",     label:"Inventory",      list:"#inventoryList",      section:"#inventory",     single:"deleteInventory",     path:(sid,id)=>`inventory/${sid}/${id}`},
-    {module:"library",       label:"Library",        list:"#libraryList",        section:"#library",       single:"deleteBook",           path:(sid,id)=>`library/${sid}/${id}`},
     {module:"fees",          label:"Fees",           list:"#feesTable tbody",   section:"#fees",          single:"deleteFee",            path:(sid,id)=>{
       const year=String(document.getElementById("filterFeeYear")?.value || new Date().getFullYear());
       return `schools/${sid}/fees/${year}/${id}`;
@@ -140061,7 +140097,8 @@ window.openAdminRecycleBin = function () {
       <h1>📚 Library Management Report</h1><p>Generated ${esc(now.toLocaleString())}</p>
       <div class="metrics"><div class="metric"><b>Titles</b><br>${books.length}</div><div class="metric"><b>Active Loans</b><br>${loans.filter(x=>!x.returned).length}</div><div class="metric"><b>Overdue</b><br>${overdue}</div></div>
       <table><thead><tr><th>#</th><th>Book</th><th>Grade</th><th>Author</th><th>Total</th><th>Available</th><th>Borrowed</th><th>Lost</th><th>Shelf</th></tr></thead><tbody>${rows}</tbody></table>
-      <script>window.onload=()=>window.print();<\/script></body></html>`);
+      <script>window.onload=()=>window.print();<\/script></body>
+</html>`);
     w.document.close();
   };
 
@@ -140336,4 +140373,337 @@ window.openAdminRecycleBin = function () {
  </script>
 
 </body>
+
+
+<!-- =========================================================
+     RASM 360 — AUTHORITATIVE LIBRARY RETURN CENTER + CLEARANCE FIX
+     Uses existing global Firebase helpers only.
+     Book Copies remain the source of truth for Lost/Damaged status.
+========================================================= -->
+<script>
+(function(){
+  'use strict';
+
+  const escSafe = window.esc || function(v){
+    return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  };
+  const normSafe = v => String(v ?? '').trim().toLowerCase();
+  const compactSafe = v => normSafe(v).replace(/[^a-z0-9]/g,'');
+  const schoolIdSafe = () => String(window.schoolId || localStorage.getItem('schoolId') || '').trim();
+
+  async function liveGet(firebaseRef){
+    if(typeof window.rasmFreshGet === 'function') return await window.rasmFreshGet(firebaseRef);
+    if(typeof window.fastGet === 'function') return await window.fastGet(firebaseRef);
+    throw new Error('Firebase read service is not ready. Please wait a moment and try again.');
+  }
+
+  async function liveUpdate(firebaseRoot, updates){
+    if(typeof window.rasmBackgroundUpdate === 'function') return await window.rasmBackgroundUpdate(firebaseRoot, updates);
+    if(typeof window.rasmBackgroundSet === 'function'){
+      for(const path of Object.keys(updates)){
+        await window.rasmBackgroundSet(ref(db,path),updates[path]);
+      }
+      return true;
+    }
+    if(typeof update === 'function') return await update(firebaseRoot,updates);
+    throw new Error('Firebase update service is not ready. Please wait a moment and try again.');
+  }
+
+  function learnerName(row){
+    return String(row?.borrowerName || row?.borrower || row?.learnerName || row?.studentName || 'Unknown Learner').trim();
+  }
+  function learnerKey(row){
+    return String(row?.borrowerId || row?.borrowerAdm || row?.studentId || row?.learnerId || learnerName(row)).trim();
+  }
+
+  async function readActiveBorrowings(){
+    const sid=schoolIdSafe();
+    if(!sid) throw new Error('School session is missing. Please login again.');
+    const snap=await liveGet(ref(db,`libraryBorrowings/${sid}`));
+    const rows=[];
+    if(!snap.exists()) return rows;
+    snap.forEach(ch=>{
+      const r={id:ch.key,...(ch.val()||{})};
+      if(r.returned===true) return;
+      if(r.cancelled===true || r.deleted===true) return;
+      rows.push(r);
+    });
+    return rows;
+  }
+
+  function hydrateReturnFilters(rows){
+    const grade=document.getElementById('returnGradeFilter');
+    const year=document.getElementById('returnYearFilter');
+    const grades=new Set(), years=new Set();
+    rows.forEach(r=>{
+      const g=String(r.grade || r.class || '').trim();
+      const y=String(r.year || (r.borrowDateISO||'').slice(0,4) || '').trim();
+      if(g) grades.add(g);
+      if(y) years.add(y);
+    });
+    if(grade){
+      const old=grade.value || 'All';
+      grade.innerHTML='<option value="All">🎓 All Grades</option>'+[...grades].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(g=>`<option value="${escSafe(g)}">${escSafe(g)}</option>`).join('');
+      if([...grades].includes(old)) grade.value=old;
+    }
+    if(year){
+      const old=year.value || 'All';
+      year.innerHTML='<option value="All">📅 All Years</option>'+[...years].sort((a,b)=>Number(b)-Number(a)).map(y=>`<option value="${escSafe(y)}">${escSafe(y)}</option>`).join('');
+      if([...years].includes(old)) year.value=old;
+    }
+  }
+
+  function renderReturns(){
+    const container=document.getElementById('returnsContainer');
+    if(!container) return;
+    const rows=Array.isArray(window.allBorrowings)?window.allBorrowings:[];
+    const search=normSafe(document.getElementById('returnSearch')?.value || '');
+    const grade=document.getElementById('returnGradeFilter')?.value || 'All';
+    const year=document.getElementById('returnYearFilter')?.value || 'All';
+    const type=document.getElementById('returnFilter')?.value || 'All';
+
+    const filtered=rows.filter(r=>{
+      const name=normSafe(learnerName(r));
+      const adm=normSafe(r.borrowerAdm || r.admissionNo || r.admission || '');
+      const book=normSafe(r.bookTitle || r.title || '');
+      const number=normSafe(r.bookNumber || '');
+      const hay=[name,adm,book,number].join(' ');
+      const ry=String(r.year || (r.borrowDateISO||'').slice(0,4) || '').trim();
+      return (!search || hay.includes(search)) &&
+             (grade==='All' || String(r.grade||r.class||'').trim()===String(grade)) &&
+             (year==='All' || ry===String(year)) &&
+             (type==='All' || String(r.borrowerType||'Student').trim()===String(type));
+    });
+    window.filteredBorrowings=filtered;
+
+    if(!filtered.length){
+      container.innerHTML='<div style="padding:28px;border:1px dashed #cbd5e1;border-radius:12px;text-align:center;color:#64748b;background:#f8fafc;font-weight:700;">📚 No currently borrowed books match the selected filters.</div>';
+      const d=document.getElementById('returnsDashboard');
+      if(d) d.innerHTML='<div style="padding:12px;background:#f8fafc;border-radius:10px;font-weight:800;">Active Borrowers: 0</div><div style="padding:12px;background:#f8fafc;border-radius:10px;font-weight:800;">Borrowed Books: 0</div>';
+      return;
+    }
+
+    const groups=new Map();
+    filtered.forEach(r=>{
+      const key=learnerKey(r);
+      if(!groups.has(key)) groups.set(key,{name:learnerName(r),adm:r.borrowerAdm||r.admissionNo||r.admission||'-',grade:r.grade||r.class||'-',type:r.borrowerType||'Student',rows:[]});
+      groups.get(key).rows.push(r);
+    });
+
+    const totalBooks=filtered.length;
+    const dashboard=document.getElementById('returnsDashboard');
+    if(dashboard) dashboard.innerHTML=`<div style="padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-weight:800;">👥 Active Borrowers: ${groups.size}</div><div style="padding:12px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;font-weight:800;">📚 Borrowed Books: ${totalBooks}</div>`;
+
+    let html='';
+    let index=0;
+    for(const g of groups.values()){
+      index++;
+      html+=`<section style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 3px 12px rgba(15,23,42,.05);">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+          <div><div style="font-size:16px;font-weight:900;color:#0f172a;">👤 ${escSafe(g.name)}</div><div style="font-size:12px;color:#64748b;margin-top:3px;">Admission: <b>${escSafe(g.adm)}</b> &nbsp;|&nbsp; Grade: <b>${escSafe(g.grade)}</b> &nbsp;|&nbsp; Type: <b>${escSafe(g.type)}</b></div></div>
+          <div style="font-weight:900;color:#2563eb;">${g.rows.length} borrowed</div>
+        </div>
+        <div style="overflow-x:auto;"><table style="width:100%;min-width:850px;border-collapse:collapse;"><thead><tr style="background:#0f172a;color:#fff;"><th style="padding:9px;text-align:center;width:45px;"><input type="checkbox" class="return-group-check" data-group="${escSafe(String(index))}"></th><th style="padding:9px;text-align:left;">Book</th><th style="padding:9px;text-align:left;">Book No.</th><th style="padding:9px;text-align:left;">Borrowed</th><th style="padding:9px;text-align:left;">Due</th><th style="padding:9px;text-align:left;">Status</th><th style="padding:9px;text-align:left;">Action</th></tr></thead><tbody>`;
+      g.rows.forEach(r=>{
+        const overdue=!!r.dueDate && new Date(String(r.dueDate).slice(0,10)+'T23:59:59')<new Date();
+        html+=`<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:9px;text-align:center;"><input type="checkbox" class="return-row-check" data-id="${escSafe(r.id)}"></td><td style="padding:9px;font-weight:800;">${escSafe(r.bookTitle||r.title||'Unknown Book')}</td><td style="padding:9px;">${escSafe(r.bookNumber||'-')}</td><td style="padding:9px;">${escSafe(r.borrowDate||r.borrowDateISO||'-')}</td><td style="padding:9px;">${escSafe(r.dueDate||'-')}</td><td style="padding:9px;font-weight:800;color:${overdue?'#dc2626':'#16a34a'};">${overdue?'⏰ OVERDUE':'🟢 BORROWED'}</td><td style="padding:9px;"><button type="button" class="return-one-btn" data-id="${escSafe(r.id)}" style="border:0;border-radius:8px;padding:7px 11px;background:#16a34a;color:#fff;font-weight:800;cursor:pointer;">↩️ Return</button></td></tr>`;
+      });
+      html+='</tbody></table></div></section>';
+    }
+    container.innerHTML=html;
+
+    container.querySelectorAll('.return-one-btn').forEach(btn=>btn.addEventListener('click',async()=>{
+      const id=btn.dataset.id;
+      const row=window.allBorrowings.find(x=>String(x.id)===String(id));
+      if(row) await window.returnBorrowedBook(row.id,row.bookId,false);
+    }));
+    container.querySelectorAll('.return-group-check').forEach(chk=>{
+      chk.addEventListener('change',()=>{
+        const section=chk.closest('section');
+        section?.querySelectorAll('.return-row-check').forEach(x=>x.checked=chk.checked);
+      });
+    });
+  }
+
+  window.applyReturnsFilters=renderReturns;
+
+  window.loadReturnsCenter=async function(){
+    try{
+      const rows=await readActiveBorrowings();
+      window.allBorrowings=rows;
+      window.filteredBorrowings=rows.slice();
+      hydrateReturnFilters(rows);
+      renderReturns();
+      const bind=(id,fn)=>{const el=document.getElementById(id);if(el&&!el.dataset.rasmReturnBound){el.dataset.rasmReturnBound='1';el.addEventListener('input',fn);el.addEventListener('change',fn);}};
+      bind('returnSearch',renderReturns);bind('returnGradeFilter',renderReturns);bind('returnYearFilter',renderReturns);bind('returnFilter',renderReturns);
+      const selectAll=document.getElementById('selectAllBorrowings');
+      if(selectAll&&!selectAll.dataset.rasmReturnBound){selectAll.dataset.rasmReturnBound='1';selectAll.addEventListener('change',()=>document.querySelectorAll('.return-row-check').forEach(x=>x.checked=selectAll.checked));}
+      const bulk=document.getElementById('returnSelectedBtn');
+      if(bulk&&!bulk.dataset.rasmReturnBound){
+        bulk.dataset.rasmReturnBound='1';
+        bulk.addEventListener('click',async()=>{
+          const ids=[...document.querySelectorAll('.return-row-check:checked')].map(x=>x.dataset.id).filter(Boolean);
+          if(!ids.length) return Swal.fire('Nothing Selected','Select one or more borrowed books first.','warning');
+          const ok=await Swal.fire({icon:'question',title:'Return Selected Books?',html:`Return <b>${ids.length}</b> selected borrowed book(s)?`,showCancelButton:true,confirmButtonText:'Return Selected',confirmButtonColor:'#16a34a'});
+          if(!ok.isConfirmed)return;
+          for(const id of ids){const row=window.allBorrowings.find(x=>String(x.id)===String(id));if(row) await window.returnBorrowedBook(row.id,row.bookId,true);}
+          await window.loadReturnsCenter();
+          Swal.fire({icon:'success',title:'Books Returned',text:`${ids.length} selected book(s) have been returned.`,timer:1100,showConfirmButton:false});
+        });
+      }
+    }catch(e){
+      console.error('Returns Center load failed:',e);
+      const c=document.getElementById('returnsContainer');
+      if(c)c.innerHTML=`<div style="padding:25px;color:#991b1b;background:#fef2f2;border-radius:10px">❌ Unable to load borrowed books: ${escSafe(e.message||e)}</div>`;
+    }
+  };
+
+  window.returnBorrowedBook=async function(borrowId,bookId,silent=false){
+    const sid=schoolIdSafe();
+    try{
+      if(!sid) throw new Error('School session is missing.');
+      if(!silent) openSweetLoader('Returning Book...');
+      const borrowRef=ref(db,`libraryBorrowings/${sid}/${borrowId}`);
+      const borrowSnap=await liveGet(borrowRef);
+      if(!borrowSnap.exists()) throw new Error('Borrowing record was not found.');
+      const loan=borrowSnap.val()||{};
+      const resolvedBookId=bookId||loan.bookId;
+      if(!resolvedBookId) throw new Error('The borrowing record has no Book ID.');
+      const bookRef=ref(db,`library/${sid}/${resolvedBookId}`);
+      const bookSnap=await liveGet(bookRef);
+      if(!bookSnap.exists()) throw new Error('Book record was not found.');
+      const book=bookSnap.val()||{};
+      const copies={...(book.copies||{})};
+      let copyKey=Object.keys(copies).find(k=>String(k)===String(loan.bookNumber));
+      if(!copyKey) copyKey=Object.keys(copies).find(k=>String(copies[k]?.bookNumber||k)===String(loan.bookNumber));
+      if(!copyKey) throw new Error(`Book copy ${loan.bookNumber||''} could not be found.`);
+      const copy={...(copies[copyKey]||{})};
+      copy.status='Available';
+      copy.returnedDate=new Date().toLocaleDateString();
+      copy.actualReturnDate=copy.returnedDate;
+      copy.borrower=null;copy.borrowerName=null;copy.borrowerAdm=null;copy.borrowerId=null;copy.borrowId=null;copy.studentId=null;copy.borrowerType=null;copy.borrowDate=null;copy.borrowDateISO=null;copy.dueDate=null;
+      if(typeof addCopyHistory==='function') addCopyHistory(copy,'Returned',`${loan.borrowerName||loan.borrower||'Borrower'} — ${loan.bookNumber||copyKey}`);
+      copies[copyKey]=copy;
+      const available=Object.values(copies).filter(c=>normSafe(c?.status)==='available').length;
+      const updates={};
+      updates[`libraryBorrowings/${sid}/${borrowId}/returned`]=true;
+      updates[`libraryBorrowings/${sid}/${borrowId}/actualReturnDate`]=new Date().toLocaleDateString();
+      updates[`library/${sid}/${resolvedBookId}/copies/${copyKey}`]=copy;
+      updates[`library/${sid}/${resolvedBookId}/available`]=available;
+      await liveUpdate(ref(db),updates);
+      if(Array.isArray(window.allBorrowings)) window.allBorrowings=window.allBorrowings.filter(x=>String(x.id)!==String(borrowId));
+      if(!silent){closeSweetLoader();await Swal.fire('Returned','Book returned successfully. The exact Book Copy is now Available.','success');}
+      else closeSweetLoader();
+      renderReturns();
+      if(typeof window.loadLibrary==='function') window.loadLibrary();
+      return true;
+    }catch(e){
+      closeSweetLoader();
+      console.error('Return failed:',e);
+      if(!silent) await Swal.fire('Return Failed',e.message||'Unable to return the book.','error');
+      return false;
+    }
+  };
+
+  function idsOfLearner(l){return [l?.id,l?.studentId,l?.admissionNo,l?.admission,l?.adm,l?.admNo].map(v=>String(v??'').trim()).filter(Boolean).map(normSafe);}
+  function namesOfLearner(l){return [l?.name,l?.fullName,l?.studentName].map(v=>String(v??'').trim()).filter(Boolean).map(normSafe);}
+  function copyMatchesLearner(copy,l){
+    const ids=new Set(idsOfLearner(l));
+    const cids=[copy?.borrowerId,copy?.borrowId,copy?.borrowerAdm,copy?.studentId,copy?.learnerId,copy?.lostLearnerId,copy?.admissionNo,copy?.admission,copy?.adm,copy?.lostAccountability?.learnerId].map(v=>String(v??'').trim()).filter(Boolean).map(normSafe);
+    if(cids.some(v=>ids.has(v))) return true;
+    const names=new Set(namesOfLearner(l));
+    const cn=[copy?.borrowerName,copy?.borrower,copy?.studentName,copy?.learnerName,copy?.lostAccountability?.learnerName].map(v=>String(v??'').trim()).filter(Boolean).map(normSafe);
+    if(cn.some(v=>names.has(v))) return true;
+    const compactNames=[...names].map(compactSafe).filter(v=>v.length>=5);
+    return cn.some(v=>{const c=compactSafe(v);return compactNames.some(w=>c===w || (w.length>=8&&(c.includes(w)||w.includes(c))));});
+  }
+  function copyResolved(copy){
+    const m=copy?.lostAccountability||{};
+    return !!(m.replaced||m.resolved||m.cleared||m.replacementDate||m.replacedAt||copy?.replacementDate||copy?.replacedAt||copy?.damageResolved||copy?.repairCompletedDate);
+  }
+  function copyYear(copy){
+    const m=copy?.lostAccountability||{};
+    const values=[m.year,copy?.lostYear,copy?.year,m.lostDate,copy?.lostDate,copy?.damagedDate,m.markedAt];
+    for(const v of values){const match=String(v??'').match(/(?:19|20)\d{2}/);if(match)return match[0];}
+    return '';
+  }
+  async function selectedLearner(){
+    const wanted=String(document.getElementById('lostBookLearner')?.value||'').trim();
+    const students=Array.isArray(window.allStudents)?window.allStudents:[];
+    let learner=students.find(s=>idsOfLearner(s).includes(normSafe(wanted)));
+    if(!learner && wanted && typeof schoolRef==='function'){
+      try{const snap=await liveGet(schoolRef('students'));if(snap.exists())snap.forEach(ch=>{const s={...(ch.val()||{}),id:ch.key};if(!learner&&idsOfLearner(s).includes(normSafe(wanted)))learner=s;});}catch(e){console.warn('Learner lookup failed:',e);}
+    }
+    return learner||null;
+  }
+  async function currentIssues(learner,year,grade){
+    const sid=schoolIdSafe();
+    if(!sid) throw new Error('School session is missing.');
+    const snap=await liveGet(ref(db,`library/${sid}`));
+    const rows=[];
+    if(!snap.exists()) return rows;
+    snap.forEach(bookChild=>{
+      const book=bookChild.val()||{};
+      Object.entries(book.copies||{}).forEach(([key,raw])=>{
+        const copy=raw||{},status=normSafe(copy.status);
+        if(status!=='lost'&&status!=='damaged') return;
+        if(!copyMatchesLearner(copy,learner)) return;
+        if(copyResolved(copy)) return;
+        const recYear=copyYear(copy);
+        const meta=copy.lostAccountability||{};
+        const recGrade=String(meta.grade||copy.grade||copy.class||copy.gradeName||'').trim();
+        if(year&&recYear&&recYear!==String(year)) return;
+        if(grade&&recGrade&&normSafe(recGrade)!==normSafe(grade)) return;
+        rows.push({bookId:bookChild.key,bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',bookNumber:copy.bookNumber||key,status,lostDate:copy.lostDate||copy.damagedDate||meta.lostDate||'-',reason:copy.lostReason||copy.damageReason||meta.reason||'-'});
+      });
+    });
+    return rows;
+  }
+
+  window.generateLostBooksAccountability=async function(){
+    const year=String(document.getElementById('lostBookYear')?.value||'').trim();
+    const grade=String(document.getElementById('lostBookGrade')?.value||'').trim();
+    const result=document.getElementById('lostBooksAccountabilityResult');
+    const learner=await selectedLearner();
+    if(!year||!grade||!learner)return Swal.fire('Missing Selection','Select Year, Grade and Learner first.','warning');
+    openSweetLoader('Checking current Book Copies...');
+    try{
+      const rows=await currentIssues(learner,year,grade);closeSweetLoader();
+      const name=learnerName({borrowerName:learner.name||learner.fullName||learner.studentName});
+      if(!result)return;
+      if(!rows.length){result.innerHTML=`<div style="padding:18px;border-radius:10px;background:#f0fdf4;color:#166534;font-weight:800;">✅ ${escSafe(name)} has no unresolved Lost or Damaged Book Copy for ${escSafe(grade)}, ${escSafe(year)}.</div>`;return;}
+      result.innerHTML=`<div style="padding:12px 0;font-weight:900;color:#991b1b;">📋 Current Book Copies Accountability — ${escSafe(name)} | ${escSafe(grade)} | ${escSafe(year)}</div><table style="width:100%;min-width:760px;border-collapse:collapse;background:#fff"><thead><tr style="background:#fee2e2;color:#991b1b"><th style="padding:10px;text-align:left">Book</th><th style="padding:10px;text-align:left">Book No.</th><th style="padding:10px;text-align:left">Condition</th><th style="padding:10px;text-align:left">Date</th><th style="padding:10px;text-align:left">Remarks</th><th style="padding:10px;text-align:left">Accountability</th></tr></thead><tbody>${rows.map(r=>`<tr style="border-bottom:1px solid #eee"><td style="padding:10px">${escSafe(r.bookTitle)}</td><td style="padding:10px">${escSafe(r.bookNumber)}</td><td style="padding:10px;font-weight:900;color:#dc2626">${r.status==='lost'?'❌ Lost':'⚠️ Damaged'}</td><td style="padding:10px">${escSafe(r.lostDate)}</td><td style="padding:10px">${escSafe(r.reason)}</td><td style="padding:10px;font-weight:900;color:#dc2626">❌ Unresolved — Clearance Blocked</td></tr>`).join('')}</tbody></table><div style="margin-top:12px;padding:14px;border-radius:9px;background:#fef2f2;color:#991b1b;font-weight:900">⛔ The learner cannot be cleared until every listed Book Copy is replaced or resolved.</div>`;
+    }catch(e){closeSweetLoader();console.error('Lost-book accountability failed:',e);Swal.fire('Error',e.message||'Unable to read Book Copies.','error');}
+  };
+
+  window.runLearnerLibraryClearance=async function(){
+    const year=String(document.getElementById('lostBookYear')?.value||'').trim();
+    const grade=String(document.getElementById('lostBookGrade')?.value||'').trim();
+    const learner=await selectedLearner();
+    if(!year||!grade||!learner)return Swal.fire('Missing Selection','Select Year, Grade and Learner first.','warning');
+    openSweetLoader('Checking current Book Copies before clearance...');
+    try{
+      const rows=await currentIssues(learner,year,grade);closeSweetLoader();
+      const name=learner.name||learner.fullName||learner.studentName||'Learner';
+      if(rows.length){
+        const list=rows.map(r=>`<div style="padding:9px 0;border-bottom:1px solid #fecaca"><b>${escSafe(r.bookTitle)}</b> — <b>${escSafe(r.bookNumber)}</b> — ${r.status==='lost'?'❌ LOST':'⚠️ DAMAGED'}<br><span style="font-size:12px">${escSafe(r.reason)}</span></div>`).join('');
+        return Swal.fire({icon:'error',title:'⛔ Clearance Blocked',html:`<div style="text-align:left"><b>${escSafe(name)}</b> still has unresolved book accountability in <b>Book Copies</b>:<div style="margin-top:12px;background:#fef2f2;padding:10px;border-radius:8px">${list}</div><p style="margin:12px 0 0;color:#991b1b;font-weight:900">This learner cannot be cleared until every Lost/Damaged copy above is replaced or resolved.</p></div>`,confirmButtonText:'Understood'});
+      }
+      const ok=await Swal.fire({icon:'success',title:'✅ Eligible for Clearance',html:`<b>${escSafe(name)}</b> has no unresolved Lost or Damaged Book Copy for <b>${escSafe(grade)}, ${escSafe(year)}</b>.<br><br>Proceed with library clearance?`,showCancelButton:true,confirmButtonText:'⏻ Clear Learner',confirmButtonColor:'#16a34a'});
+      if(!ok.isConfirmed)return;
+      const lid=learner.id||learner.studentId||learner.admissionNo||learner.admission||learner.adm||'';
+      const key=`libraryClearance_${schoolIdSafe()}_${compactSafe(lid)}_${year}`;
+      localStorage.setItem(key,JSON.stringify({learnerId:lid,learnerName:name,grade,year,cleared:true,clearedAt:Date.now(),clearanceDate:new Date().toLocaleString()}));
+      await Swal.fire('Cleared Successfully',`${escSafe(name)} has been cleared by the Library Return Center.`,'success');
+    }catch(e){closeSweetLoader();console.error('Library clearance failed:',e);Swal.fire('Error',e.message||'Unable to verify clearance.','error');}
+  };
+
+  // Ensure the filters exist and are refreshed when the Library tab opens.
+  document.addEventListener('change',e=>{if(e.target?.id==='lostBookGrade'&&typeof window.loadLostBooksLearners==='function')window.loadLostBooksLearners();});
+  window.addEventListener('load',()=>setTimeout(()=>{if(document.getElementById('returnsContainer'))window.loadReturnsCenter().catch(()=>{});},300));
+
+  console.log('✅ RASM 360 authoritative Library Return Center + Book Copies clearance patch loaded.');
+})();
+</script>
+
 </html>
