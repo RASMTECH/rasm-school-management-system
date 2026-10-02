@@ -51741,6 +51741,183 @@ const subjects = getMarksDisplaySubjects(
     };
   }
 
+  // =========================================================
+  // 📲 SHARE LEARNER PROGRESS TO PARENT VIA WHATSAPP
+  // Uses the parent phone number registered against the learner.
+  // =========================================================
+  function progressNormalizeKenyaPhone(value){
+    let phone = String(value || "")
+      .trim()
+      .replace(/[\s()\-]/g, "");
+
+    if (!phone) return "";
+
+    if (phone.startsWith("+254")) phone = phone.substring(1);
+    if (phone.startsWith("254")) return phone;
+    if (/^0[17]\d{8}$/.test(phone)) return "254" + phone.substring(1);
+    if (/^[17]\d{8}$/.test(phone)) return "254" + phone;
+
+    return phone.replace(/[^0-9]/g, "");
+  }
+
+  function progressFindRegisteredLearner(studentId, learner){
+    const candidates = [
+      ...(Array.isArray(window.allStudents) ? window.allStudents : []),
+      learner || {}
+    ];
+
+    const target = String(
+      studentId ?? learner?.id ?? learner?.studentId ?? learner?.learnerId ?? ""
+    ).trim();
+
+    return candidates.find(student => {
+      const ids = [
+        student?.id,
+        student?.key,
+        student?.studentId,
+        student?.learnerId,
+        student?.admissionNo,
+        student?.admission,
+        student?.adm
+      ].map(v => String(v ?? "").trim()).filter(Boolean);
+
+      return target && ids.includes(target);
+    }) || learner || null;
+  }
+
+  window.shareLearnerProgressToWhatsApp = function(){
+    try {
+      const data = window.__rasmLearnerProgressShareData;
+      if (!data?.learner) {
+        return Swal.fire("Share Error", "Learner progress information is not ready.", "error");
+      }
+
+      const registeredLearner = progressFindRegisteredLearner(
+        data.studentId,
+        data.learner
+      );
+
+      const parentPhone =
+        registeredLearner?.parentPhone ||
+        registeredLearner?.parent_phone ||
+        registeredLearner?.parentContact ||
+        registeredLearner?.guardianPhone ||
+        registeredLearner?.guardian_phone ||
+        data.learner?.parentPhone ||
+        "";
+
+      const phone = progressNormalizeKenyaPhone(parentPhone);
+
+      if (!phone || phone.length < 11) {
+        return Swal.fire({
+          icon: "warning",
+          title: "Parent Phone Not Registered",
+          html: `No valid parent phone number is registered for <b>${progressEscape(data.learner?.name || "this learner")}</b>.<br><br>Update the learner's registered parent phone number first.`,
+          confirmButtonColor: "#2563eb"
+        });
+      }
+
+      const learnerName = String(data.learner?.name || "Learner");
+      const grade = String(data.grade || data.learner?.grade || "");
+      const currentLabel = String(data.currentLabel || "Current Exam");
+      const previousLabel = String(data.previousLabel || "Previous Exam");
+      const currentAvg = Number(data.currentAvg);
+      const previousAvg = Number(data.previousAvg);
+      const overallDeviation = data.overallDeviation;
+
+      const fmtScore = value =>
+        value === null || value === undefined || value === "" || !Number.isFinite(Number(value))
+          ? "—"
+          : Number(value).toFixed(1);
+
+      const fmtDeviation = value => {
+        if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "—";
+        const n = Number(value);
+        return `${n > 0 ? "+" : ""}${n.toFixed(1)}`;
+      };
+
+      const statusIcon = status => {
+        const s = String(status || "").toLowerCase();
+        if (s === "improved") return "🟢";
+        if (s === "dropped") return "🔴";
+        if (s === "same") return "🟡";
+        if (s === "new") return "🔵";
+        return "⚪";
+      };
+
+      // Build a clean WhatsApp-friendly report.
+      // IMPORTANT: use real newline characters, not the literal characters "\\n".
+      const lines = [
+        `📊 *RASM 360 — LEARNER PROGRESS REPORT*`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `👤 *Learner:* ${learnerName}`,
+        `🎓 *Grade:* ${grade}`,
+        ``,
+        `📝 *CURRENT ASSESSMENT*`,
+        `${currentLabel}`,
+        `📈 Average: *${Number.isFinite(currentAvg) ? currentAvg.toFixed(1) + "%" : "—"}*`,
+        ``,
+        `📚 *PREVIOUS ASSESSMENT*`,
+        `${previousLabel}`,
+        `📉 Average: *${Number.isFinite(previousAvg) && data.countPrevious ? previousAvg.toFixed(1) + "%" : "—"}*`,
+        ``,
+        `📌 *OVERALL CHANGE:* ${fmtDeviation(overallDeviation)} marks`,
+        ``,
+        `📚 *SUBJECT-BY-SUBJECT PROGRESS*`,
+        `━━━━━━━━━━━━━━━━━━━━`
+      ];
+
+      (data.subjects || []).forEach(item => {
+        const current = fmtScore(item.current);
+        const previous = fmtScore(item.previous);
+        const deviation = fmtDeviation(item.deviation);
+        const status = item.status || (item.previous === null || item.previous === undefined ? "New" : "Same");
+
+        lines.push(
+          `*${item.subject}*`,
+          `Current: *${current}*   Previous: *${previous}*`,
+          `Change: *${deviation}* marks   ${statusIcon(status)} ${status}`,
+          ``
+        );
+      });
+
+      if (data.adviceTitle || data.adviceBody) {
+        lines.push(
+          `💡 *${data.adviceTitle || "PROGRESS NOTE"}*`,
+          String(data.adviceBody || ""),
+          ``
+        );
+      }
+
+      if (Array.isArray(data.drops) && data.drops.length) {
+        lines.push(
+          `🔎 *SUBJECTS REQUIRING ATTENTION*`,
+          `━━━━━━━━━━━━━━━━━━━━`
+        );
+
+        data.drops.slice(0, 5).forEach(item => {
+          lines.push(`🔴 *${item.subject}:* ${fmtDeviation(item.deviation)} marks`);
+        });
+
+        lines.push(``);
+      }
+
+      lines.push(
+        `📌 *Please review the learner's progress and provide support in the subjects requiring attention.*`,
+        ``,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `📲 Shared via *RASM 360 School Management*`
+      );
+
+      const message = lines.join("\n");
+      const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("WhatsApp learner progress share error:", error);
+      Swal.fire("Share Error", error?.message || "Unable to prepare the WhatsApp message.", "error");
+    }
+  };
+
   window.openLearnerProgressFromResults = async function(studentId){
     try {
       if (typeof window.canAccessResults === "function" && !window.canAccessResults(studentId)) {
@@ -51779,6 +51956,7 @@ const subjects = getMarksDisplaySubjects(
 
       let totalCurrent=0, totalPrevious=0, countCurrent=0, countPrevious=0;
       const rows=[];
+      const shareRows=[];
       const drops=[];
       const missingPrevious=[];
 
@@ -51808,6 +51986,13 @@ const subjects = getMarksDisplaySubjects(
             <td><span class="progress-deviation ${devClass}">${progressEscape(devText)}</span></td>
             <td><span class="progress-status ${devClass}">${progressEscape(status || (prev===null ? "New" : "—"))}</span></td>
           </tr>`);
+        shareRows.push({
+          subject: canonical,
+          current: cur,
+          previous: prev,
+          deviation,
+          status: status || (prev === null ? "New" : "—")
+        });
       });
 
       drops.sort((a,b) => a.deviation-b.deviation);
@@ -51817,6 +52002,26 @@ const subjects = getMarksDisplaySubjects(
       const advice = recommendationText(drops,missingPrevious,grade);
       const previousLabel = previousKey ? progressPeriodLabel(previousKey) : "No previous exam recorded";
       const currentLabel = progressPeriodLabel(currentKey);
+
+      // Store the complete share payload while the progress modal is open.
+      // Parent contact comes from the registered learner record.
+      const registeredLearner = progressFindRegisteredLearner(studentId, learner);
+      window.__rasmLearnerProgressShareData = {
+        studentId,
+        learner,
+        registeredLearner,
+        grade,
+        currentLabel,
+        previousLabel,
+        currentAvg,
+        previousAvg,
+        countPrevious,
+        overallDeviation,
+        subjects: shareRows,
+        drops: drops.map(item => ({subject: item.subject, deviation: item.deviation})),
+        adviceTitle: advice.title,
+        adviceBody: advice.body
+      };
 
       const html = `
         <style>
@@ -51848,7 +52053,7 @@ const subjects = getMarksDisplaySubjects(
           .rasm-progress-advice h4{margin:0 0 7px;font-size:15px}.rasm-progress-advice p{margin:0;line-height:1.6;font-size:13px}
           .rasm-progress-focus{margin-top:12px;border:1px solid #fde68a;background:#fffbeb;border-radius:12px;padding:12px 14px}
           .rasm-progress-focus b{color:#92400e}.rasm-progress-focus ul{margin:8px 0 0 18px;padding:0}.rasm-progress-focus li{margin:4px 0;color:#78350f}
-          @media(max-width:700px){.rasm-progress-cards{grid-template-columns:1fr}.rasm-progress-head{flex-direction:column}}
+          @media(max-width:700px){.rasm-progress-cards{grid-template-columns:1fr}.rasm-progress-head{flex-direction:column}.rasm-progress-head button{width:100%}}
         </style>
         <div class="rasm-progress-wrap">
           <div class="rasm-progress-head">
@@ -51856,6 +52061,11 @@ const subjects = getMarksDisplaySubjects(
               <h3 class="rasm-progress-title">📈 ${progressEscape(learner.name || "Learner")} — Progress Monitor</h3>
               <div class="rasm-progress-meta"><b>Grade:</b> ${progressEscape(grade)} &nbsp; | &nbsp; <b>Current:</b> ${progressEscape(currentLabel)}<br><b>Previous:</b> ${progressEscape(previousLabel)}</div>
             </div>
+            <button type="button"
+                    onclick="window.shareLearnerProgressToWhatsApp()"
+                    style="border:0;background:#25D366;color:#fff;padding:11px 15px;border-radius:10px;font-weight:900;cursor:pointer;white-space:nowrap;box-shadow:0 3px 8px rgba(0,0,0,.12);">
+              💬 Share to WhatsApp
+            </button>
           </div>
           <div class="rasm-progress-cards">
             <div class="rasm-progress-card"><small>Current Average</small><strong>${currentAvg.toFixed(1)}%</strong></div>
@@ -51881,7 +52091,8 @@ const subjects = getMarksDisplaySubjects(
         confirmButtonText:"Close",
         confirmButtonColor:"#2563eb",
         showCloseButton:true,
-        customClass:{popup:"rasm-learner-progress-popup"}
+        customClass:{popup:"rasm-learner-progress-popup"},
+        didClose:()=>{ window.__rasmLearnerProgressShareData = null; }
       });
     } catch(err){
       console.error("Learner progress error:",err);
