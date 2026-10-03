@@ -56975,7 +56975,7 @@ const gradeRangeText =
            const total =
     Number(student.total || 0);
 
-const level = getCertificateLevel(total);
+const level = getCertificateLevel(total, student.grade, Number(student.average || 0));
             const learnerPhoto=
 
                 student.photo||
@@ -57437,10 +57437,24 @@ if (printBtn) {
 };
 // ================= CERTIFICATE PERFORMANCE LEVEL =================
 
-function getCertificateLevel(totalMarks) {
+function getCertificateLevel(totalMarks, gradeValue = "", averageValue = null) {
 
+    const gradeNo = rasmGradeNumber(gradeValue);
+    const average = Number(averageValue);
+
+    // Grade 1-6 certificates use the four requested CBC levels.
+    // Use the learner average because Grade 1-6 may have different numbers
+    // of recorded learning areas/subjects.
+    if (gradeNo >= 1 && gradeNo <= 6) {
+        const score = Number.isFinite(average) ? average : Number(totalMarks) || 0;
+        if (score >= 75) return "EE";
+        if (score >= 50) return "ME";
+        if (score >= 30) return "AE";
+        return "BE";
+    }
+
+    // Grade 7-12: preserve the existing certificate thresholds exactly.
     totalMarks = Number(totalMarks) || 0;
-
     if (totalMarks >= 788) return "EE1";
     if (totalMarks >= 676) return "EE2";
     if (totalMarks >= 563) return "ME1";
@@ -57448,7 +57462,6 @@ function getCertificateLevel(totalMarks) {
     if (totalMarks >= 338) return "AE1";
     if (totalMarks >= 226) return "AE2";
     if (totalMarks >= 113) return "BE1";
-
     return "BE2";
 }
 
@@ -59018,502 +59031,243 @@ function generateTopGrade() {
   const container = document.getElementById("topGradeContent");
   if (!container) return;
 
-  // ==========================
-  // 🔥 SHOW LOADER
-  // ==========================
   const loader = document.createElement("div");
   loader.id = "topGradeLoader";
-
   loader.innerHTML = `
-    <div style="
-      position:fixed;
-      top:0;
-      left:0;
-      width:100%;
-      height:100%;
-      background:rgba(0,0,0,.5);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      flex-direction:column;
-      color:#fff;
-      z-index:9999;
-    ">
-      <div style="
-        width:50px;
-        height:50px;
-        border:5px solid #eee;
-        border-top:5px solid #FF9800;
-        border-radius:50%;
-        animation:spin 1s linear infinite;
-      "></div>
-
-      <p style="margin-top:10px;">
-        Generating Grade Performance...
-      </p>
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:99999;color:#fff;font-family:Arial,sans-serif;">
+      <div style="text-align:center;">
+        <div style="width:52px;height:52px;border:5px solid #eee;border-top:5px solid #FF9800;border-radius:50%;animation:spin 1s linear infinite;margin:auto;"></div>
+        <p style="margin-top:12px;font-weight:700;">Generating Grade Performance...</p>
+      </div>
     </div>
-
-    <style>
-      @keyframes spin{
-        from{transform:rotate(0deg);}
-        to{transform:rotate(360deg);}
-      }
-    </style>
+    <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
   `;
-
   document.body.appendChild(loader);
 
   setTimeout(() => {
-
     try {
-
       const learners = rasmReportLevelLearners();
 
       if (!learners.length) {
-
-        container.innerHTML =
-          "<p>No data loaded.</p>";
-
+        container.innerHTML = `<div style="padding:35px;text-align:center;color:#b91c1c;font-weight:800;">No actual learner performance data is available for the selected grade/exam.</div>`;
         return;
-
       }
 
-      // ======================================
-      // GROUP BY GRADE
-      // ======================================
-      const gradesMap = {};
+      // ------------------------------------------------------
+      // PERFORMANCE LEVELS
+      // Grade 1-6: BE, AE, ME, EE
+      // Grade 7-12: preserve the existing 8 CBC levels.
+      // ------------------------------------------------------
+      function gradeLevelInfo(score, gradeValue) {
+        const n = Number(score);
+        const gradeNo = rasmGradeNumber(gradeValue);
 
-      learners.forEach(l => {
-
-        if (!gradesMap[l.grade]) {
-
-          gradesMap[l.grade] = {
-
-            totalMarks:0,
-
-            totalAverage:0,
-
-            learners:0
-
-          };
-
+        if (!Number.isFinite(n)) {
+          return { key:"NA", label:"—", color:"#64748b" };
         }
 
+        if (gradeNo >= 1 && gradeNo <= 6) {
+          if (n >= 75) return { key:"EE", label:"EE", color:"#166534" };
+          if (n >= 50) return { key:"ME", label:"ME", color:"#15803d" };
+          if (n >= 30) return { key:"AE", label:"AE", color:"#d97706" };
+          return { key:"BE", label:"BE", color:"#dc2626" };
+        }
+
+        if (n >= 90) return { key:"EE1", label:"EE1", color:"#166534" };
+        if (n >= 75) return { key:"EE2", label:"EE2", color:"#15803d" };
+        if (n >= 58) return { key:"ME2", label:"ME2", color:"#0f766e" };
+        if (n >= 41) return { key:"ME1", label:"ME1", color:"#2563eb" };
+        if (n >= 31) return { key:"AE2", label:"AE2", color:"#d97706" };
+        if (n >= 21) return { key:"AE1", label:"AE1", color:"#ea580c" };
+        if (n >= 11) return { key:"BE2", label:"BE2", color:"#b91c1c" };
+        return { key:"BE1", label:"BE1", color:"#7f1d1d" };
+      }
+
+      // ------------------------------------------------------
+      // ACTUAL DATA — every learner is counted from the loaded
+      // marks, not from placeholder/grade-level assumptions.
+      // ------------------------------------------------------
+      const learnerRows = learners.map(l => {
         const perf = rasmSafeLearnerPerformance(l);
-        gradesMap[l.grade].totalMarks += perf.total;
-        gradesMap[l.grade].totalAverage += perf.average;
-
-        gradesMap[l.grade].learners++;
-
+        return {
+          learner:l,
+          grade:l.grade || "—",
+          learnersGradeNo:rasmGradeNumber(l.grade),
+          total:perf.total,
+          average:perf.average,
+          level:gradeLevelInfo(perf.average, l.grade)
+        };
       });
 
-      // ======================================
-      // BUILD ARRAY
-      // ======================================
-      const grades = Object.entries(gradesMap).map(([grade,data])=>({
-
-        grade,
-
-        learners:data.learners,
-
-        total:data.totalMarks,
-
-        average:data.totalAverage/data.learners
-
-      }));
-
-      grades.sort((a,b)=>b.average-a.average);
-
-      const best = grades[0];
-      const worst = grades[grades.length-1];
-
-      const maxAverage =
-        Math.max(...grades.map(g=>g.average));
-
-      /* RASM 360 OPTIMIZER: removed exact duplicate function getLevel */
-
-
-     // ======================================
-// EXECUTIVE DASHBOARD
-// ======================================
-
-const overallAverage =
-grades.reduce((sum,g)=>sum+g.average,0) /
-grades.length;
-
-const totalLearners =
-grades.reduce((sum,g)=>sum+g.learners,0);
-
-const excellentGrades =
-grades.filter(g=>g.average>=90).length;
-
-const goodGrades =
-grades.filter(g=>g.average>=75 && g.average<90).length;
-
-let html = `
-
-<div style="
-background:linear-gradient(135deg,#ff9800,#ff5722);
-padding:25px;
-border-radius:18px;
-color:#fff;
-margin-bottom:25px;
-box-shadow:0 10px 25px rgba(0,0,0,.18);
-">
-
-<div style="
-display:flex;
-justify-content:space-between;
-align-items:center;
-flex-wrap:wrap;
-">
-
-<div>
-
-<h2 style="
-margin:0;
-font-size:30px;
-font-weight:800;
-">
-
-🏆 Grade Performance Dashboard
-
-</h2>
-
-<div style="
-margin-top:8px;
-font-size:15px;
-opacity:.9;
-">
-
-School Grade Performance Analytics
-
-</div>
-
-</div>
-
-<div style="
-font-size:55px;
-">
-
-🏫
-
-</div>
-
-</div>
-
-</div>
-
-<div style="
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-gap:18px;
-margin-bottom:25px;
-">
-
-<div class="report-card" style="
-border-left:6px solid #4CAF50;
-border-radius:15px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-">
-
-<div class="report-title">
-🥇 Best Grade
-</div>
-
-<div class="report-value">
-${best.grade}
-</div>
-
-<div style="
-margin-top:8px;
-font-weight:bold;
-color:#4CAF50;
-">
-
-Average ${best.average.toFixed(2)}%
-
-</div>
-
-</div>
-
-<div class="report-card" style="
-border-left:6px solid #F44336;
-border-radius:15px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-">
-
-<div class="report-title">
-📉 Lowest Grade
-</div>
-
-<div class="report-value">
-${worst.grade}
-</div>
-
-<div style="
-margin-top:8px;
-font-weight:bold;
-color:#F44336;
-">
-
-Average ${worst.average.toFixed(2)}%
-
-</div>
-
-</div>
-
-<div class="report-card" style="
-border-left:6px solid #2196F3;
-border-radius:15px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-">
-
-<div class="report-title">
-📚 Grades
-</div>
-
-<div class="report-value">
-${grades.length}
-</div>
-
-<div style="margin-top:8px;">
-Registered Grades
-</div>
-
-</div>
-
-<div class="report-card" style="
-border-left:6px solid #9C27B0;
-border-radius:15px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-">
-
-<div class="report-title">
-👨‍🎓 Learners
-</div>
-
-<div class="report-value">
-${totalLearners}
-</div>
-
-<div style="margin-top:8px;">
-Total Learners
-</div>
-
-</div>
-
-<div class="report-card" style="
-border-left:6px solid #FF9800;
-border-radius:15px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-">
-
-<div class="report-title">
-📊 School Average
-</div>
-
-<div class="report-value">
-${overallAverage.toFixed(2)}%
-</div>
-
-</div>
-
-<div class="report-card" style="
-border-left:6px solid #009688;
-border-radius:15px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-">
-
-<div class="report-title">
-⭐ EE Grades
-</div>
-
-<div class="report-value">
-${excellentGrades}
-</div>
-
-</div>
-
-<div class="report-card" style="
-border-left:6px solid #8BC34A;
-border-radius:15px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-">
-
-<div class="report-title">
-✅ ME Grades
-</div>
-
-<div class="report-value">
-${goodGrades}
-</div>
-
-</div>
-
-</div>
-
-<h3 style="
-margin-bottom:18px;
-font-size:24px;
-color:#333;
-">
-
-🏅 Grade Ranking
-
-</h3>
-
-`;
-
-grades.forEach((g,index)=>{
-
-const level = getLevel(g.average, g.grade);
-
-const width =
-maxAverage
-?
-(g.average/maxAverage)*100
-:
-0;
-
-const medal =
-index===0
-?"🥇"
-:index===1
-?"🥈"
-:index===2
-?"🥉"
-:"🏅";
-
-html += `
-
-<div style="
-background:#fff;
-padding:18px;
-margin-bottom:18px;
-border-radius:16px;
-box-shadow:0 5px 15px rgba(0,0,0,.08);
-border-left:8px solid ${level.color};
-">
-
-<div style="
-display:flex;
-justify-content:space-between;
-align-items:center;
-flex-wrap:wrap;
-gap:10px;
-">
-
-<div>
-
-<div style="
-font-size:24px;
-font-weight:bold;
-">
-
-${medal} ${g.grade}
-
-</div>
-
-<div style="
-margin-top:5px;
-color:#666;
-">
-
-${g.learners} Learners
-
-</div>
-
-</div>
-
-<div style="
-text-align:right;
-">
-
-<div style="
-font-size:24px;
-font-weight:bold;
-color:${level.color};
-">
-
-${g.average.toFixed(2)}%
-
-</div>
-
-<div style="
-display:inline-block;
-padding:5px 14px;
-margin-top:6px;
-border-radius:25px;
-background:${level.color};
-color:#fff;
-font-size:13px;
-font-weight:bold;
-">
-
-${level.label}
-
-</div>
-
-</div>
-
-</div>
-
-<div style="
-margin-top:15px;
-height:16px;
-background:#ececec;
-border-radius:30px;
-overflow:hidden;
-">
-
-<div style="
-width:${width}%;
-height:100%;
-background:linear-gradient(90deg,${level.color},#66bb6a);
-transition:width .8s ease;
-">
-
-</div>
-
-</div>
-
-</div>
-
-`;
-
-});
-
-container.innerHTML = html;
-
-container.scrollIntoView({
-
-behavior:"smooth"
-
-});
-
+      const gradesMap = {};
+      learnerRows.forEach(row => {
+        if (!gradesMap[row.grade]) {
+          gradesMap[row.grade] = {
+            grade:row.grade,
+            learners:0,
+            total:0,
+            averageTotal:0,
+            levels:{}
+          };
+        }
+        const g = gradesMap[row.grade];
+        g.learners++;
+        g.total += row.total;
+        g.averageTotal += row.average;
+        g.levels[row.level.key] = (g.levels[row.level.key] || 0) + 1;
+      });
+
+      const grades = Object.values(gradesMap).map(g => ({
+        ...g,
+        average:g.learners ? g.averageTotal / g.learners : 0
+      })).sort((a,b) => b.average - a.average);
+
+      const overallAverage = learnerRows.length
+        ? learnerRows.reduce((sum,r) => sum + r.average, 0) / learnerRows.length
+        : 0;
+      const totalLearners = learnerRows.length;
+      const maxAverage = Math.max(...grades.map(g => g.average), 1);
+      const firstGradeNo = rasmGradeNumber(grades[0]?.grade);
+      const selectedRange = rasmGradeRangeFor(rasmSelectedGrade());
+      const gradeNumbersPresent = learnerRows.map(r => r.learnersGradeNo).filter(n => n > 0);
+      const hasG1to6 = gradeNumbersPresent.some(n => n >= 1 && n <= 6);
+      const hasG7to12 = gradeNumbersPresent.some(n => n >= 7 && n <= 12);
+      const schoolLevel = hasG1to6 && hasG7to12
+        ? "MIXED"
+        : hasG1to6
+          ? "G1-6"
+          : "G7-12";
+
+      const levelDefinitions14 = [
+        {key:"BE",label:"BE",color:"#dc2626",desc:"Below 30%"},
+        {key:"AE",label:"AE",color:"#d97706",desc:"30–49%"},
+        {key:"ME",label:"ME",color:"#15803d",desc:"50–74%"},
+        {key:"EE",label:"EE",color:"#166534",desc:"75–100%"}
+      ];
+      const levelDefinitions8 = [
+        {key:"BE1",label:"BE1",color:"#7f1d1d",desc:"0–10%"},
+        {key:"BE2",label:"BE2",color:"#b91c1c",desc:"11–20%"},
+        {key:"AE1",label:"AE1",color:"#ea580c",desc:"21–30%"},
+        {key:"AE2",label:"AE2",color:"#d97706",desc:"31–40%"},
+        {key:"ME1",label:"ME1",color:"#2563eb",desc:"41–57%"},
+        {key:"ME2",label:"ME2",color:"#0f766e",desc:"58–74%"},
+        {key:"EE2",label:"EE2",color:"#15803d",desc:"75–89%"},
+        {key:"EE1",label:"EE1",color:"#166534",desc:"90–100%"}
+      ];
+      const levelDefinitions = schoolLevel === "G1-6"
+        ? levelDefinitions14
+        : schoolLevel === "G7-12"
+          ? levelDefinitions8
+          : [...levelDefinitions14, ...levelDefinitions8];
+
+      const levelCounts = {};
+      learnerRows.forEach(r => {
+        levelCounts[r.level.key] = (levelCounts[r.level.key] || 0) + 1;
+      });
+
+      let html = `
+        <div style="background:linear-gradient(135deg,#ff9800,#ff5722);padding:25px;border-radius:18px;color:#fff;margin-bottom:25px;box-shadow:0 10px 25px rgba(0,0,0,.18);">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+            <div>
+              <h2 style="margin:0;font-size:30px;font-weight:800;">🏆 Grade Performance Dashboard</h2>
+              <div style="margin-top:8px;font-size:15px;opacity:.95;">Actual learner performance and complete CBC level distribution</div>
+            </div>
+            <div style="font-size:45px;">🏫</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:25px;">
+          <div class="report-card" style="border-left:6px solid #2563eb;border-radius:15px;box-shadow:0 5px 15px rgba(0,0,0,.08);">
+            <div class="report-title">👨‍🎓 Learners</div><div class="report-value">${totalLearners}</div>
+            <div style="margin-top:6px;">Actual learners with recorded marks</div>
+          </div>
+          <div class="report-card" style="border-left:6px solid #ff9800;border-radius:15px;box-shadow:0 5px 15px rgba(0,0,0,.08);">
+            <div class="report-title">📊 School Average</div><div class="report-value">${overallAverage.toFixed(2)}%</div>
+            <div style="margin-top:6px;">Average of actual learner averages</div>
+          </div>
+          <div class="report-card" style="border-left:6px solid #9c27b0;border-radius:15px;box-shadow:0 5px 15px rgba(0,0,0,.08);">
+            <div class="report-title">📚 Grades</div><div class="report-value">${grades.length}</div>
+            <div style="margin-top:6px;">Grades represented by actual records</div>
+          </div>
+        </div>
+
+        <h3 style="margin:0 0 15px;font-size:24px;color:#111827;">🎯 All Performance Levels</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:28px;">
+          ${levelDefinitions.map(level => `
+            <div style="background:#fff;border:1px solid #e5e7eb;border-left:6px solid ${level.color};border-radius:14px;padding:16px;box-shadow:0 4px 12px rgba(0,0,0,.07);">
+              <div style="font-size:25px;font-weight:900;color:${level.color};">${level.label}</div>
+              <div style="font-size:30px;font-weight:900;color:#111827;margin-top:4px;">${levelCounts[level.key] || 0}</div>
+              <div style="font-size:12px;color:#64748b;font-weight:700;">Learners</div>
+              <div style="font-size:11px;color:#6b7280;margin-top:6px;">${level.desc}</div>
+            </div>
+          `).join("")}
+        </div>
+
+        <h3 style="margin:0 0 15px;font-size:24px;color:#111827;">📋 Actual Level Data Per Grade</h3>
+        <div style="overflow:auto;background:#fff;border-radius:15px;box-shadow:0 5px 15px rgba(0,0,0,.08);margin-bottom:28px;">
+          <table style="width:100%;min-width:${levelDefinitions.length > 4 ? 980 : 760}px;border-collapse:collapse;">
+            <thead>
+              <tr style="background:#111827;color:#fff;">
+                <th style="padding:12px;text-align:left;">Grade</th>
+                <th style="padding:12px;text-align:center;">Learners</th>
+                ${levelDefinitions.map(l => `<th style="padding:12px;text-align:center;white-space:nowrap;">${l.label}</th>`).join("")}
+                <th style="padding:12px;text-align:center;">Average</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${grades.map(g => `
+                <tr style="border-bottom:1px solid #e5e7eb;">
+                  <td style="padding:12px;font-weight:900;color:#111827;">${g.grade}</td>
+                  <td style="padding:12px;text-align:center;font-weight:800;">${g.learners}</td>
+                  ${levelDefinitions.map(l => `<td style="padding:12px;text-align:center;font-weight:900;color:${l.color};">${g.levels[l.key] || 0}</td>`).join("")}
+                  <td style="padding:12px;text-align:center;font-weight:900;">${g.average.toFixed(2)}%</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin:0 0 18px;font-size:24px;color:#111827;">🏅 Grade Performance</h3>
+      `;
+
+      grades.forEach((g,index) => {
+        const level = gradeLevelInfo(g.average, g.grade);
+        const width = Math.max(0, Math.min(100, (g.average / maxAverage) * 100));
+        const medal = index===0 ? "🥇" : index===1 ? "🥈" : index===2 ? "🥉" : "🏅";
+
+        html += `
+          <div style="background:#fff;padding:18px;margin-bottom:18px;border-radius:16px;box-shadow:0 5px 15px rgba(0,0,0,.08);border-left:8px solid ${level.color};">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div>
+                <div style="font-size:24px;font-weight:bold;">${medal} ${g.grade}</div>
+                <div style="margin-top:5px;color:#666;">${g.learners} Learners</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:24px;font-weight:bold;color:${level.color};">${g.average.toFixed(2)}%</div>
+                <div style="display:inline-block;padding:5px 14px;margin-top:6px;border-radius:25px;background:${level.color};color:#fff;font-size:13px;font-weight:bold;">${level.label}</div>
+              </div>
+            </div>
+            <div style="margin-top:15px;height:16px;background:#ececec;border-radius:30px;overflow:hidden;">
+              <div style="width:${width}%;height:100%;background:${level.color};transition:width .8s ease;"></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+              ${levelDefinitions.map(l => `<span style="padding:6px 9px;border-radius:8px;background:#f8fafc;border:1px solid #e5e7eb;font-size:12px;font-weight:800;color:${l.color};">${l.label}: ${g.levels[l.key] || 0}</span>`).join("")}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      container.scrollIntoView({behavior:"smooth",block:"start"});
+    } catch (err) {
+      console.error("Grade Performance Dashboard error:", err);
+      container.innerHTML = `<div style="padding:30px;color:#b91c1c;font-weight:800;background:#fef2f2;border-radius:12px;">Error generating Grade Performance Dashboard: ${String(err?.message || err)}</div>`;
+    } finally {
+      document.getElementById("topGradeLoader")?.remove();
     }
-
-    catch(err){
-
-      console.error(err);
-
-      container.innerHTML =
-      "<p style='color:red'>Error generating report.</p>";
-
-    }
-
-    finally{
-
-      document
-        .getElementById("topGradeLoader")
-        ?.remove();
-
-    }
-
-  },400);
-
+  }, 250);
 }
+
 // ===============================
 // 🔥 ROBUST FILTER SYSTEM
 // ===============================
@@ -73880,28 +73634,13 @@ window.viewAttendanceReport = async function () {
         // 📅 DAYS
         // ====================================================
 
-        const weekOrder = [
-
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday"
-
-        ];
-
-
-        const dayNames = [
-
-            "Sunday",
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday"
-
-        ];
+        // Use the EXACT saved calendar dates.
+        // Do not collapse different dates that happen to share the same weekday.
+        const formatReportDate = value => {
+            const d = new Date(String(value) + "T00:00:00");
+            if (Number.isNaN(d.getTime())) return String(value || "");
+            return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+        };
 
 
         const startObj =
@@ -73939,8 +73678,8 @@ window.viewAttendanceReport = async function () {
 
                 if (
                     selectedGrade &&
-                    String(s.grade || "") !==
-                    String(selectedGrade)
+                    String(s.grade || "").trim().toLowerCase() !==
+                    String(selectedGrade || "").trim().toLowerCase()
                 ) {
 
                     return;
@@ -73982,6 +73721,13 @@ window.viewAttendanceReport = async function () {
         // 📋 MASTER ATTENDANCE MAP
         // ====================================================
 
+        // Attendance values can come from old/new records with slightly
+        // different casing. Treat Present/Late consistently everywhere.
+        const isAttendancePresent = value => {
+            const v = String(value ?? "").trim().toLowerCase();
+            return v === "present" || v === "late";
+        };
+
         const masterAttendanceMap = {};
 
         const capturedDays = {};
@@ -74018,30 +73764,10 @@ window.viewAttendanceReport = async function () {
                 }
 
 
-                const dateObj =
-                    new Date(data.date);
+                const savedDate = String(data.date).trim();
 
-
-                const dayName =
-                    dayNames[
-                        dateObj.getDay()
-                    ];
-
-
-                if (
-                    !weekOrder.includes(
-                        dayName
-                    )
-                ) {
-
-                    return;
-
-                }
-
-
-                capturedDays[
-                    dayName
-                ] = true;
+                // Keep every saved date inside the selected range.
+                capturedDays[savedDate] = true;
 
 
                 data.records.forEach(
@@ -74069,7 +73795,10 @@ window.viewAttendanceReport = async function () {
                         }
 
 
-                        masterAttendanceMap[record.studentId][dayName] = { morning: record.morningStatus || record.status || "Absent", evening: record.eveningStatus || record.status || "Absent" };
+                        masterAttendanceMap[record.studentId][savedDate] = {
+                            morning: record.morningStatus || record.status || "Absent",
+                            evening: record.eveningStatus || record.status || "Absent"
+                        };
 
                     }
                 );
@@ -74082,11 +73811,9 @@ window.viewAttendanceReport = async function () {
         // 📅 ORDERED DAYS
         // ====================================================
 
-        const orderedDays =
-            weekOrder.filter(
-                day =>
-                    capturedDays[day]
-            );
+        const orderedDays = Object.keys(capturedDays)
+            .filter(Boolean)
+            .sort((a, b) => String(a).localeCompare(String(b)));
 
 
         // ====================================================
@@ -74114,8 +73841,8 @@ window.viewAttendanceReport = async function () {
                 allStudents.forEach(
                     student => {
                         const session = masterAttendanceMap[student.id]?.[day] || {};
-                        if(session.morning === "Present" || session.morning === "Late") gradeDailyTotals[day].morning++;
-                        if(session.evening === "Present" || session.evening === "Late") gradeDailyTotals[day].evening++;
+                        if (isAttendancePresent(session.morning)) gradeDailyTotals[day].morning++;
+                        if (isAttendancePresent(session.evening)) gradeDailyTotals[day].evening++;
 
                     }
                 );
@@ -74235,7 +73962,7 @@ window.viewAttendanceReport = async function () {
                                         border:1px solid #111827;
                                         text-align:left;
                                     ">
-                                        Day
+                                        Date
                                     </th>
 
                                     <th style="
@@ -74342,7 +74069,7 @@ window.viewAttendanceReport = async function () {
                                     text-align:left;
                                 ">
 
-                                    ${day}
+                                    ${safeHTML(formatReportDate(day))}
 
                                 </td>
 
@@ -74715,7 +74442,7 @@ window.viewAttendanceReport = async function () {
                             title="${safeHTML(day)}"
                             >
 
-                                ${day.substring(0,3)}
+                                ${safeHTML(formatReportDate(day))}
 
                             </th>
 
@@ -74865,14 +74592,19 @@ window.viewAttendanceReport = async function () {
                                 const session = masterAttendanceMap[student.id]?.[day] || null;
                                 const morning = session?.morning || "Absent";
                                 const evening = session?.evening || "Absent";
-                                const attendedSessions = [morning, evening]
-                                    .filter(x => x === "Present" || x === "Late")
-                                    .length;
-                                attendedDays += attendedSessions / 2;
+                                const morningPresent = isAttendancePresent(morning);
+                                const eveningPresent = isAttendancePresent(evening);
 
-                                // ONE mark per learner/day only.
-                                // X = Present, 00 = Absent.
-                                const display = attendedSessions > 0 ? "X" : "00";
+                                // A learner has one register mark for the day.
+                                // X = present in at least one session; 00 = absent.
+                                const display = (morningPresent || eveningPresent) ? "X" : "00";
+
+                                // Kenyan-style daily register total: each PRESENT DAY
+                                // contributes 2 (morning + evening). Therefore:
+                                // 5 days present = 10, 3 = 06, 2 = 04, etc.
+                                if (morningPresent || eveningPresent) {
+                                    attendedDays += 1;
+                                }
 
 
                                 html += `
@@ -74965,7 +74697,7 @@ window.viewAttendanceReport = async function () {
                                 ${String(
                                     students.reduce((count, student) => {
                                         const session = masterAttendanceMap[student.id]?.[day] || {};
-                                        return count + ((session.morning === "Present" || session.morning === "Late") ? 1 : 0);
+                                        return count + (isAttendancePresent(session.morning) ? 1 : 0);
                                     }, 0)
                                 ).padStart(
                                     2,
@@ -75032,7 +74764,7 @@ window.viewAttendanceReport = async function () {
                                 ${String(
                                     students.reduce((count, student) => {
                                         const session = masterAttendanceMap[student.id]?.[day] || {};
-                                        return count + ((session.evening === "Present" || session.evening === "Late") ? 1 : 0);
+                                        return count + (isAttendancePresent(session.evening) ? 1 : 0);
                                     }, 0)
                                 ).padStart(
                                     2,
@@ -75100,8 +74832,8 @@ window.viewAttendanceReport = async function () {
                                     students.reduce((count, student) => {
                                         const session = masterAttendanceMap[student.id]?.[day] || {};
                                         return count
-                                            + ((session.morning === "Present" || session.morning === "Late") ? 1 : 0)
-                                            + ((session.evening === "Present" || session.evening === "Late") ? 1 : 0);
+                                            + (isAttendancePresent(session.morning) ? 1 : 0)
+                                            + (isAttendancePresent(session.evening) ? 1 : 0);
                                     }, 0)
                                 ).padStart(
                                     2,
