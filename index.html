@@ -101052,8 +101052,11 @@ window.deleteSelectedCourses = async function () {
 
   Swal.fire("Deleted", "Courses removed", "success");
 };
+
 // =========================================
 // RENDER COURSES
+// ALL LEARNERS CAN VIEW ALL RESOURCES
+// NO GRADE RESTRICTION
 // =========================================
 
 window.renderCourses = function () {
@@ -101063,86 +101066,90 @@ window.renderCourses = function () {
 
   if (!container) return;
 
+  // Clear existing content
   container.innerHTML = "";
 
   const role =
     (window.currentUserRole || "")
-      .toLowerCase();
+      .toLowerCase()
+      .trim();
 
   const isTeacher =
-    ["teacher","admin","superadmin"].includes(role);
+    ["teacher", "admin", "superadmin"].includes(role);
 
-  const isRestrictedLearner =
-    ["parent","student"].includes(role);
-
-  const linkedLearners =
-    Array.isArray(window.__currentLinkedLearners)
-      ? window.__currentLinkedLearners
-      : [];
-
-  const learnerGradeKeys =
-    window.getLearnerGradeKeys(linkedLearners);
+  // =====================================================
+  // IMPORTANT:
+  // DO NOT FILTER COURSES BY LEARNER GRADE.
+  // EVERY USER CAN SEE ALL AVAILABLE RESOURCES.
+  // =====================================================
 
   const visibleCourses =
-    isRestrictedLearner
-      ? window.courses.filter(course => {
-          const courseGrade = window.getAssignmentGradeKey(course);
-          return courseGrade && learnerGradeKeys.has(courseGrade);
-        })
-      : window.courses;
+    Array.isArray(window.courses)
+      ? window.courses
+      : [];
 
-  if (!window.courses || window.courses.length === 0) {
+  // =====================================================
+  // NO COURSES
+  // =====================================================
+
+  if (visibleCourses.length === 0) {
 
     container.innerHTML = `
       <div style="
         padding:20px;
         text-align:center;
         color:#64748b;
+        background:#f8fafc;
+        border-radius:10px;
+        border:1px solid #e2e8f0;
       ">
-        No courses available.
+        📚 No courses available.
       </div>
     `;
 
     return;
   }
 
-  if (isRestrictedLearner && visibleCourses.length === 0) {
-    container.innerHTML = `
-      <div style="padding:20px;text-align:center;color:#64748b;">
-        📚 No resources are available for your current grade/class.
-      </div>
-    `;
-    return;
-  }
+  // =====================================================
+  // RENDER ALL COURSES
+  // =====================================================
 
   visibleCourses.forEach(course => {
+
     const price =
       Number(course.price || 0);
-container.innerHTML += `
 
-  <div class="course-card">
+    container.innerHTML += `
 
-    ${isTeacher ? `
-      <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
-        
-        <input type="checkbox"
-          class="courseSelectBox"
-          value="${course.id}"
-          onchange="updateBulkBar()"
-          style="transform:scale(1.2);"
-        />
+      <div class="course-card">
 
-        <span style="font-size:12px;color:#64748b;">
-          Select for bulk delete
-        </span>
+        ${isTeacher ? `
+          <div style="
+            margin-bottom:10px;
+            display:flex;
+            align-items:center;
+            gap:8px;
+          ">
 
-      </div>
-    ` : ""}
+            <input
+              type="checkbox"
+              class="courseSelectBox"
+              value="${course.id}"
+              onchange="updateBulkBar()"
+              style="transform:scale(1.2);"
+            />
 
-    <div style="
-      display:flex;
-      justify-content:space-between;
+            <span style="
+              font-size:12px;
+              color:#64748b;
+            ">
+              Select for bulk delete
+            </span>
 
+          </div>
+        ` : ""}
+
+        <!-- COURSE HEADER -->
         <div style="
           display:flex;
           justify-content:space-between;
@@ -101153,27 +101160,23 @@ container.innerHTML += `
         ">
 
           <div class="course-title">
-            📚 ${course.title}
+            📚 ${course.title || "Untitled Resource"}
           </div>
 
           <div style="
-            background:
-              ${course.locked
-                ? "#dc2626"
-                : "#16a34a"};
+            background:${course.locked ? "#dc2626" : "#16a34a"};
             color:white;
             padding:6px 10px;
             border-radius:20px;
             font-size:12px;
             font-weight:bold;
           ">
-            ${course.locked
-              ? "🔒 Locked"
-              : "🔓 Open"}
+            ${course.locked ? "🔒 Locked" : "🔓 Open"}
           </div>
 
         </div>
 
+        <!-- PRICE -->
         <div style="
           background:#ecfdf5;
           color:#166534;
@@ -101189,20 +101192,24 @@ container.innerHTML += `
           }
         </div>
 
+        <!-- TEACHER -->
         <div class="course-meta">
-          👨🏫 ${course.teacher}
+          👨🏫 ${course.teacher || "Not specified"}
         </div>
 
+        <!-- GRADE + SUBJECT -->
         <div class="course-meta">
-          🎓 ${course.grade}
+          🎓 ${course.grade || "All Grades"}
           •
-          📚 ${course.subject}
+          📚 ${course.subject || "General"}
         </div>
 
-    <div class="course-description">
-  ${getCoursePreview(course)}
-</div>
+        <!-- DESCRIPTION -->
+        <div class="course-description">
+          ${getCoursePreview(course)}
+        </div>
 
+        <!-- DATE -->
         <div style="
           margin-top:12px;
           font-size:13px;
@@ -101213,6 +101220,7 @@ container.innerHTML += `
           🕒 ${course.postedTime || ""}
         </div>
 
+        <!-- ACTIONS -->
         <div style="
           margin-top:18px;
           display:flex;
@@ -101223,10 +101231,7 @@ container.innerHTML += `
           <button
             onclick="checkCourseAccess('${course.id}', ${price})"
             style="
-              background:
-                ${price > 0
-                  ? '#16a34a'
-                  : '#2563eb'};
+              background:${price > 0 ? "#16a34a" : "#2563eb"};
               color:white;
               border:none;
               padding:10px 14px;
@@ -101243,10 +101248,7 @@ container.innerHTML += `
             <button
               onclick="toggleCourseLock('${course.id}')"
               style="
-                background:
-                  ${course.locked
-                    ? '#16a34a'
-                    : '#f59e0b'};
+                background:${course.locked ? "#16a34a" : "#f59e0b"};
                 color:white;
                 border:none;
                 padding:10px 14px;
@@ -101255,11 +101257,7 @@ container.innerHTML += `
                 font-weight:600;
               "
             >
-              ${
-                course.locked
-                  ? '🔓 Unlock'
-                  : '🔒 Lock'
-              }
+              ${course.locked ? "🔓 Unlock" : "🔒 Lock"}
             </button>
 
             <button
@@ -101270,6 +101268,8 @@ container.innerHTML += `
                 border:none;
                 padding:10px 14px;
                 border-radius:8px;
+                cursor:pointer;
+                font-weight:600;
               "
             >
               ✏ Edit
@@ -101283,6 +101283,8 @@ container.innerHTML += `
                 border:none;
                 padding:10px 14px;
                 border-radius:8px;
+                cursor:pointer;
+                font-weight:600;
               "
             >
               🗑 Delete
@@ -101298,7 +101300,6 @@ container.innerHTML += `
   });
 
 };
-
 window.bulkLockCourses = async function (lock) {
 
   const schoolId = window.schoolId;
