@@ -15687,6 +15687,28 @@ font-weight:bold;
 
     </div>
 
+    <!-- BULK PARENT ACCOUNTS BY GRADE -->
+    <div id="bulkParentAccountsPanel" style="
+      margin-top:18px;
+      background:rgba(255,255,255,.97);
+      color:#0f172a;
+      padding:22px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.35);
+    ">
+      <h3 style="margin:0 0 8px;color:#0f172a;">👨‍👩‍👧 Bulk Parent Account Creation</h3>
+      <p style="margin:0 0 16px;color:#475569;line-height:1.5;">Select a grade to load its learners, then create parent login accounts for that grade in one operation.</p>
+      <label for="bulkParentGrade" style="display:block;font-weight:700;margin-bottom:7px;">Select Grade / Class</label>
+      <select id="bulkParentGrade" onchange="loadBulkParentLearners()" style="width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;margin-bottom:12px;background:#fff;color:#0f172a;">
+        <option value="">Loading grades…</option>
+      </select>
+      <div id="bulkParentLearnerCount" style="font-weight:700;color:#334155;margin:4px 0 12px;">Choose a grade to view learners.</div>
+      <div id="bulkParentLearnerPreview" style="max-height:190px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-bottom:14px;background:#f8fafc;color:#334155;font-size:13px;">Learner names will appear here.</div>
+      <button type="button" id="bulkCreateParentAccountsBtn" onclick="createBulkParentAccounts()" style="width:100%;padding:13px;border:0;border-radius:10px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:white;font-weight:800;font-size:15px;cursor:pointer;">🚀 Create Parent Accounts for Selected Grade</button>
+      <button type="button" id="downloadBulkParentCredentialsBtn" onclick="downloadBulkParentCredentials()" disabled style="width:100%;padding:11px;margin-top:9px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#64748b;font-weight:700;cursor:pointer;">⬇️ Download Last Results / Credentials (CSV)</button>
+      <p style="margin:12px 0 0;font-size:12px;color:#64748b;line-height:1.5;">Generated email addresses are login IDs and may not receive email. The temporary password is based on the learner’s name; keep the CSV private and ask parents to change passwords after first login.</p>
+    </div>
+
   </div>
 
 </div>
@@ -29068,51 +29090,77 @@ window.login = async function () {
 
         try {
 
-            /* Slow-network safe: fetch only lightweight school verification fields.
-               Never download the entire schools/{schoolId} tree during login. */
-            const verificationFields = [
-                "name", "schoolName", "deleted", "locked", "active",
-                "subscriptionStatus", "subscriptionEndsAt", "subscriptionEndAt",
-                "subscriptionExpiresAt", "subscriptionExpiry",
-                "trialEndsAt", "trialEndAt", "trialExpiresAt", "trialExpiry"
-            ];
+            /*
+             * PERFORMANCE FIX:
+             *
+             * The old login path performed ~15 separate Firebase reads
+             * (one for each school verification field). That created a
+             * noticeable login delay and duplicated the subscription read.
+             *
+             * rasmVerifySchoolFast() performs ONE schools/{schoolId} read,
+             * validates the security flags, and caches the verified school.
+             * The subscription layer reuses the same cached record.
+             */
+            if (
+                typeof window.rasmVerifySchoolFast ===
+                "function"
+            ) {
 
-            const readField = async (field) =>
-                await window.retryRequest(
-                    () => window.withTimeout(
-                        fastGet(ref(db, `schools/${schoolId}/${field}`)),
-                        45000,
-                        `School verification timed out while reading ${field}.`
-                    ),
-                    5,
-                    2500
-                );
+                schoolData =
+                    await window.rasmVerifySchoolFast(
+                        schoolId,
+                        uid
+                    );
 
-            const results = await Promise.all(
-                verificationFields.map(async field => [field, await readField(field)])
-            );
+            } else {
 
-            let foundAny = false;
-            for (const [field, snap] of results) {
-                if (snap?.exists()) {
-                    foundAny = true;
-                    schoolData[field] = snap.val();
+                const snapshot =
+                    await window.withTimeout(
+                        fastGet(
+                            ref(
+                                db,
+                                `schools/${schoolId}`
+                            )
+                        ),
+                        20000,
+                        "School verification is taking longer than usual."
+                    );
+
+                if (!snapshot?.exists()) {
+                    throw new Error("SCHOOL_NOT_FOUND");
                 }
-            }
 
-            if (!foundAny) throw new Error("SCHOOL_NOT_FOUND");
+                schoolData =
+                    snapshot.val() || {};
+            }
 
         } catch (error) {
 
-            console.error("❌ School verification error after slow-network retries:", error);
+            console.error(
+                "❌ School verification error:",
+                error
+            );
 
-            if (String(error?.message || error).includes("SCHOOL_NOT_FOUND")) {
+            const message =
+                String(error?.message || error);
+
+            if (
+                message === "SCHOOL_NOT_FOUND" ||
+                message === "SCHOOL_DELETED" ||
+                message === "SCHOOL_LOCKED" ||
+                message === "SCHOOL_INACTIVE"
+            ) {
                 throw error;
             }
 
-            const wrapped = new Error("SCHOOL_CONNECTION_FAILED");
+            const wrapped =
+                new Error("SCHOOL_CONNECTION_FAILED");
+
             wrapped.originalError = error;
-            wrapped.code = error?.code || "NETWORK_TIMEOUT";
+            wrapped.code =
+                error?.code ||
+                "NETWORK_TIMEOUT";
+
             throw wrapped;
         }
 
@@ -29273,7 +29321,7 @@ window.login = async function () {
 
             for (
                 let attempt = 1;
-                attempt <= 3;
+                attempt <= 1;
                 attempt++
             ) {
 
@@ -29291,9 +29339,9 @@ window.login = async function () {
                                 window.checkSubscriptionAccess()
                             ),
 
-                            30000,
+                            75000,
 
-                            "Subscription verification timed out."
+                            "Subscription verification is taking longer than usual. Please check your connection and try again."
 
                         );
 
@@ -29324,7 +29372,7 @@ window.login = async function () {
 
 
                     if (
-                        attempt < 3
+                        attempt < 1
                     ) {
 
                         window.setLoginLoading(
@@ -29354,7 +29402,7 @@ window.login = async function () {
 
                 const error =
                     new Error(
-                        "SUBSCRIPTION_CHECK_FAILED"
+                        "SUBSCRIPTION_VERIFICATION_UNAVAILABLE"
                     );
 
 
@@ -29436,63 +29484,29 @@ window.login = async function () {
 
 
         /* ====================================================
-           🎉 SUCCESS
+           🚀 LOGIN COMPLETE — DO NOT BLOCK ON A MODAL
+           ----------------------------------------------------
+           The old welcome SweetAlert paused login until the user
+           clicked "Enter Dashboard". That made login feel much
+           slower and delayed the data-loading phase.
+
+           The dashboard is already visible and authenticated, so
+           use a lightweight toast instead.
         ==================================================== */
 
-        await Swal.fire({
-
-            icon:
-                "success",
-
-            title:
-                "Welcome to RASM 360",
-
-            html: `
-
-                <div style="text-align:center">
-
-                    <div style="
-                        font-size:42px;
-                        margin-bottom:8px;
-                    ">
-                        🏫💻
-                    </div>
-
-                    <div style="
-                        font-size:17px;
-                        font-weight:700;
-                        color:#2563eb;
-                    ">
-                        ${window.escapeHTMLSafe
-                            ? window.escapeHTMLSafe(
-                                schoolName
-                            )
-                            : String(schoolName)
-                        }
-                    </div>
-
-                    <p style="
-                        color:#64748b;
-                        margin-top:10px;
-                    ">
-                        Your school management system
-                        is ready.
-                    </p>
-
-                </div>
-
-            `,
-
-            confirmButtonText:
-                "🚀 Enter Dashboard",
-
-            confirmButtonColor:
-                "#2563eb",
-
-            width:
-                500
-
-        });
+        try {
+            if (typeof Swal !== "undefined") {
+                Swal.fire({
+                    toast: true,
+                    position: "top-end",
+                    icon: "success",
+                    title: `Welcome to ${schoolName}`,
+                    showConfirmButton: false,
+                    timer: 1400,
+                    timerProgressBar: true
+                });
+            }
+        } catch (_) {}
 
 
         /* ====================================================
@@ -29546,7 +29560,12 @@ window.login = async function () {
 
 
         /* ====================================================
-           LOAD APPLICATION
+           LOAD APPLICATION — BACKGROUND / NON-BLOCKING
+           ----------------------------------------------------
+           Authentication and subscription are already complete.
+           Do not make the user wait for every school module before
+           considering login successful. loadAll() already has its
+           own concurrency guard and loads modules in parallel.
         ==================================================== */
 
         if (
@@ -29554,22 +29573,14 @@ window.login = async function () {
             "function"
         ) {
 
-            try {
-
-                await Promise.resolve(
-                    window.loadAll()
-                );
-
-            }
-
-            catch (error) {
-
-                console.error(
-                    "Application loading error:",
-                    error
-                );
-
-            }
+            Promise.resolve()
+                .then(() => window.loadAll())
+                .catch(error => {
+                    console.error(
+                        "Application background loading error:",
+                        error
+                    );
+                });
 
         }
 
@@ -50275,16 +50286,14 @@ document.getElementById("saveMarksButton")
 
     try {
 
-        const schoolId = window.schoolId;
+        const schoolId =
+            window.schoolId ||
+            localStorage.getItem("schoolId") ||
+            sessionStorage.getItem("schoolId");
 
         const examPeriod = normalizeExamPeriod(
             document.getElementById("examPeriod")?.value
         );
-
-        // =====================================================
-        // 🔥 FIND THE PREVIOUS RECORDED EXAM
-        // =====================================================
-        let previousExamPeriod = null;
 
         const grade =
             document.getElementById("gradeSelect")?.value;
@@ -50292,7 +50301,7 @@ document.getElementById("saveMarksButton")
         const learner =
             getSelectedLearner();
 
-        if (!learner?.key || !examPeriod || !grade) {
+        if (!schoolId || !learner?.key || !examPeriod || !grade) {
 
             Swal.fire(
                 "Missing Data",
@@ -50327,69 +50336,225 @@ document.getElementById("saveMarksButton")
                 subLearningArea
             );
 
-        const data = {
+        const convertedMark = getConvertedPercentage(
+            input.mark.value,
+            getMarksPaperOutOf()
+        );
 
+        if (convertedMark === null || !Number.isFinite(Number(convertedMark))) {
+            Swal.fire(
+                "Invalid Mark",
+                "Please enter a valid mark and paper total.",
+                "error"
+            );
+            return;
+        }
+
+        const data = {
             schoolId,
             name: learner.name,
             grade,
-
-            // Save ONLY this subject.
-            // IMPORTANT: Firebase/marks table receives the converted
-            // percentage, not the raw paper score.
-            [recordedSubjectKey]: getConvertedPercentage(
-                input.mark.value,
-                getMarksPaperOutOf()
-            ),
-
+            [recordedSubjectKey]: Number(convertedMark),
             updatedAt: Date.now()
-
         };
 
-        // ⚡ INSTANT SUBMISSION: start Firebase write but do not block
-        // the teacher from moving to the next learner.
-        const marksWrite = saveMarksToFirebase(
+        /*
+         * IMPORTANT:
+         * Wait for Firebase to confirm the write.
+         * The old code fired this request in the background and immediately
+         * advanced the learner, which left Loaded Marks stale.
+         */
+        await saveMarksToFirebase(
             schoolId,
             learner.key,
             examPeriod,
             data
         );
-        marksWrite.catch(error => {
-            console.error("❌ Marks background write failed:", error);
-            // Keep the entry visible as pending instead of interrupting
-            // the teacher's rapid entry workflow.
-            window.__marksPendingWrites = (window.__marksPendingWrites || 0) + 1;
-        });
 
-        // ===========================================
-        // Mark learner as recorded
-        // ===========================================
+        /*
+         * Keep every in-memory marks collection synchronized immediately.
+         * This makes the Loaded Marks table update without requiring a full
+         * 758-learner Firebase reload.
+         */
+        const syncLearnerCollection = collection => {
+
+            if (!Array.isArray(collection)) return;
+
+            collection.forEach(item => {
+
+                const itemId =
+                    item?.key ||
+                    item?.id ||
+                    item?.studentId ||
+                    item?.learnerId ||
+                    item?.uid;
+
+                if (String(itemId) !== String(learner.key)) return;
+
+                item.marks = item.marks || {};
+                item.marks[recordedSubjectKey] = Number(convertedMark);
+                item.marks.schoolId = schoolId;
+                item.marks.name = learner.name;
+                item.marks.grade = grade;
+                item.marks.updatedAt = data.updatedAt;
+
+                item.grade = item.grade || grade;
+                item.name = item.name || learner.name;
+            });
+        };
+
+        syncLearnerCollection(window.allLoadedLearners);
+        syncLearnerCollection(window.currentFilteredLearners);
+        syncLearnerCollection(window.__loadedResultsBaseLearners);
+        syncLearnerCollection(window.loadedLearners);
+        syncLearnerCollection(window.allStudents);
+
+        /*
+         * Also update the current marks-entry queue object so any subsequent
+         * workflow that reads the learner sees the newly recorded subject.
+         */
+        const queuedLearner =
+            (window.__learnerQueue || []).find(item =>
+                String(item?.key) === String(learner.key)
+            );
+
+        if (queuedLearner) {
+            queuedLearner.marks = queuedLearner.marks || {};
+            queuedLearner.marks[recordedSubjectKey] = Number(convertedMark);
+        }
+
+        /*
+         * Refresh the visible Loaded Marks table locally when the currently
+         * loaded exam is the same exam being recorded.
+         */
+        const loadedExam =
+            normalizeExamPeriod(
+                window.reportContext?.examPeriod ||
+                document.getElementById("resultsExamPeriod")?.value ||
+                ""
+            );
+
+        if (
+            loadedExam &&
+            loadedExam === examPeriod &&
+            typeof renderMarksTable === "function"
+        ) {
+
+            const base =
+                Array.isArray(window.__loadedResultsBaseLearners)
+                    ? window.__loadedResultsBaseLearners
+                    : (
+                        Array.isArray(window.allLoadedLearners)
+                            ? window.allLoadedLearners
+                            : []
+                    );
+
+            const activeGrade =
+                String(
+                    document.getElementById("resultsGradeFilter")?.value ||
+                    window.reportContext?.grade ||
+                    ""
+                ).trim();
+
+            const visible =
+                activeGrade &&
+                activeGrade.toUpperCase() !== "ALL GRADES"
+                    ? base.filter(item =>
+                        String(item?.grade || "").trim().toUpperCase() ===
+                        activeGrade.toUpperCase()
+                    )
+                    : base.slice();
+
+            window.currentFilteredLearners = visible;
+
+            if (typeof buildMarksHeader === "function") {
+                buildMarksHeader(activeGrade, visible);
+            }
+
+            if (typeof clearMarksTable === "function") {
+                clearMarksTable();
+            }
+
+            if (typeof renderNextMarksBatch === "function") {
+                window.__marksPagination = window.__marksPagination || {
+                    page: 0,
+                    limit: 40,
+                    loading: false,
+                    finished: false
+                };
+
+                window.__marksPagination.page = 0;
+                window.__marksPagination.loading = false;
+                window.__marksPagination.finished = false;
+
+                renderNextMarksBatch();
+            } else {
+                renderMarksTable(visible);
+            }
+
+            if (typeof renderTotals === "function") {
+                renderTotals(visible);
+            }
+
+            if (typeof renderAverages === "function") {
+                renderAverages(visible);
+            }
+        }
+
+        /*
+         * Only mark the learner as recorded AFTER Firebase confirms success.
+         */
         markLearnerAsRecorded(learner.key);
 
-        // Move to next learner
         window.__currentLearnerIndex++;
 
-        // This will automatically show the
-        // Congratulations popup when the
-        // last learner is completed.
         autoSelectNextLearner();
 
-        // 🎯 Keep the keyboard cursor in the score field for rapid entry.
-        // A double RAF lets the learner selector/render finish first.
         rasmNextPaint(() => {
-          const scoreField = document.getElementById("subjectMark");
-          if (scoreField) {
-            scoreField.focus({ preventScroll: true });
-            try { scoreField.select(); } catch (_) {}
-          }
+
+            const scoreField =
+                document.getElementById("subjectMark");
+
+            if (scoreField) {
+
+                scoreField.focus({
+                    preventScroll: true
+                });
+
+                try {
+                    scoreField.select();
+                } catch (_) {}
+
+            }
+
         });
 
-        // Clear mark input
-        const mark = document.getElementById("subjectMark");
+        const mark =
+            document.getElementById("subjectMark");
+
         if (mark) {
+
             mark.value = "";
             mark.style.border = "";
             mark.focus();
+
         }
+
+    } catch (error) {
+
+        console.error(
+            "❌ Marks save failed:",
+            error
+        );
+
+        await Swal.fire({
+            icon: "error",
+            title: "Marks Not Saved",
+            text:
+                error?.message ||
+                "The mark could not be saved. Please try again.",
+            confirmButtonColor: "#dc2626"
+        });
 
     } finally {
 
@@ -53927,6 +54092,22 @@ function getLoadedMarksSubjectDisplayName(subject, gradeValue = "") {
         "agriculture & nutrition": grade >= 4 && grade <= 6 ? "Agric & Nutr" : "Agriculture",
         "agric & nutr": "Agric & Nutr"
     };
+
+    // Grade 1-3: shorten only displayed sub-learning-area headings.
+    // Original database keys and all marks calculations remain unchanged.
+    if (grade >= 1 && grade <= 3) {
+        const compact = String(canonical || subject || "").trim()
+            .toLowerCase().replace(/[—–-]/g, " ").replace(/\s+/g, " ");
+        const compactMap = {
+            "english listening": "Listening", "english reading": "Reading",
+            "english writing": "Writing", "english grammar": "Grammar",
+            "kiswahili kusikiliza": "Kusikiliza", "kiswahili kusoma": "Kusoma",
+            "kiswahili kuandika": "Kuandika", "kiswahili sarufi": "Sarufi",
+            "environmental and cre environmental": "Environmental",
+            "environmental and cre cre": "CRE"
+        };
+        if (compactMap[compact]) return compactMap[compact];
+    }
 
     return displayMap[key] || canonical;
 }
@@ -67910,7 +68091,17 @@ function getMeritSubjectShortName(subjectName, gradeValue = "") {
         "Agric & Nutr": "Agric & Nutr",
         "Kiswahili": "Kiswahili",
         "Mathematics": "Math",
-        "English": "English"
+        "English": "English",
+        "English — Listening": grade >= 1 && grade <= 3 ? "Listening" : "English — Listening",
+        "English — Reading": grade >= 1 && grade <= 3 ? "Reading" : "English — Reading",
+        "English — Writing": grade >= 1 && grade <= 3 ? "Writing" : "English — Writing",
+        "English — Grammar": grade >= 1 && grade <= 3 ? "Grammar" : "English — Grammar",
+        "Kiswahili — Kusikiliza": grade >= 1 && grade <= 3 ? "Kusikiliza" : "Kiswahili — Kusikiliza",
+        "Kiswahili — Kusoma": grade >= 1 && grade <= 3 ? "Kusoma" : "Kiswahili — Kusoma",
+        "Kiswahili — Kuandika": grade >= 1 && grade <= 3 ? "Kuandika" : "Kiswahili — Kuandika",
+        "Kiswahili — Sarufi": grade >= 1 && grade <= 3 ? "Sarufi" : "Kiswahili — Sarufi",
+        "Environmental and CRE — Environmental": grade >= 1 && grade <= 3 ? "Environmental" : "Environmental and CRE — Environmental",
+        "Environmental and CRE — CRE": grade >= 1 && grade <= 3 ? "CRE" : "Environmental and CRE — CRE"
     };
 
     if (abbreviations[full]) return abbreviations[full];
@@ -97806,16 +97997,27 @@ generatedBooks.forEach(item=>{
 // SAVE
 // ======================================
 
-rasmBackgroundUpdate(bookRef,{
+/* The physical copy list is authoritative. Never add the top-up quantity to a stale
+   `available` counter because that can make Registered Books disagree with Book Copies. */
+const exactAvailable = Object.values(copies).filter(c =>
+    String(c && c.status || "").trim().toLowerCase() === "available"
+).length;
 
-    copies,
-
-    quantity:Object.keys(copies).length,
-
-    available:
-        Number(book.available || 0) + quantity
-
-});
+if(typeof update === "function") {
+    await update(bookRef,{
+        copies,
+        quantity:Object.keys(copies).length,
+        available:exactAvailable,
+        updatedAt:Date.now()
+    });
+} else {
+    await rasmBackgroundUpdate(bookRef,{
+        copies,
+        quantity:Object.keys(copies).length,
+        available:exactAvailable,
+        updatedAt:Date.now()
+    });
+}
 
 
 // ======================================
@@ -99114,7 +99316,7 @@ window.generateLostBooksAccountability = async function(){
     }catch(err){ closeSweetLoader(); console.error(err); Swal.fire("Error",err.message,"error"); }
 };
 
-window.runLearnerLibraryClearance = async function(){
+window.__rasmLegacyClearance = async function(){
     const {grade, learnerId, year, learner} = getSelectedLostBookLearner();
     if(!year || !grade || !learnerId || !learner) return Swal.fire("Missing Selection","Select Year, Grade and Learner first.","warning");
     openSweetLoader("Checking Library Clearance...");
@@ -99977,38 +100179,9 @@ ANTI FREEZE SYSTEM
   }
 
   /* =====================================================
-     AUTO MEMORY CLEANUP
+     RASM 360 — RUNTIME DIAGNOSTICS
+     Disabled in production to avoid needless timers/console noise.
   ===================================================== */
-  setInterval(() => {
-
-    console.log("🧹 Cleaning memory");
-
-    if (window.gc) {
-
-      gc();
-    }
-
-  }, 60000);
-
-  /* =====================================================
-     FREEZE DETECTOR
-  ===================================================== */
-  let last = performance.now();
-
-  setInterval(() => {
-
-    const now = performance.now();
-
-    if (now - last > 2000) {
-
-      console.warn(
-        "⚠️ UI Freeze Detected"
-      );
-    }
-
-    last = now;
-
-  }, 1000);
 
   /* =====================================================
      TABLE OPTIMIZATION
@@ -100086,33 +100259,8 @@ ANTI FREEZE SYSTEM
     }, 100)
   );
 
-  /* =====================================================
-     RAM MONITOR
-  ===================================================== */
-  setInterval(() => {
-
-    if (performance.memory) {
-
-      const used =
-        Math.round(
-          performance.memory.usedJSHeapSize
-          / 1048576
-        );
-
-      console.log(
-        "🧠 RAM Usage:",
-        used + "MB"
-      );
-
-      if (used > 400) {
-
-        console.warn(
-          "⚠️ High RAM Usage"
-        );
-      }
-    }
-
-  }, 10000);
+  /* Runtime RAM polling removed: it provided diagnostics only and
+     created a permanent interval in every open RASM 360 session. */
 
 })();
 
@@ -117195,24 +117343,46 @@ window.populateHostelLearners = function() {
 
 window.addEventListener("load", async () => {
 
+  /*
+   * Do not blindly reload the whole application while the login
+   * flow is still establishing Firebase auth. A logged-in session
+   * will call loadAll() itself. This listener is only a recovery
+   * path for an already-authenticated session.
+   */
   const schoolId =
     localStorage.getItem("schoolId");
 
   if (!schoolId) return;
 
+  if (!auth?.currentUser) return;
+
   window.schoolId = schoolId;
 
-  await loadSchoolProfile();
-  await loadAll();
+  try {
+    await loadAll();
+  } catch (error) {
+    console.warn(
+      "⚠️ Existing-session background load failed:",
+      error
+    );
+  }
 
 });
 
+window.__rasmLoadAllPromise = window.__rasmLoadAllPromise || null;
+
 window.loadAll = async function () {
+
+  if (window.__rasmLoadAllPromise) {
+    return window.__rasmLoadAllPromise;
+  }
 
   if (!window.schoolId) {
     console.warn("⏳ loadAll waiting for schoolId");
     return;
   }
+
+  const run = (async () => {
 
   console.time("loadAll");
 
@@ -117340,6 +117510,18 @@ typeof loadUsersTable === "function"
 
     console.timeEnd("loadAll");
 
+  }
+
+  })();
+
+  window.__rasmLoadAllPromise = run;
+
+  try {
+    return await run;
+  } finally {
+    if (window.__rasmLoadAllPromise === run) {
+      window.__rasmLoadAllPromise = null;
+    }
   }
 
 };
@@ -118299,6 +118481,204 @@ if(toggle){
 window.addEventListener("load", () => {
   loadCurrentUser();
 });
+// =====================================================
+// BULK PARENT ACCOUNTS BY GRADE
+// Uses the selected school's existing learner records.
+// Every parent account is explicitly linked to its learner
+// using studentId/learnerId so parent pages can resolve it.
+// =====================================================
+window.__bulkParentLearners = [];
+window.__lastBulkParentCredentials = [];
+
+window.loadBulkParentLearners = async function () {
+  const gradeSelect = document.getElementById("bulkParentGrade");
+  const countEl = document.getElementById("bulkParentLearnerCount");
+  const previewEl = document.getElementById("bulkParentLearnerPreview");
+  const createBtn = document.getElementById("bulkCreateParentAccountsBtn");
+  if (!gradeSelect || !countEl || !previewEl) return;
+
+  const esc = value => String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");
+  const gradeOf = student => String(student.grade ?? student.class ?? student.currentGrade ?? student.gradeLevel ?? student.stream ?? "").trim();
+  const nameOf = student => String(student.name ?? student.fullName ?? student.studentName ?? student.learnerName ?? "").replace(/\s+/g," ").trim();
+
+  try {
+    const sid = window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId");
+    if (!sid) throw new Error("School context missing. Please login again.");
+    const snap = await fastGet(ref(db, `schools/${sid}/students`));
+    const rows = [];
+    if (snap?.exists()) {
+      snap.forEach(child => {
+        const raw = child.val() || {};
+        if (!raw || typeof raw !== "object" || raw.deleted === true || raw.active === false) return;
+        const name = nameOf(raw);
+        const grade = gradeOf(raw);
+        if (!name || !grade) return;
+        rows.push({
+          firebaseId: String(child.key),
+          studentId: String(raw.id || raw.studentId || raw.learnerId || child.key),
+          learnerName: name, grade, raw
+        });
+      });
+    }
+    rows.sort((a,b) => a.grade.localeCompare(b.grade, undefined, {numeric:true}) || a.learnerName.localeCompare(b.learnerName));
+    window.__bulkParentAllLearners = rows;
+    const grades = [...new Set(rows.map(x => x.grade))];
+    const previous = gradeSelect.value;
+    gradeSelect.innerHTML = '<option value="">— Select a grade —</option>' + grades.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join("");
+    if (grades.includes(previous)) gradeSelect.value = previous;
+    window.__bulkParentLearners = [];
+    if (!grades.length) {
+      countEl.textContent = "No active learners with a grade/class were found.";
+      previewEl.textContent = "Check that learner records have a name and grade/class.";
+      if (createBtn) createBtn.disabled = true;
+      return;
+    }
+    if (gradeSelect.value) {
+      await window.loadBulkParentLearnersForSelectedGrade();
+    } else {
+      countEl.textContent = `${rows.length} learners found across ${grades.length} grades/classes.`;
+      previewEl.textContent = "Select a grade to preview its learner names.";
+      if (createBtn) createBtn.disabled = true;
+    }
+  } catch (error) {
+    console.error("BULK_PARENT_GRADE_LOAD_FAILED:", error);
+    countEl.textContent = "Could not load grades.";
+    previewEl.textContent = error.message || "Please try again.";
+    if (createBtn) createBtn.disabled = true;
+  }
+};
+
+window.loadBulkParentLearnersForSelectedGrade = async function () {
+  const grade = String(document.getElementById("bulkParentGrade")?.value || "").trim();
+  const countEl = document.getElementById("bulkParentLearnerCount");
+  const previewEl = document.getElementById("bulkParentLearnerPreview");
+  const createBtn = document.getElementById("bulkCreateParentAccountsBtn");
+  const esc = value => String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");
+  const all = Array.isArray(window.__bulkParentAllLearners) ? window.__bulkParentAllLearners : [];
+  const learners = grade ? all.filter(x => x.grade === grade) : [];
+  window.__bulkParentLearners = learners;
+  if (countEl) countEl.textContent = grade ? `${learners.length} learner(s) in ${grade}.` : "Choose a grade to view learners.";
+  if (previewEl) previewEl.innerHTML = learners.length ? learners.map((x,i) => `<div style="padding:5px 2px;border-bottom:1px solid #e2e8f0;"><strong>${i+1}.</strong> ${esc(x.learnerName)}</div>`).join("") : "Select a grade to preview its learner names.";
+  if (createBtn) createBtn.disabled = !learners.length;
+};
+
+// Keep the inline select onchange simple while reusing the cached learner list.
+window.loadBulkParentLearners = (function(original) {
+  return async function() {
+    const select = document.getElementById("bulkParentGrade");
+    if (select && Array.isArray(window.__bulkParentAllLearners)) {
+      await window.loadBulkParentLearnersForSelectedGrade();
+      return;
+    }
+    return original();
+  };
+})(window.loadBulkParentLearners);
+
+window.createBulkParentAccounts = async function () {
+  const learners = Array.isArray(window.__bulkParentLearners) ? [...window.__bulkParentLearners] : [];
+  const grade = String(document.getElementById("bulkParentGrade")?.value || "").trim();
+  const button = document.getElementById("bulkCreateParentAccountsBtn");
+  if (String(window.currentUserRole || "").toLowerCase() !== "admin") {
+    return Swal.fire({icon:"error",title:"Admin Only",text:"Only a school administrator can create parent accounts."});
+  }
+  if (!grade || !learners.length) {
+    return Swal.fire({icon:"warning",title:"Select a Grade",text:"Choose a grade with learners first."});
+  }
+  const confirm = await Swal.fire({
+    icon:"question", title:"Create Parent Accounts?",
+    html:`Create parent login accounts for <strong>${learners.length}</strong> learner(s) in <strong>${String(grade).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</strong>? Each account will be linked to its learner.`,
+    showCancelButton:true, confirmButtonText:"Create Accounts", cancelButtonText:"Cancel"
+  });
+  if (!confirm.isConfirmed) return;
+  const sid = window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId");
+  if (!sid) return Swal.fire({icon:"error",title:"School Missing",text:"Please log in again and retry."});
+
+  const credentials = [];
+  const slug = value => String(value || "learner").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,".").replace(/^\.+|\.+$/g,"") || "learner";
+  const safeId = value => String(value || "learner").toLowerCase().replace(/[^a-z0-9]/g,"").slice(-12) || "learner";
+  // Merge the COMPLETE learner name into the login email, e.g.
+  // Allan Waweru -> allanwaweru@rasm360parent.com.
+  // Only exact duplicate full names receive a short learner-ID suffix.
+  const emailFor = learner => {
+    const allLearners = Array.isArray(window.__bulkParentAllLearners) ? window.__bulkParentAllLearners : learners;
+    const local = slug(learner.learnerName).replace(/\./g, "") || "learner";
+    const sameName = allLearners.filter(x => slug(x.learnerName).replace(/\./g, "") === local);
+    const uniqueLocal = sameName.length > 1
+      ? `${local}${safeId(learner.studentId || learner.firebaseId).slice(-4)}`
+      : local;
+    return `${uniqueLocal}@rasm360parent.com`;
+  };
+  const esc = value => String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");
+
+  if (button) { button.disabled = true; button.dataset.oldText = button.textContent; button.textContent = "Creating accounts… Please wait"; }
+  Swal.fire({title:"Creating Parent Accounts",html:`<div id="bulkParentProgressText">Preparing ${learners.length} account(s)…</div><div style="height:8px;background:#e2e8f0;border-radius:9px;margin-top:12px;overflow:hidden"><div id="bulkParentProgressBar" style="height:100%;width:0%;background:#2563eb;transition:width .2s"></div></div>`,allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+  let created = 0, failed = 0, skipped = 0;
+  try {
+    for (let i=0; i<learners.length; i++) {
+      const learner = learners[i];
+      const email = emailFor(learner);
+      // Requested temporary password: the learner's name. For names shorter
+      // than Firebase's six-character minimum, append 123 to satisfy Auth.
+      const password = learner.learnerName.length >= 6 ? learner.learnerName : `${learner.learnerName}123`;
+      const entry = {learnerName:learner.learnerName, grade:learner.grade, email, password, status:"Pending", studentId:learner.studentId};
+      try {
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+        const uid = cred.user.uid;
+        const parentUser = {
+          uid, fullName:`Parent of ${learner.learnerName}`, name:`Parent of ${learner.learnerName}`,
+          email, role:"parent", schoolId:sid, schoolName:localStorage.getItem("schoolName") || "",
+          active:true, deleted:false, createdAt:Date.now(), lastLogin:0,
+          studentId:learner.studentId, learnerId:learner.studentId, learnerName:learner.learnerName, grade:learner.grade,
+          children:[{id:learner.studentId,studentId:learner.studentId,learnerId:learner.studentId,name:learner.learnerName,grade:learner.grade}],
+          bulkCreated:true, credentialMethod:"learner-name-temporary-password"
+        };
+        await set(ref(db, `users/${uid}`), parentUser);
+        entry.status = "Created"; entry.uid = uid; created++;
+      } catch (err) {
+        const code = String(err?.code || "");
+        if (code.includes("email-already-in-use")) { entry.status = "Skipped — email already exists"; skipped++; }
+        else { entry.status = `Failed — ${err?.message || "Unknown error"}`; failed++; }
+        console.warn("BULK_PARENT_ACCOUNT_RESULT:", learner.learnerName, err);
+      }
+      credentials.push(entry);
+      const pct = Math.round(((i+1)/learners.length)*100);
+      const progressText = document.getElementById("bulkParentProgressText");
+      const progressBar = document.getElementById("bulkParentProgressBar");
+      if (progressText) progressText.textContent = `Processed ${i+1} of ${learners.length} · Created ${created} · Skipped ${skipped} · Failed ${failed}`;
+      if (progressBar) progressBar.style.width = `${pct}%`;
+    }
+    window.__lastBulkParentCredentials = credentials;
+    const downloadBtn = document.getElementById("downloadBulkParentCredentialsBtn");
+    if (downloadBtn) { downloadBtn.disabled = false; downloadBtn.style.color = "#1d4ed8"; downloadBtn.style.background = "#eff6ff"; }
+    Swal.close();
+    const rows = credentials.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.learnerName)}</td><td>${esc(x.email)}</td><td>${esc(x.password)}</td><td>${esc(x.status)}</td></tr>`).join("");
+    await Swal.fire({
+      title:"Bulk Parent Account Results", width:"min(1000px,96vw)",
+      html:`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"><span style="padding:7px 10px;background:#dcfce7;border-radius:8px">Created: <b>${created}</b></span><span style="padding:7px 10px;background:#fef3c7;border-radius:8px">Skipped: <b>${skipped}</b></span><span style="padding:7px 10px;background:#fee2e2;border-radius:8px">Failed: <b>${failed}</b></span></div><div style="max-height:55vh;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:left;font-size:12px"><thead><tr><th style="padding:7px;border:1px solid #cbd5e1">#</th><th style="padding:7px;border:1px solid #cbd5e1">Learner</th><th style="padding:7px;border:1px solid #cbd5e1">Login email</th><th style="padding:7px;border:1px solid #cbd5e1">Temporary password</th><th style="padding:7px;border:1px solid #cbd5e1">Status</th></tr></thead><tbody>${rows}</tbody></table></div><p style="font-size:12px;color:#64748b;margin-top:10px">Save the CSV securely. These generated addresses are login IDs, not guaranteed inboxes.</p>`,
+      confirmButtonText:"Done"
+    });
+  } catch (error) {
+    console.error("BULK_PARENT_ACCOUNT_FATAL:", error);
+    Swal.close();
+    Swal.fire({icon:"error",title:"Bulk Creation Interrupted",text:error?.message || "An unexpected error occurred. Review the results and retry."});
+  } finally {
+    if (button) { button.disabled = false; button.textContent = button.dataset.oldText || "🚀 Create Parent Accounts for Selected Grade"; }
+  }
+};
+
+window.downloadBulkParentCredentials = function () {
+  const rows = Array.isArray(window.__lastBulkParentCredentials) ? window.__lastBulkParentCredentials : [];
+  if (!rows.length) return Swal.fire({icon:"info",title:"No Results Yet",text:"Create parent accounts first."});
+  const columns = ["learnerName","grade","studentId","email","password","status"];
+  const quote = value => `"${String(value ?? "").replace(/"/g,'""')}"`;
+  const csv = [columns.join(","), ...rows.map(row => columns.map(key => quote(row[key])).join(","))].join("\r\n");
+  const blob = new Blob(["\ufeff",csv],{type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = `RASM360_Parent_Accounts_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+};
+
 window.createUserAccount = async function () {
 
   let loaderOpen = false;
@@ -123734,27 +124114,47 @@ window.loadCustomSubjects = function(){
 };
 
 
-if ('serviceWorker' in navigator) {
+/* ============================================================
+   RASM 360 — SAFE SERVICE WORKER REGISTRATION
+   ------------------------------------------------------------
+   Local file:// builds cannot register service workers.
+   Only register when served from http/https.
+============================================================ */
+(function () {
+    "use strict";
 
-window.addEventListener('load', () => {
+    const protocol = String(window.location?.protocol || "");
 
-navigator.serviceWorker.register('service-worker.js')
+    if (
+        protocol !== "http:" &&
+        protocol !== "https:"
+    ) {
+        return;
+    }
 
-.then((registration) => {
+    if (!("serviceWorker" in navigator)) {
+        return;
+    }
 
-console.log("✅ Service Worker Registered", registration);
+    window.addEventListener("load", function () {
 
-})
+        navigator.serviceWorker
+            .register("./service-worker.js", { scope: "./" })
+            .then(function (registration) {
+                console.info(
+                    "✅ RASM 360 Service Worker active:",
+                    registration.scope
+                );
+            })
+            .catch(function (error) {
+                console.warn(
+                    "⚠️ RASM 360 PWA registration skipped:",
+                    error?.message || error
+                );
+            });
 
-.catch((error) => {
-
-console.log("❌ Registration failed", error);
-
-});
-
-});
-
-}
+    }, { once: true });
+})();
 document.addEventListener("DOMContentLoaded", function () {
 
     /* =========================================================
@@ -125069,31 +125469,38 @@ border-radius:30px;
         const phone =
             document.getElementById("feeParentPhone");
 
+        /*
+         * Fee UI is also used by dynamically-rendered sections.
+         * Some controls do not exist until the section is opened, so
+         * NEVER dereference .style/.placeholder without a null check.
+         */
+        const setDisplay = (el, value) => {
+            if (el) el.style.display = value;
+        };
+
         if (role === "parent") {
 
-            // Hide admin-only fields
-            gradeBox.style.display = "none";
-            learnerBox.style.display = "none";
+            setDisplay(gradeBox, "none");
+            setDisplay(learnerBox, "none");
+            setDisplay(parentGuide, "block");
+            setDisplay(adminGuide, "none");
 
-            // Show parent guide
-            parentGuide.style.display = "block";
-            adminGuide.style.display = "none";
-
-            phone.placeholder =
-                "Enter Your Registered Phone Number";
+            if (phone) {
+                phone.placeholder =
+                    "Enter Your Registered Phone Number";
+            }
 
         } else {
 
-            // Show admin fields
-            gradeBox.style.display = "";
-            learnerBox.style.display = "";
+            setDisplay(gradeBox, "");
+            setDisplay(learnerBox, "");
+            setDisplay(parentGuide, "none");
+            setDisplay(adminGuide, "block");
 
-            // Show admin guide
-            parentGuide.style.display = "none";
-            adminGuide.style.display = "block";
-
-            phone.placeholder =
-                "Parent Phone Number (Optional)";
+            if (phone) {
+                phone.placeholder =
+                    "Parent Phone Number (Optional)";
+            }
 
         }
 
@@ -127010,7 +127417,7 @@ onclick="openSchoolProfileForm();Swal.close();">
 
 <button
 class="swal2-confirm swal2-styled"
-onclick="show('adminUsersPanel');Swal.close();">
+onclick="show('adminUsersPanel');Swal.close();setTimeout(()=>window.loadBulkParentLearners?.(),100);">
 
 👥 Create Users
 
@@ -131699,7 +132106,7 @@ window.getGrade1To6ReportLabel = function(level) {
 
   // Final clearance override: Lost, Damaged and Under Repair accountability records
   // must all be resolved before clearance can be granted.
-  window.runLearnerLibraryClearance = async function(){
+  window.__rasmLegacyClearance = async function(){
     const grade=document.getElementById('lostBookGrade')?.value?.trim()||'';
     const learnerId=document.getElementById('lostBookLearner')?.value?.trim()||'';
     const year=document.getElementById('lostBookYear')?.value?.trim()||'';
@@ -131754,7 +132161,7 @@ window.getGrade1To6ReportLabel = function(level) {
     snap.forEach(bookChild=>{const book=bookChild.val()||{}; Object.entries(book.copies||{}).forEach(([key,c])=>{c=c||{}; const status=norm(c.status); if(!['lost','damaged'].includes(status)) return; if(!copyBelongsTo(c,learner)) return; const resolved=!!c.replacementDate||!!c.replacedAt||!!c.damageResolved||!!c.repairCompletedDate||!!c.lostAccountability?.replaced; rows.push({bookId:bookChild.key,bookTitle:book.title||book.bookTitle||book.name||'Unknown Book',bookNumber:c.bookNumber||key,status,resolved,borrower:c.borrower||c.borrowerName||''});});});
     return rows;
   }
-  window.runLearnerLibraryClearance=async function(){
+  window.__rasmLegacyClearance = async function(){
     const grade=document.getElementById('lostBookGrade')?.value?.trim()||''; const learnerId=document.getElementById('lostBookLearner')?.value?.trim()||''; const year=document.getElementById('lostBookYear')?.value?.trim()||'';
     if(!year||!grade||!learnerId) return Swal.fire('Missing Selection','Select Year, Grade and Learner first.','warning');
     openSweetLoader('Reading Lost and Damaged Books from Book Copies...');
@@ -131883,7 +132290,7 @@ window.getGrade1To6ReportLabel = function(level) {
     }catch(e){closeSweetLoader();console.error(e);Swal.fire('Error',e.message,'error');}
   };
 
-  window.runLearnerLibraryClearance=async function(){
+  window.__rasmLegacyClearance = async function(){
     const ctx=await getContext();
     if(ctx.error) return Swal.fire('Missing Selection',ctx.error,'warning');
     openSweetLoader('Checking exact Book Copies records...');
@@ -132196,9 +132603,13 @@ window.getGrade1To6ReportLabel = function(level) {
   }
   function registerSW() {
     if (!('serviceWorker' in navigator)) return;
+    var protocol = window.location && window.location.protocol;
+    if (protocol !== 'http:' && protocol !== 'https:') return;
+    if (window.__rasmServiceWorkerRegistrationStarted) return;
+    window.__rasmServiceWorkerRegistrationStarted = true;
     navigator.serviceWorker.register('./service-worker.js', {scope: './'})
       .then(function (reg) { console.info('RASM 360 PWA active:', reg.scope); })
-      .catch(function (err) { console.warn('RASM 360 PWA registration failed:', err); });
+      .catch(function (err) { console.warn('RASM 360 PWA registration failed:', err?.message || err); });
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', addManifest, {once:true});
@@ -138599,6 +139010,9 @@ ${
     iframe.title =
       "RASM 360 Leave Out Sheet Print";
 
+    /* Explicit blank source avoids unnecessary file:// frame navigation. */
+    iframe.src = "about:blank";
+
 
     Object.assign(
       iframe.style,
@@ -143270,6 +143684,7 @@ window.openAdminRecycleBin = function () {
             <select class="rasm-library-action-select" data-book-key="${esc(key)}" aria-label="Actions for ${esc(d.title||"book")}" onchange="handleLibraryAction(this.value, this.dataset.bookKey); this.selectedIndex=0;">
               <option value="">⚙️ Select Action</option>
               <option value="borrow">📕 Borrow Book</option>
+              <option value="returnAll">↩️ Return All Borrowed Books</option>
               <option value="copies">📚 View / Manage Copies</option>
               <option value="topup">➕ Top Up Stock</option>
               <option value="edit">✏️ Edit Book</option>
@@ -143408,6 +143823,7 @@ window.openAdminRecycleBin = function () {
     if(!action || !bookId) return;
     const id=String(bookId);
     if(action==="borrow" && typeof window.borrowBook==="function") return window.borrowBook(id);
+    if(action==="returnAll" && typeof window.openBulkReturnAll==="function") return window.openBulkReturnAll();
     if(action==="copies" && typeof window.viewBookCopies==="function") return window.viewBookCopies(id);
     if(action==="topup" && typeof window.topUpBookStock==="function") return window.topUpBookStock(id);
     if(action==="edit" && typeof window.editLibraryBook==="function") return window.editLibraryBook(id);
@@ -143466,7 +143882,7 @@ window.openAdminRecycleBin = function () {
     }
   };
 
-  window.printLibraryManagementReport=function(){
+  window.__rasmLegacyLibraryReport=function(){
     const books=window.__libraryBooksCache||[];
     const loans=window.__libraryBorrowingsCache||[];
     const now=new Date();
@@ -144015,7 +144431,7 @@ window.openAdminRecycleBin = function () {
   // ============================================================
   // FINAL CLEARANCE AUTHORITY
   // ============================================================
-  window.runLearnerLibraryClearance = async function(){
+  window.__rasmLegacyClearance = async function(){
     const year = clean(document.getElementById("lostBookYear")?.value);
     const grade = clean(document.getElementById("lostBookGrade")?.value);
     const {learner,selectedId,optionText} = selectedLearner();
@@ -144657,7 +145073,7 @@ window.openAdminRecycleBin = function () {
   }
 
   /* Make this the function used by every older renderer. */
-  window.runLearnerLibraryClearance = finalClearance;
+  window.__rasmLegacyClearance = finalClearance;
   window.__rasm360LibraryClearanceAuthority = finalClearance;
 
   /* Also expose the same source-linked check to the accountability display. */
@@ -145980,7 +146396,7 @@ window.openAdminRecycleBin = function () {
     }
   };
 
-  window.runLearnerLibraryClearance = async function(){
+  window.__rasmLegacyClearance = async function(){
     const year = cleanText(document.getElementById("lostBookYear")?.value);
     const grade = cleanText(document.getElementById("lostBookGrade")?.value);
     const learnerId = cleanText(document.getElementById("lostBookLearner")?.value);
@@ -146929,7 +147345,7 @@ window.openAdminRecycleBin = function () {
    * One action: CHECK & CLEAR LEARNER.
    * It displays the actual outstanding Lost/Damaged copies and blocks clearance.
    */
-  window.runLearnerLibraryClearance = async function(){
+  window.__rasmLegacyClearance = async function(){
     const {learner,selectedId,optionName} = selectedLearner();
 
     if(!selectedId || !learner){
@@ -147290,4 +147706,2522 @@ window.openAdminRecycleBin = function () {
 })();
 </script>
 
+
+
+<!-- =========================================================
+     RASM 360 — FINAL ISOLATED PATCH
+     1) Parent Meeting SMS: grade-safe + production SMS endpoint
+     2) Library clearance: Lost/Damaged always block clearance
+     3) Library Management Report: school profile header + black print borders
+     IMPORTANT: APPENDED ONLY — NO OTHER SECTION MODIFIED
+========================================================= -->
+<script id="rasm360-final-requested-fixes">
+(function () {
+  "use strict";
+
+  const clean = v => String(v == null ? "" : v).trim();
+
+  function esc(v) {
+    return clean(v)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function normalizePhone(phone) {
+    let p = clean(phone).replace(/[^\d+]/g, "");
+    if (!p) return "";
+    if (p.startsWith("+")) p = p.substring(1);
+    if (p.startsWith("0")) p = "254" + p.substring(1);
+    if (!p.startsWith("254")) p = "254" + p.slice(-9);
+    return /^254\d{9}$/.test(p) ? p : "";
+  }
+
+  /* =========================================================
+     A. PARENT MEETING SMS
+     ========================================================= */
+
+  function getMeetingGrade() {
+    const gradeEl = document.getElementById("filterGrade");
+
+    /* Preserve the actual selected value. */
+    const selected = clean(gradeEl?.value);
+    if (selected) return selected;
+
+    /* Recovery: if a renderer temporarily rebuilt the select,
+       use the selected non-placeholder option. */
+    const selectedOption = gradeEl?.selectedOptions?.[0];
+    const optionValue = clean(selectedOption?.value);
+    if (optionValue) return optionValue;
+
+    return "";
+  }
+
+  /* Prevent the normal grade-loader from wiping an already selected grade. */
+  window.loadGradeFilterOptions = function () {
+    const gradeSelect = document.getElementById("filterGrade");
+    if (!gradeSelect) return;
+
+    const previous = clean(gradeSelect.value);
+
+    const source = Array.isArray(window.allStudents)
+      ? window.allStudents
+      : [];
+
+    const grades = [...new Set(
+      source
+        .map(s => clean(s?.grade || s?.class || s?.gradeName))
+        .filter(Boolean)
+    )].sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+    );
+
+    gradeSelect.innerHTML =
+      `<option value="">All Grades</option>` +
+      grades.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join("");
+
+    if (previous && grades.some(g => g.toLowerCase() === previous.toLowerCase())) {
+      const match = grades.find(g => g.toLowerCase() === previous.toLowerCase());
+      gradeSelect.value = match || "";
+    }
+  };
+
+  async function sendMeetingSMSFinal() {
+    const grade = getMeetingGrade();
+
+    if (!grade) {
+      return Swal.fire(
+        "Select Grade",
+        "Please select a grade first.",
+        "warning"
+      );
+    }
+
+    const students = Array.isArray(window.allStudents)
+      ? window.allStudents
+      : [];
+
+    /* IMPORTANT:
+       Meeting SMS is filtered by Grade only.
+       Gender or another learner-table filter must not silently
+       remove parents from the selected grade. */
+    const learners = students.filter(s =>
+      clean(s?.grade || s?.class || s?.gradeName).toLowerCase() ===
+      grade.toLowerCase()
+    );
+
+    if (!learners.length) {
+      return Swal.fire(
+        "No Students",
+        `No learners were found for ${grade}.`,
+        "info"
+      );
+    }
+
+    const confirm = await Swal.fire({
+      icon: "question",
+      title: `Send Parent Meeting SMS?`,
+      html:
+        `<b>Grade:</b> ${esc(grade)}<br>` +
+        `<b>Learners:</b> ${learners.length}<br><br>` +
+        `The SMS will be sent to parents/guardians with valid phone numbers.`,
+      showCancelButton: true,
+      confirmButtonText: "Send SMS",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#2563eb"
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    Swal.fire({
+      title: `Sending Parent Meeting SMS — ${esc(grade)}`,
+      html: `
+        <div style="font-weight:700;margin-bottom:10px;">
+          Preparing parent messages...
+        </div>
+        <div style="width:100%;height:12px;background:#e5e7eb;border-radius:20px;overflow:hidden;">
+          <div id="rasmMeetingSmsProgress"
+               style="width:0%;height:100%;background:#2563eb;transition:width .2s ease;"></div>
+        </div>
+        <div id="rasmMeetingSmsProgressText"
+             style="margin-top:8px;font-weight:800;">0%</div>
+      `,
+      allowOutsideClick: false,
+      showConfirmButton: false
+    });
+
+    let sent = 0;
+    let failed = 0;
+    let skipped = 0;
+    let processed = 0;
+
+    const messageFor = learner => {
+      const school = window.currentSchool || {};
+      const schoolName = clean(school.name) || "School";
+      const motto = clean(school.motto);
+      const learnerName =
+        clean(
+          learner?.name ||
+          learner?.fullName ||
+          learner?.studentName ||
+          learner?.studentFullName
+        ) || "your child";
+
+      return [
+        `Dear Parent/Guardian,`,
+        ``,
+        `You are invited to the PARENTS MEETING for ${learnerName}.`,
+        ``,
+        `Date: To be announced`,
+        `Venue: School Hall`,
+        `Time: 8:00 AM`,
+        ``,
+        `Regards,`,
+        schoolName,
+        motto
+      ].filter(Boolean).join("\n");
+    };
+
+    async function postSMS(phone, message) {
+      try {
+        /* Use the same production endpoint already used elsewhere
+           in this HTML instead of hard-coded localhost:3000. */
+        const response = await fetch("/send-sms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone,
+            message
+          })
+        });
+
+        let data = {};
+        try {
+          data = await response.json();
+        } catch (_) {}
+
+        return response.ok && data?.success !== false;
+      } catch (error) {
+        console.error("RASM360 parent meeting SMS error:", error);
+        return false;
+      }
+    }
+
+    function updateProgress() {
+      const percent = learners.length
+        ? Math.round((processed / learners.length) * 100)
+        : 100;
+
+      const bar = document.getElementById("rasmMeetingSmsProgress");
+      const label = document.getElementById("rasmMeetingSmsProgressText");
+
+      if (bar) bar.style.width = percent + "%";
+      if (label) label.textContent = `${percent}% (${processed}/${learners.length})`;
+    }
+
+    /* Small batches avoid browser/network overload. */
+    for (let i = 0; i < learners.length; i += 5) {
+      const batch = learners.slice(i, i + 5);
+
+      await Promise.all(batch.map(async learner => {
+        const phone = normalizePhone(
+          learner?.parentPhone ||
+          learner?.parentPhoneNumber ||
+          learner?.guardianPhone ||
+          learner?.guardianPhoneNumber ||
+          learner?.phone
+        );
+
+        if (!phone) {
+          skipped++;
+          processed++;
+          return;
+        }
+
+        const ok = await postSMS(phone, messageFor(learner));
+
+        if (ok) sent++;
+        else failed++;
+
+        processed++;
+      }));
+
+      updateProgress();
+
+      if (i + 5 < learners.length) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+
+    await Swal.fire({
+      icon: sent > 0 && failed === 0 ? "success" : (sent > 0 ? "warning" : "error"),
+      title: "Parent Meeting SMS Completed",
+      html: `
+        <div style="text-align:left;line-height:2;">
+          📩 <b>Sent:</b> ${sent}<br>
+          ❌ <b>Failed:</b> ${failed}<br>
+          ⚠️ <b>Skipped — no valid phone:</b> ${skipped}<br>
+          👨‍👩‍👧‍👦 <b>Grade:</b> ${esc(grade)}<br>
+          👥 <b>Learners:</b> ${learners.length}
+        </div>
+      `,
+      confirmButtonColor: "#2563eb"
+    });
+  }
+
+  window.sendParentMeetingSMS = sendMeetingSMSFinal;
+
+  /* The original file attached its listener directly to the old
+     function. Replace the button once so the old handler cannot run. */
+  function bindFinalMeetingSMS() {
+    const oldBtn = document.getElementById("sendMeetingSmsBtn");
+    if (!oldBtn || oldBtn.dataset.rasmFinalMeetingBound === "1") return;
+
+    const newBtn = oldBtn.cloneNode(true);
+    newBtn.dataset.rasmFinalMeetingBound = "1";
+
+    oldBtn.replaceWith(newBtn);
+
+    newBtn.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      Promise.resolve(window.sendParentMeetingSMS())
+        .catch(error => {
+          console.error("RASM360 parent meeting SMS failed:", error);
+          Swal.fire(
+            "SMS Sending Failed",
+            error?.message || "Unable to send Parent Meeting SMS.",
+            "error"
+          );
+        });
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindFinalMeetingSMS, { once: true });
+  } else {
+    bindFinalMeetingSMS();
+  }
+
+  /* =========================================================
+     B. LIBRARY CLEARANCE — LOST/DAMAGED = NOT ELIGIBLE
+     ========================================================= */
+
+  function librarySchoolId() {
+    return clean(
+      window.schoolId ||
+      window.currentSchoolId ||
+      sessionStorage.getItem("schoolId") ||
+      localStorage.getItem("schoolId")
+    );
+  }
+
+  function libraryDatabase() {
+    return window.db;
+  }
+
+  function copyStatusNormalized(copy) {
+    const raw = clean(
+      copy?.status ||
+      copy?.condition ||
+      copy?.copyStatus ||
+      copy?.bookStatus
+    ).toLowerCase();
+
+    if (raw.includes("lost")) return "lost";
+    if (raw.includes("damag")) return "damaged";
+    if (raw.includes("repair")) return "repair";
+    return raw;
+  }
+
+  function isResolvedCopy(copy) {
+    const meta = copy?.lostAccountability || {};
+
+    return (
+      meta.replaced === true ||
+      meta.resolved === true ||
+      meta.cleared === true ||
+      copy?.replaced === true ||
+      copy?.resolved === true ||
+      copy?.cleared === true ||
+      copy?.damageResolved === true ||
+      copy?.repairCompleted === true ||
+      copy?.repaired === true ||
+      !!copy?.replacementDate ||
+      !!copy?.replacedAt ||
+      !!copy?.repairCompletedDate
+    );
+  }
+
+  function learnerIdentitySet(learner, selectedId) {
+    const ids = [
+      selectedId,
+      learner?.id,
+      learner?.studentId,
+      learner?.learnerId,
+      learner?.admissionNo,
+      learner?.admission,
+      learner?.admissionNumber,
+      learner?.adm,
+      learner?.admNo,
+      learner?.studentCode
+    ].map(clean).filter(Boolean);
+
+    const names = [
+      learner?.name,
+      learner?.fullName,
+      learner?.studentName,
+      learner?.studentFullName
+    ].map(v => clean(v).toLowerCase()).filter(Boolean);
+
+    return { ids, names };
+  }
+
+  function identityMatchesCopy(copy, ids, names) {
+    const copyIds = [
+      copy?.borrowerId,
+      copy?.borrowId,
+      copy?.studentId,
+      copy?.learnerId,
+      copy?.borrowerAdm,
+      copy?.borrowerAdmissionNo,
+      copy?.admissionNo,
+      copy?.admission,
+      copy?.adm,
+      copy?.admNo,
+      copy?.lostAccountability?.learnerId
+    ].map(clean).filter(Boolean);
+
+    if (copyIds.some(id => ids.includes(id))) return true;
+
+    const copyNames = [
+      copy?.borrowerName,
+      copy?.borrower,
+      copy?.studentName,
+      copy?.learnerName,
+      copy?.lostAccountability?.learnerName
+    ].map(v => clean(v).toLowerCase()).filter(Boolean);
+
+    return copyNames.some(n => names.includes(n));
+  }
+
+  async function readLibraryRootFinal() {
+    const sid = librarySchoolId();
+    if (!sid) throw new Error("School ID is missing. Please log in again.");
+
+    const dbInstance = libraryDatabase();
+    if (!dbInstance || typeof window.ref !== "function") {
+      throw new Error("Library Firebase connection is not ready.");
+    }
+
+    const r = window.ref(dbInstance, `library/${sid}`);
+
+    if (typeof window.rasmFreshGet === "function") {
+      return window.rasmFreshGet(r);
+    }
+
+    if (typeof window.fastGet === "function") {
+      return window.fastGet(r);
+    }
+
+    if (typeof window.get === "function") {
+      return window.get(r);
+    }
+
+    throw new Error("Library data reader is not available.");
+  }
+
+  async function readBorrowingsFinal() {
+    const sid = librarySchoolId();
+    if (!sid) return null;
+
+    const dbInstance = libraryDatabase();
+    if (!dbInstance || typeof window.ref !== "function") return null;
+
+    try {
+      const r = window.ref(dbInstance, `libraryBorrowings/${sid}`);
+
+      if (typeof window.rasmFreshGet === "function") {
+        return await window.rasmFreshGet(r);
+      }
+
+      if (typeof window.fastGet === "function") {
+        return await window.fastGet(r);
+      }
+
+      if (typeof window.get === "function") {
+        return await window.get(r);
+      }
+    } catch (error) {
+      console.warn("RASM360 borrowing scan warning:", error);
+    }
+
+    return null;
+  }
+
+  async function getOutstandingLostDamagedFinal(ctx) {
+    const learner = ctx?.learner || {};
+    const selectedId = clean(ctx?.learnerId);
+
+    const { ids, names } = learnerIdentitySet(learner, selectedId);
+    const records = [];
+    const seen = new Set();
+
+    const addRecord = record => {
+      const key =
+        clean(record?.bookId) + "|" +
+        clean(record?.bookNumber) + "|" +
+        clean(record?.status);
+
+      if (seen.has(key)) return;
+      seen.add(key);
+      records.push(record);
+    };
+
+    const librarySnap = await readLibraryRootFinal();
+
+    if (librarySnap?.exists?.()) {
+      librarySnap.forEach(bookChild => {
+        const bookId = bookChild.key;
+        const book = bookChild.val() || {};
+        const copies = book?.copies || {};
+
+        Object.entries(copies).forEach(([copyKey, rawCopy]) => {
+          const copy = rawCopy || {};
+          const status = copyStatusNormalized(copy);
+
+          if (status !== "lost" && status !== "damaged") return;
+          if (!identityMatchesCopy(copy, ids, names)) return;
+
+          /* A resolved Lost/Damaged copy is no longer outstanding. */
+          if (isResolvedCopy(copy)) return;
+
+          const meta = copy?.lostAccountability || {};
+
+          addRecord({
+            bookId,
+            copyKey,
+            bookTitle: clean(
+              meta?.bookTitle ||
+              book?.title ||
+              book?.bookTitle ||
+              book?.name ||
+              "Unknown Book"
+            ),
+            bookNumber: clean(
+              copy?.bookNumber ||
+              copy?.accessionNo ||
+              copy?.accessionNumber ||
+              copyKey
+            ),
+            admissionNo: clean(
+              meta?.admissionNo ||
+              copy?.borrowerAdm ||
+              copy?.borrowerAdmissionNo ||
+              copy?.admissionNo ||
+              copy?.admission ||
+              selectedId
+            ),
+            gradeAtBorrowing: clean(
+              meta?.grade ||
+              meta?.gradeAtBorrowing ||
+              copy?.gradeAtBorrowing ||
+              copy?.borrowGrade ||
+              copy?.grade ||
+              copy?.class ||
+              "-"
+            ),
+            borrowDate: clean(
+              meta?.borrowDate ||
+              copy?.borrowDate ||
+              copy?.borrowedDate ||
+              "-"
+            ),
+            eventDate: clean(
+              meta?.lostDate ||
+              meta?.damagedDate ||
+              copy?.lostDate ||
+              copy?.damagedDate ||
+              copy?.repairDate ||
+              "-"
+            ),
+            reason: clean(
+              meta?.reason ||
+              copy?.lostReason ||
+              copy?.damageReason ||
+              copy?.reason ||
+              "-"
+            ),
+            status
+          });
+        });
+      });
+    }
+
+    /* Also inspect Circulation & Returns. This catches records where
+       the Book Copy status was not synchronised correctly. */
+    const loanSnap = await readBorrowingsFinal();
+
+    if (loanSnap?.exists?.()) {
+      loanSnap.forEach(child => {
+        const loan = child.val() || {};
+
+        const loanIds = [
+          loan?.borrowerId,
+          loan?.borrowId,
+          loan?.studentId,
+          loan?.learnerId,
+          loan?.borrowerAdm,
+          loan?.borrowerAdmissionNo,
+          loan?.admissionNo,
+          loan?.admission,
+          loan?.adm,
+          loan?.admNo
+        ].map(clean).filter(Boolean);
+
+        const loanNames = [
+          loan?.borrowerName,
+          loan?.borrower,
+          loan?.studentName,
+          loan?.learnerName
+        ].map(v => clean(v).toLowerCase()).filter(Boolean);
+
+        const belongs =
+          loanIds.some(id => ids.includes(id)) ||
+          loanNames.some(name => names.includes(name));
+
+        if (!belongs) return;
+
+        const status = clean(
+          loan?.status ||
+          loan?.bookStatus ||
+          loan?.condition ||
+          loan?.action
+        ).toLowerCase();
+
+        const lost = status.includes("lost");
+        const damaged = status.includes("damag");
+
+        if (!lost && !damaged) return;
+
+        const resolved =
+          loan?.replaced === true ||
+          loan?.resolved === true ||
+          loan?.cleared === true ||
+          loan?.repairCompleted === true ||
+          loan?.repaired === true ||
+          !!loan?.replacementDate ||
+          !!loan?.replacedAt ||
+          !!loan?.repairDate ||
+          !!loan?.repairCompletedDate;
+
+        if (resolved) return;
+
+        addRecord({
+          bookId: clean(loan?.bookId || child.key),
+          copyKey: clean(loan?.copyKey || ""),
+          bookTitle: clean(
+            loan?.bookTitle ||
+            loan?.title ||
+            "Unknown Book"
+          ),
+          bookNumber: clean(
+            loan?.bookNumber ||
+            loan?.copyAccession ||
+            loan?.accession ||
+            loan?.accessionNo ||
+            "-"
+          ),
+          admissionNo: clean(
+            loan?.borrowerAdm ||
+            loan?.borrowerAdmissionNo ||
+            loan?.admissionNo ||
+            loan?.admission ||
+            selectedId
+          ),
+          gradeAtBorrowing: clean(
+            loan?.gradeAtBorrowing ||
+            loan?.borrowGrade ||
+            loan?.grade ||
+            loan?.class ||
+            "-"
+          ),
+          borrowDate: clean(
+            loan?.borrowDate ||
+            loan?.borrowedDate ||
+            "-"
+          ),
+          eventDate: clean(
+            loan?.lostDate ||
+            loan?.damagedDate ||
+            loan?.returnDate ||
+            "-"
+          ),
+          reason: clean(
+            loan?.lostReason ||
+            loan?.damageReason ||
+            loan?.reason ||
+            "-"
+          ),
+          status: lost ? "lost" : "damaged"
+        });
+      });
+    }
+
+    return records;
+  }
+
+  window.runLearnerLibraryClearance = async function () {
+    const learnerEl = document.getElementById("lostBookLearner");
+    const selectedId = clean(learnerEl?.value);
+
+    if (!selectedId) {
+      return Swal.fire(
+        "Missing Selection",
+        "Please select a learner first.",
+        "warning"
+      );
+    }
+
+    const students = Array.isArray(window.allStudents)
+      ? window.allStudents
+      : [];
+
+    const learner = students.find(s =>
+      [
+        s?.id,
+        s?.studentId,
+        s?.learnerId,
+        s?.admissionNo,
+        s?.admission,
+        s?.admissionNumber,
+        s?.adm,
+        s?.admNo
+      ].map(clean).includes(selectedId)
+    ) || {
+      id: selectedId,
+      studentId: selectedId,
+      admissionNo: selectedId,
+      name: clean(learnerEl?.selectedOptions?.[0]?.textContent)
+    };
+
+    const name = clean(
+      learner?.name ||
+      learner?.fullName ||
+      learner?.studentName ||
+      learnerEl?.selectedOptions?.[0]?.textContent ||
+      "Learner"
+    );
+
+    if (typeof openSweetLoader === "function") {
+      openSweetLoader("Checking Lost & Damaged Books...");
+    }
+
+    try {
+      const records = await getOutstandingLostDamagedFinal({
+        learnerId: selectedId,
+        learner
+      });
+
+      if (typeof closeSweetLoader === "function") closeSweetLoader();
+
+      /* HARD RULE:
+         Any unresolved Lost OR Damaged record blocks clearance. */
+      if (records.length > 0) {
+        const rows = records.map(r => `
+          <tr>
+            <td style="padding:9px;border:1px solid #111;">${esc(r.bookTitle)}</td>
+            <td style="padding:9px;border:1px solid #111;">${esc(r.bookNumber)}</td>
+            <td style="padding:9px;border:1px solid #111;">${esc(r.gradeAtBorrowing)}</td>
+            <td style="padding:9px;border:1px solid #111;">${esc(r.borrowDate)}</td>
+            <td style="padding:9px;border:1px solid #111;">${esc(r.eventDate)}</td>
+            <td style="padding:9px;border:1px solid #111;font-weight:900;color:${r.status === "lost" ? "#dc2626" : "#d97706"};">
+              ${r.status === "lost" ? "❌ LOST" : "⚠️ DAMAGED"}
+            </td>
+            <td style="padding:9px;border:1px solid #111;font-weight:900;">
+              ${r.status === "lost" ? "📕 Replace before clearance" : "🛠 Repair/resolve before clearance"}
+            </td>
+          </tr>
+        `).join("");
+
+        return Swal.fire({
+          icon: "error",
+          title: "⛔ Clearance Blocked",
+          width: 1150,
+          html: `
+            <div style="text-align:left;">
+              <div style="padding:12px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:12px;">
+                <b>${esc(name)}</b> — ${esc(selectedId)}
+              </div>
+
+              <div style="padding:12px;background:#fef2f2;color:#991b1b;border-radius:8px;font-weight:900;margin-bottom:12px;">
+                This learner is NOT eligible for clearance because the Library still has
+                ${records.length} unresolved Lost/Damaged book record(s).
+              </div>
+
+              <div style="overflow:auto;max-height:460px;">
+                <table style="width:100%;min-width:950px;border-collapse:collapse;background:#fff;">
+                  <thead>
+                    <tr style="background:#111827;color:#fff;">
+                      <th style="padding:9px;border:1px solid #111;text-align:left;">Book</th>
+                      <th style="padding:9px;border:1px solid #111;text-align:left;">Copy / Accession</th>
+                      <th style="padding:9px;border:1px solid #111;text-align:left;">Grade at Borrowing</th>
+                      <th style="padding:9px;border:1px solid #111;text-align:left;">Borrowed</th>
+                      <th style="padding:9px;border:1px solid #111;text-align:left;">Lost / Damaged Date</th>
+                      <th style="padding:9px;border:1px solid #111;text-align:left;">Status</th>
+                      <th style="padding:9px;border:1px solid #111;text-align:left;">Required</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>
+            </div>
+          `,
+          confirmButtonText: "Close",
+          confirmButtonColor: "#dc2626"
+        });
+      }
+
+      const ok = await Swal.fire({
+        icon: "success",
+        title: "✅ Eligible for Clearance",
+        html:
+          `<b>${esc(name)}</b> has no unresolved Lost or Damaged Library records.<br><br>` +
+          `Proceed with Library clearance?`,
+        showCancelButton: true,
+        confirmButtonText: "Clear Learner",
+        cancelButtonText: "Close",
+        confirmButtonColor: "#16a34a"
+      });
+
+      if (!ok.isConfirmed) return;
+
+      const year =
+        clean(document.getElementById("lostBookYear")?.value) ||
+        String(new Date().getFullYear());
+
+      const grade =
+        clean(document.getElementById("lostBookGrade")?.value) ||
+        clean(learner?.grade || learner?.class || "");
+
+      const key =
+        `libraryClearance_${librarySchoolId()}_${selectedId}_${year}`;
+
+      localStorage.setItem(key, JSON.stringify({
+        learnerId: selectedId,
+        learnerName: name,
+        grade,
+        year,
+        cleared: true,
+        clearedAt: Date.now(),
+        clearanceDate: new Date().toLocaleString()
+      }));
+
+      return Swal.fire({
+        icon: "success",
+        title: "Learner Cleared",
+        text: `${name} has been cleared by the Library.`,
+        timer: 1400,
+        showConfirmButton: false
+      });
+
+    } catch (error) {
+      if (typeof closeSweetLoader === "function") closeSweetLoader();
+
+      console.error("RASM360 FINAL LIBRARY CLEARANCE ERROR:", error);
+
+      return Swal.fire(
+        "Clearance Check Failed",
+        error?.message || "Unable to inspect Library records.",
+        "error"
+      );
+    }
+  };
+
+  /* =========================================================
+     C. LIBRARY MANAGEMENT REPORT
+     SCHOOL PROFILE HEADER + BLACK PRINT BORDERS
+     ========================================================= */
+
+  async function ensureSchoolProfileForReport() {
+    if (window.currentSchool?.name) return window.currentSchool;
+
+    const sid = librarySchoolId();
+    if (!sid || !window.db || typeof window.ref !== "function") {
+      return window.currentSchool || {};
+    }
+
+    try {
+      const schoolRef = window.ref(window.db, `schools/${sid}`);
+
+      let snap = null;
+
+      if (typeof window.rasmFreshGet === "function") {
+        snap = await window.rasmFreshGet(schoolRef);
+      } else if (typeof window.fastGet === "function") {
+        snap = await window.fastGet(schoolRef);
+      } else if (typeof window.get === "function") {
+        snap = await window.get(schoolRef);
+      }
+
+      if (snap?.exists?.()) {
+        window.currentSchool = {
+          ...(window.currentSchool || {}),
+          ...(snap.val() || {})
+        };
+      }
+    } catch (error) {
+      console.warn("RASM360 school profile report header warning:", error);
+    }
+
+    return window.currentSchool || {};
+  }
+
+  window.__rasmLegacyLibraryReport = async function () {
+    try {
+      const books = Array.isArray(window.__libraryBooksCache)
+        ? window.__libraryBooksCache
+        : [];
+
+      const loans = Array.isArray(window.__libraryBorrowingsCache)
+        ? window.__libraryBorrowingsCache
+        : [];
+
+      const school = await ensureSchoolProfileForReport();
+      const now = new Date();
+
+      const bookStatsSafe = typeof window.bookStats === "function"
+        ? window.bookStats
+        : function (d) {
+            const copies = d?.copies || {};
+            const arr = Object.values(copies);
+            const total = arr.length;
+            const borrowed = arr.filter(c =>
+              String(c?.status || "").toLowerCase().includes("borrow")
+            ).length;
+            const lost = arr.filter(c =>
+              String(c?.status || "").toLowerCase().includes("lost")
+            ).length;
+            const damaged = arr.filter(c =>
+              String(c?.status || "").toLowerCase().includes("damag")
+            ).length;
+            return {
+              total,
+              borrowed,
+              lost,
+              damaged,
+              available: Math.max(0, total - borrowed - lost - damaged)
+            };
+          };
+
+      const overdue = loans.filter(x => {
+        if (x?.returned) return false;
+        if (!x?.dueDate) return false;
+        return new Date(x.dueDate + "T23:59:59") < now;
+      }).length;
+
+      const rows = books.map((item, i) => {
+        const d = item?.data || {};
+        const s = bookStatsSafe(d);
+
+        return `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${esc(d.title || "-")}</td>
+            <td>${esc(d.grade || "-")}</td>
+            <td>${esc(d.author || "-")}</td>
+            <td>${Number(s.total || 0)}</td>
+            <td>${Number(s.available || 0)}</td>
+            <td>${Number(s.borrowed || 0)}</td>
+            <td>${Number(s.lost || 0)}</td>
+            <td>${esc(d.shelf || "-")}</td>
+          </tr>
+        `;
+      }).join("");
+
+      let headerHtml = "";
+
+      try {
+        if (typeof window.getSchoolPrintHeader === "function") {
+          headerHtml = window.getSchoolPrintHeader("LIBRARY MANAGEMENT REPORT");
+        }
+      } catch (_) {}
+
+      if (!headerHtml) {
+        headerHtml = `
+          <div class="school-header">
+            ${school?.logo ? `<img src="${esc(school.logo)}" alt="School Logo">` : ""}
+            <div class="school-details">
+              <h1>${esc(school?.name || "SCHOOL NAME")}</h1>
+              ${school?.motto ? `<div class="motto">${esc(school.motto)}</div>` : ""}
+              ${school?.address ? `<div class="address">${esc(school.address)}</div>` : ""}
+              <h2>LIBRARY MANAGEMENT REPORT</h2>
+            </div>
+          </div>
+        `;
+      }
+
+      const w = window.open(
+        "",
+        "_blank",
+        "width=1200,height=850"
+      );
+
+      if (!w) {
+        return Swal.fire(
+          "Print Blocked",
+          "Please allow pop-ups for RASM 360 and try again.",
+          "warning"
+        );
+      }
+
+      w.document.open();
+      w.document.write(`
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Library Management Report</title>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 9mm;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10pt;
+  }
+
+  body {
+    padding: 0;
+  }
+
+  .school-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    border-bottom: 3px solid #000;
+    padding: 0 0 9px;
+    margin-bottom: 10px;
+  }
+
+  .school-header img {
+    width: 75px;
+    height: 75px;
+    object-fit: contain;
+    flex: 0 0 75px;
+  }
+
+  .school-details {
+    text-align: center;
+    flex: 1;
+  }
+
+  .school-details h1 {
+    margin: 0;
+    font-size: 21pt;
+    line-height: 1.1;
+  }
+
+  .school-details .motto {
+    margin-top: 4px;
+    font-size: 10pt;
+    font-style: italic;
+  }
+
+  .school-details .address {
+    margin-top: 3px;
+    font-size: 9pt;
+  }
+
+  .school-details h2 {
+    margin: 7px 0 0;
+    font-size: 14pt;
+  }
+
+  .report-meta {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+    flex-wrap: wrap;
+    border: 1.5px solid #000;
+    padding: 5px 8px;
+    margin-bottom: 9px;
+    font-size: 9pt;
+  }
+
+  .metrics {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 9px;
+  }
+
+  .metric {
+    border: 1.5px solid #000;
+    padding: 6px 10px;
+    min-width: 105px;
+    text-align: center;
+  }
+
+  .metric b {
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse !important;
+    border: 2px solid #000 !important;
+    margin-top: 7px;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  th,
+  td {
+    border: 1.5px solid #000 !important;
+    padding: 5px 6px;
+    color: #000 !important;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  th {
+    background: #e5e7eb !important;
+    font-weight: 800;
+  }
+
+  td:nth-child(2),
+  td:nth-child(4),
+  td:nth-child(9) {
+    text-align: left;
+  }
+
+  .print-footer {
+    margin-top: 8px;
+    font-size: 8.5pt;
+    text-align: right;
+  }
+
+  @media print {
+    table,
+    th,
+    td {
+      border-color: #000 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+</style>
+</head>
+<body>
+
+${headerHtml}
+
+<div class="report-meta">
+  <span><b>Report:</b> Library Management Report</span>
+  <span><b>Printed:</b> ${esc(now.toLocaleString())}</span>
+</div>
+
+<div class="metrics">
+  <div class="metric"><b>Titles</b>${books.length}</div>
+  <div class="metric"><b>Active Loans</b>${loans.filter(x => !x.returned).length}</div>
+  <div class="metric"><b>Overdue</b>${overdue}</div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Book</th>
+      <th>Grade</th>
+      <th>Author</th>
+      <th>Total</th>
+      <th>Available</th>
+      <th>Borrowed</th>
+      <th>Lost</th>
+      <th>Shelf</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows || `
+      <tr>
+        <td colspan="9" style="padding:14px;">No library books found.</td>
+      </tr>
+    `}
+  </tbody>
+</table>
+
+<div class="print-footer">
+  RASM 360 — Library Management Report
+</div>
+
+<script>
+  window.onload = function () {
+    setTimeout(function () {
+      window.print();
+    }, 250);
+  };
+<\/script>
+
+</body>
+</html>
+      `);
+
+      w.document.close();
+
+    } catch (error) {
+      console.error("RASM360 Library Management Report error:", error);
+
+      Swal.fire(
+        "Report Error",
+        error?.message || "Unable to generate the Library Management Report.",
+        "error"
+      );
+    }
+  };
+
+  /* =========================================================
+     D. FINAL BINDING
+     ========================================================= */
+
+  function finalBind() {
+    bindFinalMeetingSMS();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", finalBind, { once: true });
+  } else {
+    finalBind();
+  }
+
+  console.log(
+    "✅ RASM 360 — requested Parent Meeting SMS + Library clearance + Library report patch loaded."
+  );
+
+})();
+</script>
+
+
+
+<!-- =========================================================
+     RASM 360 — LIBRARY FINAL CONSISTENCY + SINGLE CLEARANCE AUTHORITY
+     Scope: LIBRARY ONLY
+     - One authoritative public clearance function
+     - Copy count is based on actual Book Copies records
+     - Synchronizes stale quantity/available metadata
+     - Library Report asks for Grade before generating
+     - Report uses school profile header + black table borders
+========================================================= -->
+<script id="rasm360-library-final-consistency-authority">
+(function(){
+  "use strict";
+
+  const clean = v => String(v == null ? "" : v).trim();
+  const esc = v => String(v == null ? "" : v)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+
+  function schoolId(){
+    return clean(window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId"));
+  }
+
+  function actualCopyStats(book){
+    const copies = book && book.copies && typeof book.copies === "object" ? book.copies : {};
+    const values = Object.values(copies);
+    const s = {total:values.length, available:0, borrowed:0, damaged:0, lost:0, withdrawn:0, repair:0};
+    values.forEach(copy=>{
+      const st = clean(copy && copy.status).toLowerCase();
+      if(st === "borrowed") s.borrowed++;
+      else if(st === "lost") s.lost++;
+      else if(st === "damaged") s.damaged++;
+      else if(st === "withdrawn") s.withdrawn++;
+      else if(st === "under repair" || st === "repair") s.repair++;
+      else s.available++;
+    });
+    return s;
+  }
+
+  /* ---------------------------------------------------------
+     1. MAKE BOOK COPIES THE SINGLE SOURCE OF TRUTH FOR STOCK
+     --------------------------------------------------------- */
+  async function syncLibraryBookTotals(){
+    const sid = schoolId();
+    const books = Array.isArray(window.__libraryBooksCache) ? window.__libraryBooksCache : [];
+    if(!sid || !books.length || typeof window.update !== "function" || typeof window.ref !== "function" || !window.db) return;
+    if(window.__rasmLibraryTotalsSyncRunning) return;
+    window.__rasmLibraryTotalsSyncRunning = true;
+    try{
+      await Promise.all(books.map(async item=>{
+        const d = item && item.data ? item.data : {};
+        if(!d.copies || typeof d.copies !== "object") return;
+        const st = actualCopyStats(d);
+        const currentTotal = Number(d.quantity);
+        const currentAvailable = Number(d.available);
+        if(currentTotal === st.total && currentAvailable === st.available) return;
+
+        /* Update only stale metadata; do NOT create/delete Book Copies. */
+        await window.update(
+          window.ref(window.db, `library/${sid}/${item.key}`),
+          {quantity:st.total, available:st.available, updatedAt:Date.now()}
+        );
+        item.data = {...d, quantity:st.total, available:st.available};
+      }));
+    }catch(e){
+      console.warn("RASM360 library copy-total sync skipped:", e);
+    }finally{
+      window.__rasmLibraryTotalsSyncRunning = false;
+    }
+  }
+
+  function scheduleTotalsSync(){
+    clearTimeout(window.__rasmLibraryTotalsSyncTimer);
+    window.__rasmLibraryTotalsSyncTimer = setTimeout(syncLibraryBookTotals, 150);
+  }
+
+  /* Patch the public refresh/load entry points without replacing the existing
+     Firebase listener logic. */
+  ["loadLibrary","refreshLibraryManagement"].forEach(name=>{
+    const old = window[name];
+    if(typeof old !== "function" || old.__rasmTotalsWrapped) return;
+    const wrapped = function(){
+      const result = old.apply(this, arguments);
+      Promise.resolve(result).finally(scheduleTotalsSync);
+      return result;
+    };
+    wrapped.__rasmTotalsWrapped = true;
+    window[name] = wrapped;
+  });
+
+  /* If the catalogue is already loaded when this patch runs, sync immediately. */
+  scheduleTotalsSync();
+
+  /* ---------------------------------------------------------
+     2. ONE PUBLIC CLEARANCE AUTHORITY
+     --------------------------------------------------------- */
+  function bindSingleClearanceButton(){
+    const oldBtn = document.getElementById("rasmCheckClearLearnerBtn");
+    if(!oldBtn || oldBtn.__rasmSingleClearanceBound) return;
+
+    /* Clone removes every listener installed by earlier clearance scripts. */
+    const btn = oldBtn.cloneNode(true);
+    btn.__rasmSingleClearanceBound = true;
+    btn.onclick = null;
+    btn.addEventListener("click", function(e){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if(typeof window.runLearnerLibraryClearance === "function"){
+        window.runLearnerLibraryClearance();
+      }
+    }, true);
+    oldBtn.replaceWith(btn);
+  }
+
+  /* The final public function below is the only clearance function exposed. */
+  window.runLearnerLibraryClearance = async function(){
+    const learnerEl = document.getElementById("lostBookLearner");
+    const selectedId = clean(learnerEl && learnerEl.value);
+    const year = clean(document.getElementById("lostBookYear") && document.getElementById("lostBookYear").value);
+    const grade = clean(document.getElementById("lostBookGrade") && document.getElementById("lostBookGrade").value);
+
+    if(!selectedId || !year || !grade){
+      return Swal.fire("Missing Selection","Please select Year, Grade and Learner first.","warning");
+    }
+
+    const students = Array.isArray(window.allStudents) ? window.allStudents : [];
+    const same = v => clean(v) === selectedId;
+    const learner = students.find(s => [s && s.id,s && s.studentId,s && s.learnerId,s && s.admissionNo,s && s.admission,s && s.admissionNumber,s && s.adm,s && s.admNo].some(same));
+    if(!learner){
+      return Swal.fire("Learner Not Found","The selected learner could not be found.","error");
+    }
+
+    const learnerName = clean(learner.name || learner.fullName || learner.studentName || (learnerEl.selectedOptions[0] && learnerEl.selectedOptions[0].textContent) || "Learner");
+
+    if(typeof openSweetLoader === "function") openSweetLoader("Checking Book Copies and Library Returns...");
+    try{
+      let records = [];
+      if(typeof window.getLearnerLibraryAccountability === "function"){
+        records = await window.getLearnerLibraryAccountability({learnerId:selectedId, learner, selectedOptionName:learnerName});
+      } else if(typeof window.getLearnerLostBooks === "function"){
+        records = await window.getLearnerLostBooks({learnerId:selectedId, learner, grade, year});
+      }
+      if(typeof closeSweetLoader === "function") closeSweetLoader();
+
+      records = Array.isArray(records) ? records.filter(r=>{
+        const st=clean(r && r.status).toLowerCase();
+        const resolved = !!(r && (r.resolved || r.replaced || r.cleared || r.resolvedAt || r.replacementDate || r.replacedAt || r.repairDate || r.repairCompletedDate));
+        return !resolved && (st === "lost" || st === "damaged" || st === "repair" || st === "under repair");
+      }) : [];
+
+      if(records.length){
+        const rows = records.map(r=>{
+          const st=clean(r.status).toLowerCase();
+          const lost=st === "lost";
+          return `<tr>
+            <td>${esc(r.bookTitle || r.title || "Unknown Book")}</td>
+            <td>${esc(r.bookNumber || r.copyNumber || r.copyAccession || r.accession || "-")}</td>
+            <td>${esc(r.historicalGrade || r.gradeAtBorrowing || r.borrowGrade || r.grade || "-")}</td>
+            <td>${esc(r.borrowDate || r.borrowedDate || "-")}</td>
+            <td>${esc(r.lostDate || r.damagedDate || r.eventDate || "-")}</td>
+            <td class="${lost ? "lost" : "damaged"}">${lost ? "❌ LOST" : "⚠️ DAMAGED"}</td>
+            <td>${lost ? "Replace before clearance" : "Repair / resolve before clearance"}</td>
+          </tr>`;
+        }).join("");
+        return Swal.fire({
+          icon:"error",
+          title:"⛔ Clearance Blocked",
+          width:1150,
+          html:`<div style="text-align:left">
+            <div style="padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:12px"><b>${esc(learnerName)}</b> — ${esc(selectedId)}</div>
+            <div style="padding:12px;background:#fff7ed;border-radius:8px;font-weight:800;margin-bottom:12px">This learner is NOT eligible for clearance. Every unresolved Lost or Damaged book must be resolved first, regardless of the learner's current grade or when the book was borrowed.</div>
+            <div style="overflow:auto;max-height:450px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#111827;color:#fff"><th>Book</th><th>Copy / Accession</th><th>Grade at Borrowing</th><th>Borrowed</th><th>Lost / Damaged Date</th><th>Status</th><th>Required</th></tr></thead><tbody>${rows}</tbody></table></div>
+          </div>`,
+          confirmButtonText:"Close",
+          confirmButtonColor:"#dc2626"
+        });
+      }
+
+      const ok = await Swal.fire({
+        icon:"success",
+        title:"✅ Eligible for Clearance",
+        html:`<b>${esc(learnerName)}</b> has no unresolved Lost or Damaged Library records.<br><br>Proceed with Library clearance?`,
+        showCancelButton:true,
+        confirmButtonText:"Clear Learner",
+        cancelButtonText:"Close",
+        confirmButtonColor:"#16a34a"
+      });
+      if(!ok.isConfirmed) return;
+
+      localStorage.setItem(`libraryClearance_${schoolId()}_${selectedId}_${year}`,JSON.stringify({
+        learnerId:selectedId, learnerName, grade, year, cleared:true, clearedAt:Date.now(), clearanceDate:new Date().toLocaleString()
+      }));
+      return Swal.fire({icon:"success",title:"Learner Cleared",text:`${learnerName} has been cleared by the Library.`,timer:1400,showConfirmButton:false});
+    }catch(error){
+      if(typeof closeSweetLoader === "function") closeSweetLoader();
+      console.error("RASM360 single Library clearance error:",error);
+      return Swal.fire("Clearance Check Failed",error && error.message ? error.message : "Unable to inspect Library records.","error");
+    }
+  };
+
+  /* ---------------------------------------------------------
+     3. GRADE-SPECIFIC LIBRARY MANAGEMENT REPORT
+     --------------------------------------------------------- */
+  async function getSchoolForReport(){
+    if(window.currentSchool && (window.currentSchool.name || window.currentSchool.schoolName)) return window.currentSchool;
+    const sid=schoolId();
+    try{
+      if(sid && window.db && typeof window.ref === "function" && typeof window.get === "function"){
+        const snap=await window.get(window.ref(window.db,`schools/${sid}`));
+        if(snap && snap.exists && snap.exists()) window.currentSchool={...(window.currentSchool||{}),...(snap.val()||{})};
+      }
+    }catch(e){ console.warn("Library report school profile warning:",e); }
+    return window.currentSchool || {};
+  }
+
+  window.printLibraryManagementReport = async function(){
+    try{
+      const books=Array.isArray(window.__libraryBooksCache) ? window.__libraryBooksCache : [];
+      const grades=[...new Set(books.map(x=>clean(x && x.data && x.data.grade)).filter(Boolean))]
+        .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+      if(!grades.length) return Swal.fire("No Grades Found","There are no registered library book grades to report.","warning");
+
+      const pick=await Swal.fire({
+        title:"🖨️ Library Management Report",
+        input:"select",
+        inputOptions:Object.fromEntries(grades.map(g=>[g,g])),
+        inputPlaceholder:"🎓 Select Grade",
+        showCancelButton:true,
+        confirmButtonText:"Generate Report",
+        cancelButtonText:"Cancel",
+        inputValidator:value=>value ? undefined : "Please select a grade first."
+      });
+      if(!pick.isConfirmed || !pick.value) return;
+      const selectedGrade=clean(pick.value);
+      const filtered=books.filter(x=>clean(x && x.data && x.data.grade).toLowerCase()===selectedGrade.toLowerCase());
+      const loans=Array.isArray(window.__libraryBorrowingsCache) ? window.__libraryBorrowingsCache : [];
+      const school=await getSchoolForReport();
+      const now=new Date();
+
+      const stats=d=>actualCopyStats(d||{});
+      const totals=filtered.reduce((a,x)=>{const s=stats(x.data||{}); Object.keys(s).forEach(k=>a[k]+=s[k]); return a;},{total:0,available:0,borrowed:0,damaged:0,lost:0,withdrawn:0,repair:0});
+      const activeLoans=loans.filter(x=>!x.returned && clean(x.grade || x.borrowGrade || x.gradeAtBorrowing).toLowerCase()===selectedGrade.toLowerCase()).length;
+      const overdue=loans.filter(x=>!x.returned && clean(x.grade || x.borrowGrade || x.gradeAtBorrowing).toLowerCase()===selectedGrade.toLowerCase() && x.dueDate && new Date(x.dueDate+"T23:59:59")<now).length;
+
+      let headerHtml="";
+      try{ if(typeof window.getSchoolPrintHeader === "function") headerHtml=window.getSchoolPrintHeader("LIBRARY MANAGEMENT REPORT"); }catch(_e){}
+      if(!headerHtml){
+        headerHtml=`<div class="schoolHeader">
+          ${school.logo ? `<img src="${esc(school.logo)}" alt="School Logo">` : ""}
+          <div><h1>${esc(school.name || school.schoolName || "SCHOOL NAME")}</h1>${school.motto ? `<div>${esc(school.motto)}</div>` : ""}${school.address ? `<div>${esc(school.address)}</div>` : ""}<h2>LIBRARY MANAGEMENT REPORT</h2><div>GRADE: <b>${esc(selectedGrade)}</b></div></div>
+        </div>`;
+      }
+
+      const rows=filtered.map((x,i)=>{
+        const d=x.data||{}, s=stats(d);
+        return `<tr><td>${i+1}</td><td>${esc(d.title||"-")}</td><td>${esc(d.author||"-")}</td><td>${esc(d.category||"-")}</td><td>${esc(d.shelf||"-")}</td><td>${s.total}</td><td>${s.available}</td><td>${s.borrowed}</td><td>${s.damaged}</td><td>${s.lost}</td><td>${s.withdrawn}</td><td>${s.repair}</td></tr>`;
+      }).join("");
+
+      const w=window.open("","_blank","width=1250,height=850");
+      if(!w) return Swal.fire("Print Blocked","Please allow pop-ups for RASM 360 and try again.","warning");
+      w.document.open();
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Library Management Report - ${esc(selectedGrade)}</title><style>
+        @page{size:A4 landscape;margin:8mm}
+        *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#000;font-size:9pt}
+        .schoolHeader{text-align:center;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:7px;display:flex;align-items:center;justify-content:center;gap:14px}.schoolHeader img{width:65px;height:65px;object-fit:contain}.schoolHeader h1{margin:0;font-size:19pt}.schoolHeader h2{margin:4px 0;font-size:13pt}.schoolHeader div{margin:2px 0}
+        .meta{display:flex;justify-content:space-between;border:1px solid #000;padding:6px;margin-bottom:8px;font-weight:800}
+        .metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:8px}.metric{border:1px solid #000;padding:5px;text-align:center}.metric b{display:block;font-size:12pt}
+        table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #000;padding:5px 4px;text-align:center;vertical-align:middle;word-wrap:break-word}th{background:#111;color:#fff;font-size:8.5pt}td:nth-child(2){text-align:left;font-weight:700}td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:left}
+        .footer{margin-top:8px;font-size:8pt;display:flex;justify-content:space-between}
+        @media print{table,thead,tbody,tr,th,td{border:1px solid #000!important}.noPrint{display:none!important}}
+      </style></head><body>${headerHtml}
+        <div class="meta"><span>GRADE: ${esc(selectedGrade)}</span><span>Generated: ${esc(now.toLocaleString())}</span><span>Titles: ${filtered.length}</span></div>
+        <div class="metrics"><div class="metric"><b>${totals.total}</b>Total Copies</div><div class="metric"><b>${totals.available}</b>Available</div><div class="metric"><b>${totals.borrowed}</b>Borrowed</div><div class="metric"><b>${totals.damaged}</b>Damaged</div><div class="metric"><b>${totals.lost}</b>Lost</div><div class="metric"><b>${activeLoans}</b>Active Loans</div></div>
+        <table><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Category</th><th>Shelf</th><th>Total Copies</th><th>Available</th><th>Borrowed</th><th>Damaged</th><th>Lost</th><th>Withdrawn</th><th>Under Repair</th></tr></thead><tbody>${rows || `<tr><td colspan="12">No books registered for ${esc(selectedGrade)}.</td></tr>`}</tbody></table>
+        <div class="footer"><span>Library Management Report — Grade ${esc(selectedGrade)}</span><span>Overdue Loans: ${overdue}</span></div>
+        <script>window.onload=function(){setTimeout(function(){window.print();},250)};<\/script>
+      </body></html>`);
+      w.document.close();
+    }catch(error){
+      console.error("RASM360 grade Library Report error:",error);
+      if(typeof closeSweetLoader === "function") closeSweetLoader();
+      Swal.fire("Report Error",error && error.message ? error.message : "Unable to generate the Library Management Report.","error");
+    }
+  };
+
+  function bind(){
+    bindSingleClearanceButton();
+    /* Ensure old controls are not rebound after Library refreshes. */
+    setTimeout(bindSingleClearanceButton,300);
+    setTimeout(bindSingleClearanceButton,1000);
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded",bind,{once:true}); else bind();
+  window.addEventListener("load",bind,{once:true});
+
+  console.log("✅ RASM 360 — Library consistency + single clearance + grade report authority active.");
+})();
+</script>
+
+<script id="rasm360-bulk-return-all-final">
+/* ================================================================
+   RASM 360 — REGISTERED BOOKS: BULK RETURN ALL BORROWED BOOKS
+   ISOLATED FINAL OVERRIDE — LIBRARY ONLY
+   ================================================================ */
+(function(){
+  "use strict";
+
+  const bulkEsc = v => String(v == null ? "" : v)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+
+  const bulkClean = v => String(v == null ? "" : v).trim();
+
+  function bulkSchoolId(){
+    if(typeof window.librarySchoolId === "function") return window.librarySchoolId();
+    return window.schoolId || window.currentSchoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "";
+  }
+
+  function bulkDb(){ return window.db || (typeof db !== "undefined" ? db : null); }
+  function bulkRef(path){
+    const d = bulkDb();
+    if(!d || typeof ref !== "function") throw new Error("Firebase database is not available.");
+    return ref(d,path);
+  }
+  async function bulkGet(r){
+    if(typeof window.rasmFreshGet === "function") return window.rasmFreshGet(r);
+    if(typeof fastGet === "function") return fastGet(r);
+    if(typeof get === "function") return get(r);
+    throw new Error("Firebase read service is unavailable.");
+  }
+  async function bulkUpdate(r,data){
+    if(typeof window.rasmBackgroundUpdate === "function") return window.rasmBackgroundUpdate(r,data);
+    if(typeof update === "function") return update(r,data);
+    throw new Error("Firebase update service is unavailable.");
+  }
+
+  function copyStatus(c){
+    const s=bulkClean(c?.status || c?.condition || c?.bookStatus || "Available").toLowerCase();
+    if(s.includes("lost")) return "Lost";
+    if(s.includes("damage")) return "Damaged";
+    if(s.includes("repair")) return "Under Repair";
+    if(s.includes("borrow")) return "Borrowed";
+    if(s.includes("withdraw")) return "Withdrawn";
+    return "Available";
+  }
+  function copyNumber(c,k){
+    return bulkClean(c?.bookNumber || c?.copyNumber || c?.accessionNo || c?.accession || c?.copyId || c?.number || k);
+  }
+  function borrowerName(c){
+    return bulkClean(c?.borrowerName || c?.borrower || c?.studentName || c?.learnerName || "Unknown Learner");
+  }
+  function borrowerId(c){
+    return bulkClean(c?.borrowerId || c?.studentId || c?.learnerId || c?.borrowerAdm || c?.admissionNo || c?.admission || c?.admNo || "");
+  }
+  function loanDate(c){ return bulkClean(c?.borrowDate || c?.borrowedDate || c?.borrowDateISO || "-"); }
+
+  async function loadActualBorrowedCopies(){
+    const sid=bulkSchoolId();
+    if(!sid) throw new Error("School ID is missing. Please log in again.");
+    const snap=await bulkGet(bulkRef(`library/${sid}`));
+    const records=[];
+    let registered=0,borrowed=0,lost=0,damaged=0;
+    if(snap.exists()){
+      snap.forEach(bookChild=>{
+        const book=bookChild.val()||{};
+        const copies=book.copies||{};
+        Object.entries(copies).forEach(([copyKey,raw])=>{
+          const copy=raw||{};
+          const status=copyStatus(copy);
+          if(status!=="Withdrawn") registered++;
+          if(status==="Borrowed"){
+            borrowed++;
+            records.push({bookId:bookChild.key,copyKey,bookTitle:bulkClean(book.title||book.bookTitle||book.name||"Untitled Book"),bookNumber:copyNumber(copy,copyKey),grade:bulkClean(copy.gradeAtBorrowing||copy.borrowGrade||book.grade||""),borrowerName:borrowerName(copy),borrowerId:borrowerId(copy),borrowDate:loanDate(copy),copy});
+          }
+          if(status==="Lost") lost++;
+          if(status==="Damaged") damaged++;
+        });
+      });
+    }
+    return {registered,borrowed,lost,damaged,records};
+  }
+
+  function addHistory(copy,label,remarks){
+    try{
+      if(typeof addCopyHistory === "function") addCopyHistory(copy,label,remarks);
+      else{
+        copy.history=Array.isArray(copy.history)?copy.history:[];
+        copy.history.push({action:label,date:new Date().toISOString(),remarks:remarks||""});
+      }
+    }catch(_){ }
+  }
+
+  async function markBulkCopyLost(item, reason){
+    const sid=bulkSchoolId();
+    const bookRef=bulkRef(`library/${sid}/${item.bookId}`);
+    const snap=await bulkGet(bookRef);
+    if(!snap.exists()) throw new Error(`${item.bookTitle} (${item.bookNumber}) no longer exists.`);
+    const book=snap.val()||{};
+    const copies={...(book.copies||{})};
+    let key=item.copyKey;
+    if(!copies[key]){
+      key=Object.keys(copies).find(k=>copyNumber(copies[k],k)===item.bookNumber);
+    }
+    if(!key || !copies[key]) throw new Error(`Copy ${item.bookNumber} could not be found.`);
+    const copy={...(copies[key]||{})};
+    if(copyStatus(copy)!=="Borrowed") return false;
+
+    const now=Date.now();
+    const date=new Date().toISOString().slice(0,10);
+    const who=borrowerName(copy);
+    copy.status="Lost";
+    copy.lostDate=date;
+    copy.lostDateISO=new Date().toISOString();
+    copy.lostReason=reason||"Marked Lost during Bulk Return";
+    copy.condition="Lost";
+    copy.lostAccountability={
+      ...(copy.lostAccountability||{}),
+      status:"Lost",
+      resolved:false,
+      replaced:false,
+      learnerName:who,
+      admissionNo:borrowerId(copy),
+      bookTitle:bulkClean(book.title||book.bookTitle||book.name||item.bookTitle),
+      bookNumber:item.bookNumber,
+      borrowDate:loanDate(copy),
+      lostDate:date,
+      lostAt:now,
+      reason:copy.lostReason
+    };
+    addHistory(copy,"Marked Lost",copy.lostReason);
+    copies[key]=copy;
+
+    /* Keep the borrower fields intact. The learner remains accountable. */
+    await bulkUpdate(bookRef,{copies});
+    return true;
+  }
+
+  async function returnBulkCopy(item){
+    if(typeof window.returnBorrowedBook === "function"){
+      try{
+        const ok=await window.returnBorrowedBook(item.loanId || "", item.bookId, true);
+        if(ok) return true;
+      }catch(_){ }
+    }
+
+    /* Exact-copy fallback, using the same Book Copies source of truth. */
+    const sid=bulkSchoolId();
+    const bookRef=bulkRef(`library/${sid}/${item.bookId}`);
+    const snap=await bulkGet(bookRef);
+    if(!snap.exists()) return false;
+    const book=snap.val()||{};
+    const copies={...(book.copies||{})};
+    let key=item.copyKey;
+    if(!copies[key]) key=Object.keys(copies).find(k=>copyNumber(copies[k],k)===item.bookNumber);
+    if(!key || !copies[key]) return false;
+    const copy={...(copies[key]||{})};
+    if(copyStatus(copy)!=="Borrowed") return false;
+
+    const returned=new Date().toISOString().slice(0,10);
+    copy.status="Available";
+    copy.returnedDate=returned;
+    copy.returnedDateISO=new Date().toISOString();
+    addHistory(copy,"Returned",`Bulk return ${returned}`);
+    copy.borrower=null; copy.borrowerName=null; copy.borrowerId=null; copy.borrowerAdm=null;
+    copy.studentId=null; copy.learnerId=null; copy.borrowDate=null; copy.borrowDateISO=null; copy.dueDate=null;
+    copies[key]=copy;
+    const available=Object.values(copies).filter(c=>copyStatus(c)==="Available").length;
+    await bulkUpdate(bookRef,{copies,available});
+    return true;
+  }
+
+  async function markSelectedLostThenReturn(items, selectedItems){
+    const selected = Array.isArray(selectedItems) && selectedItems.length
+      ? selectedItems
+      : [...document.querySelectorAll(".rasm-bulk-lost-check:checked")]
+          .map(el=>Number(el.dataset.index)).filter(Number.isInteger)
+          .map(i=>items[i]).filter(Boolean);
+    if(!selected.length){
+      return Swal.fire({icon:"info",title:"No Lost Books Selected",text:"Select the learners/books that are being reported as Lost, or choose No Lost Books to continue with normal returns."});
+    }
+    const reasonResult=await Swal.fire({
+      icon:"warning",
+      title:"Mark Selected Books as Lost?",
+      html:`You selected <b>${selected.length}</b> borrowed book(s). These copies will remain attached to the learners and will <b>not</b> be returned as Available.`,
+      input:"text",
+      inputLabel:"Reason / remarks",
+      inputValue:"Book reported lost during bulk return",
+      showCancelButton:true,
+      confirmButtonText:"Yes, Mark Lost",
+      cancelButtonText:"Cancel",
+      confirmButtonColor:"#dc2626"
+    });
+    if(!reasonResult.isConfirmed) return;
+
+    if(typeof openSweetLoader === "function") openSweetLoader(`Marking ${selected.length} Lost book(s)...`);
+    let lost=0,failed=0;
+    try{
+      for(const item of selected){
+        try{ if(await markBulkCopyLost(item,reasonResult.value||"Book reported lost during bulk return")) lost++; else failed++; }
+        catch(e){ failed++; console.error(e); }
+      }
+    }finally{ if(typeof closeSweetLoader === "function") closeSweetLoader(); }
+
+    await Swal.fire({icon:failed?"warning":"success",title:"Lost Books Recorded",html:`<b>${lost}</b> book(s) marked Lost and kept accountable.${failed?`<br><b>${failed}</b> could not be updated.`:""}`});
+
+    const lostKeys=new Set(selected.map(x=>`${x.bookId}::${x.copyKey}`));
+    const remaining=items.filter(x=>!lostKeys.has(`${x.bookId}::${x.copyKey}`));
+    await performBulkNormalReturn(remaining);
+  }
+
+  async function performBulkNormalReturn(items){
+    if(!items.length){
+      await refreshBulkLibraryUI();
+      return Swal.fire({icon:"success",title:"Bulk Return Complete",text:"There were no remaining borrowed books to return.",timer:1300,showConfirmButton:false});
+    }
+    if(typeof openSweetLoader === "function") openSweetLoader(`Returning ${items.length} borrowed book(s)...`);
+    let returned=0,failed=0;
+    try{
+      for(const item of items){
+        try{ if(await returnBulkCopy(item)) returned++; else failed++; }
+        catch(e){ failed++; console.error("Bulk return failed",item,e); }
+      }
+    }finally{ if(typeof closeSweetLoader === "function") closeSweetLoader(); }
+    await refreshBulkLibraryUI();
+    await Swal.fire({
+      icon:failed?"warning":"success",
+      title:"Bulk Return Completed",
+      html:`<b>${returned}</b> borrowed book(s) returned successfully.${failed?`<br><b>${failed}</b> book(s) could not be returned and were left unchanged.`:""}`,
+      confirmButtonText:"Done"
+    });
+  }
+
+  async function refreshBulkLibraryUI(){
+    try{
+      if(typeof window.refreshLibraryManagement === "function") await window.refreshLibraryManagement(false);
+      else if(typeof window.loadLibrary === "function") await window.loadLibrary();
+      if(typeof window.renderReturnsFromBookCopies === "function") await window.renderReturnsFromBookCopies();
+    }catch(_){ }
+  }
+
+  async function openBulkReturnAll(){
+    try{
+      const data=await loadActualBorrowedCopies();
+      if(!data.registered){
+        return Swal.fire("No Registered Copies","There are no physical Book Copies registered in the Library.","info");
+      }
+      if(!data.borrowed){
+        return Swal.fire({icon:"info",title:"No Borrowed Books",html:`<b>${data.registered}</b> registered physical copy/copies were found, but <b>0</b> are currently Borrowed.`});
+      }
+
+      const first=await Swal.fire({
+        icon:"question",
+        title:"↩️ Return All Borrowed Books?",
+        html:`<div style="text-align:left;line-height:1.9;background:#f8fafc;padding:14px;border-radius:10px;">
+          <b>🔢 Registered physical copies:</b> ${data.registered}<br>
+          <b>📕 Currently borrowed:</b> ${data.borrowed}<br>
+          <b>❌ Already Lost:</b> ${data.lost}<br>
+          <b>⚠️ Already Damaged:</b> ${data.damaged}
+        </div><br>This action will return all currently <b>Borrowed</b> copies unless you first identify some as <b>Lost</b>.`,
+        showCancelButton:true,
+        confirmButtonText:`Yes, Review ${data.borrowed} Borrowed Books`,
+        cancelButtonText:"Cancel",
+        confirmButtonColor:"#16a34a"
+      });
+      if(!first.isConfirmed) return;
+
+      const lostPrompt=await Swal.fire({
+        icon:"warning",
+        title:"❓ Are There Any Lost Books?",
+        html:`The system found <b>${data.borrowed}</b> currently borrowed book(s).<br><br>If any are Lost, select the affected learner/book below. Those copies will remain accountable and will not be returned as Available.`,
+        showDenyButton:true,
+        showCancelButton:true,
+        confirmButtonText:"Yes — Select Lost Books",
+        denyButtonText:"No Lost Books",
+        cancelButtonText:"Cancel",
+        confirmButtonColor:"#dc2626",
+        denyButtonColor:"#16a34a"
+      });
+      if(lostPrompt.isDismissed || lostPrompt.isDenied && false) return;
+      if(lostPrompt.isConfirmed){
+        const rows=data.records.map((x,i)=>`
+          <label style="display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;text-align:left;padding:10px;border:1px solid #e2e8f0;border-radius:9px;margin-bottom:7px;background:#fff;cursor:pointer;">
+            <input class="rasm-bulk-lost-check" type="checkbox" data-index="${i}" style="width:18px;height:18px;margin-top:2px;">
+            <span><b>${bulkEsc(x.bookTitle)}</b> — ${bulkEsc(x.bookNumber)}<br><span style="color:#475569;">👨‍🎓 ${bulkEsc(x.borrowerName)}${x.borrowerId?` · ${bulkEsc(x.borrowerId)}`:""}</span><br><small>Grade: ${bulkEsc(x.grade||"-")} · Borrowed: ${bulkEsc(x.borrowDate||"-")}</small></span>
+          </label>`).join("");
+        const choose=await Swal.fire({
+          title:"❌ Select Lost Books",
+          html:`<div style="max-height:430px;overflow:auto;padding:3px;">${rows}</div>`,
+          showCancelButton:true,
+          confirmButtonText:"Continue",
+          cancelButtonText:"Cancel",
+          confirmButtonColor:"#dc2626",
+          width:760
+        });
+        if(!choose.isConfirmed) return;
+        const selected=[...document.querySelectorAll(".rasm-bulk-lost-check:checked")]
+          .map(el=>Number(el.dataset.index)).filter(Number.isInteger)
+          .map(i=>data.records[i]).filter(Boolean);
+        if(!selected.length){
+          return Swal.fire("No Lost Books Selected","Select at least one book, or cancel and choose No Lost Books.","warning");
+        }
+        return markSelectedLostThenReturn(data.records, selected);
+      }
+
+      /* No lost books — return every currently Borrowed copy. */
+      await performBulkNormalReturn(data.records);
+    }catch(error){
+      console.error("LIBRARY_BULK_RETURN_ERROR",error);
+      try{ if(typeof closeSweetLoader === "function") closeSweetLoader(); }catch(_){ }
+      Swal.fire("Bulk Return Failed",error?.message||"Unable to process the borrowed books.","error");
+    }
+  }
+
+  /* IMPORTANT: expose the function globally because HTML/UI handlers may call it directly. */
+  window.openBulkReturnAll = openBulkReturnAll;
+  window.returnAllBorrowedLibraryBooks = openBulkReturnAll;
+
+  /* Return All is intentionally available ONLY inside the Registered Books Action selector. */
+
+  console.log("✅ RASM 360 — Registered Books Bulk Return workflow loaded.");
+})();
+
+</script>
+
+<!-- =========================================================
+     RASM 360 — LIBRARY BORROWING COPY-SOURCE FIX
+     Scope: LIBRARY ONLY
+     - Book Copies is the only live availability source
+     - Includes every topped-up physical copy
+     - Case-insensitive status handling
+     - Repairs stale available metadata before borrowing
+========================================================= -->
+<script id="rasm360-library-borrow-copy-source-fix">
+(function(){
+  "use strict";
+
+  const clean = v => String(v == null ? "" : v).trim();
+  function sid(){ return clean(window.schoolId || window.currentSchoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId")); }
+  function getDb(){ return window.db || (typeof db !== "undefined" ? db : null); }
+  function getRef(path){
+    const d=getDb();
+    if(!d || typeof ref!="function") throw new Error("Firebase database is not available.");
+    return ref(d,path);
+  }
+  async function getFresh(r){
+    if(typeof window.rasmFreshGet === "function") return window.rasmFreshGet(r);
+    if(typeof fastGet === "function") return fastGet(r);
+    if(typeof get === "function") return get(r);
+    throw new Error("Firebase read service is unavailable.");
+  }
+  async function updateFresh(r,data){
+    if(typeof update === "function") return update(r,data);
+    if(typeof window.rasmBackgroundUpdate === "function") return window.rasmBackgroundUpdate(r,data);
+    throw new Error("Firebase update service is unavailable.");
+  }
+  function status(c){
+    const s=clean(c && (c.status || c.condition || c.bookStatus || "Available")).toLowerCase();
+    if(s.includes("lost")) return "Lost";
+    if(s.includes("damage")) return "Damaged";
+    if(s.includes("repair")) return "Under Repair";
+    if(s.includes("borrow")) return "Borrowed";
+    if(s.includes("withdraw")) return "Withdrawn";
+    if(s.includes("replac")) return "Replaced";
+    return "Available";
+  }
+  function copyValues(copies){
+    if(Array.isArray(copies)) return copies.map((c,i)=>[String(c?.bookNumber || c?.copyNumber || i+1),c]);
+    return Object.entries(copies && typeof copies === "object" ? copies : {});
+  }
+
+  async function prepareBookCopies(bookId){
+    const school=sid();
+    if(!school) throw new Error("School ID is missing. Please log in again.");
+    const snap=await getFresh(getRef(`library/${school}/${bookId}`));
+    if(!snap.exists()) throw new Error("Book not found.");
+    const book=snap.val() || {};
+    let raw=book.copies;
+    const entries=copyValues(raw);
+    const copies={};
+    entries.forEach(([key,c])=>{
+      if(!c || typeof c!=="object") return;
+      const copy={...c};
+      const number=clean(copy.bookNumber || copy.copyNumber || key);
+      if(!number) return;
+      copy.bookNumber=number;
+      copy.copyNumber=copy.copyNumber || number;
+      const st=status(copy);
+      /* Normalize only the known status spelling; never convert Lost/Damaged/etc. */
+      if(clean(copy.status).toLowerCase()!==st.toLowerCase()) copy.status=st;
+      copies[number]=copy;
+    });
+
+    const vals=Object.values(copies);
+    const available=vals.filter(c=>status(c)==="Available").length;
+    const total=vals.length;
+    const borrowed=vals.filter(c=>status(c)==="Borrowed").length;
+    const damaged=vals.filter(c=>status(c)==="Damaged").length;
+    const lost=vals.filter(c=>status(c)==="Lost").length;
+    const repair=vals.filter(c=>status(c)==="Under Repair").length;
+    const withdrawn=vals.filter(c=>status(c)==="Withdrawn").length;
+
+    /* The physical copy list is authoritative. This deliberately ignores stale quantity/available values. */
+    const metadata={quantity:total,available,updatedAt:Date.now()};
+    const needsMetadata=Number(book.quantity)!==total || Number(book.available)!==available;
+    if(needsMetadata || Object.keys(copies).length!==entries.length){
+      await updateFresh(getRef(`library/${school}/${bookId}`),{copies, ...metadata});
+    }
+    return {school,book:{...book,copies,quantity:total,available},copies,stats:{total,available,borrowed,damaged,lost,repair,withdrawn}};
+  }
+
+  const originalBorrow=window.borrowBook;
+  if(typeof originalBorrow === "function" && !originalBorrow.__rasmCopySourceWrapped){
+    const wrappedBorrow=async function(bookId){
+      try{
+        const prepared=await prepareBookCopies(bookId);
+        if(!prepared.stats.available){
+          const s=prepared.stats;
+          return Swal.fire({
+            icon:"warning",
+            title:"No Available Copies",
+            html:`This book has <b>${s.total}</b> registered physical copy/copies.<br><br><b>Available:</b> ${s.available}<br><b>Borrowed:</b> ${s.borrowed}<br><b>Lost:</b> ${s.lost}<br><b>Damaged:</b> ${s.damaged}<br><b>Under Repair:</b> ${s.repair}<br><b>Withdrawn:</b> ${s.withdrawn}<br><br>Only copies marked <b>Available</b> can be borrowed.`,
+            confirmButtonText:"Close"
+          });
+        }
+        return originalBorrow.call(this,bookId);
+      }catch(error){
+        console.error("RASM360 borrow copy-source preparation failed:",error);
+        return Swal.fire("Borrow Book Error",error?.message || "Unable to read the actual Book Copies.","error");
+      }
+    };
+    wrappedBorrow.__rasmCopySourceWrapped=true;
+    window.borrowBook=wrappedBorrow;
+  }
+
+  /* Keep the Registered Books Action selector wired after every catalogue render. */
+  function ensureReturnAllAction(){
+    document.querySelectorAll(".rasm-library-action-select").forEach(sel=>{
+      if(![...sel.options].some(o=>o.value==="returnAll")){
+        const o=document.createElement("option");
+        o.value="returnAll";
+        o.textContent="↩️ Return All Borrowed Books";
+        sel.insertBefore(o,sel.options[2] || null);
+      }
+    });
+  }
+  const list=document.getElementById("libraryList");
+  if(list && typeof MutationObserver!=="undefined"){
+    const observer=new MutationObserver(ensureReturnAllAction);
+    observer.observe(list,{childList:true,subtree:true});
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",ensureReturnAllAction,{once:true});
+  else ensureReturnAllAction();
+
+  console.log("✅ RASM 360 — Book Copies borrowing source fix active.");
+})();
+</script>
+
+
+<!-- RASM 360 — FINAL LIBRARY SINGLE INVENTORY AUTHORITY PATCH -->
+<script id="rasm360-final-library-inventory-authority">
+(function(){
+  "use strict";
+
+  /* ============================================================
+     RASM 360 — LIBRARY SINGLE INVENTORY AUTHORITY
+     Fixes:
+       • quantity/stock vs physical Book Copies mismatch
+       • stale Available count in Borrow Book
+       • top-up merging with existing stock
+       • View/Manage Books live copy/accountability details
+       • return/lost/damaged keeping copy status + borrower records in sync
+       • exact Total / Available / Active / Borrowed / Lost / Damaged counts
+     The physical `copies` object is authoritative.
+  ============================================================ */
+
+  const esc = v => String(v ?? "")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+
+  const sid = () => String(
+    window.schoolId ||
+    sessionStorage.getItem("schoolId") ||
+    localStorage.getItem("schoolId") ||
+    window.currentSchoolId || ""
+  ).trim();
+
+  const dbRef = path => window.ref(window.db, path);
+
+  async function live(path){
+    if(typeof window.rasmFreshGet === "function") return window.rasmFreshGet(dbRef(path));
+    return window.fastGet(dbRef(path));
+  }
+
+  async function save(path, value){
+    if(typeof window.update === "function") return window.update(dbRef(path), value);
+    if(typeof window.rasmBackgroundUpdate === "function") return window.rasmBackgroundUpdate(dbRef(path), value);
+    throw new Error("Library Firebase update service is unavailable.");
+  }
+
+  function normalizeStatus(value){
+    const s=String(value ?? "").trim().toLowerCase();
+    if(s.includes("lost")) return "Lost";
+    if(s.includes("damage")) return "Damaged";
+    if(s.includes("repair")) return "Under Repair";
+    if(s.includes("withdraw")) return "Withdrawn";
+    if(s.includes("borrow")) return "Borrowed";
+    return "Available";
+  }
+
+  function copyEntries(raw){
+    if(Array.isArray(raw)){
+      return raw.map((v,i)=>[String(v?.bookNumber || v?.copyNumber || i+1),v]).filter(x=>x[1] && typeof x[1]==="object");
+    }
+    return Object.entries(raw && typeof raw === "object" ? raw : {});
+  }
+
+  function copyStats(copies){
+    const stats={total:0,available:0,borrowed:0,lost:0,damaged:0,repair:0,withdrawn:0,active:0};
+    Object.values(copies||{}).forEach(c=>{
+      stats.total++;
+      const s=normalizeStatus(c?.status);
+      if(s==="Available") stats.available++;
+      else if(s==="Borrowed") stats.borrowed++;
+      else if(s==="Lost") stats.lost++;
+      else if(s==="Damaged") stats.damaged++;
+      else if(s==="Under Repair") stats.repair++;
+      else if(s==="Withdrawn") stats.withdrawn++;
+    });
+    stats.active=stats.available+stats.borrowed;
+    return stats;
+  }
+
+  function numberPattern(copies, book){
+    let prefix="";
+    let width=4;
+    let highest=0;
+    const used=new Set();
+    Object.values(copies||{}).forEach(c=>{
+      const raw=String(c?.bookNumber || c?.copyNumber || "").trim();
+      if(!raw) return;
+      used.add(raw);
+      const m=raw.match(/^(.*?)-(\d+)$/);
+      if(m){
+        if(!prefix) prefix=m[1];
+        highest=Math.max(highest,Number(m[2])||0);
+        width=Math.max(width,m[2].length);
+      }else{
+        const n=Number(c?.copyNumber);
+        if(Number.isFinite(n)) highest=Math.max(highest,n);
+      }
+    });
+    if(!prefix){
+      prefix=String(book?.title||"BOOK").replace(/[^A-Za-z0-9]+/g,"").slice(0,3).toUpperCase() || "BOOK";
+    }
+    return {prefix,width,highest,used};
+  }
+
+  function makeCopy(book, copies, n){
+    const p=numberPattern(copies,book);
+    let number=n;
+    let bookNumber="";
+    do{
+      bookNumber=`${p.prefix}-${String(number).padStart(p.width,"0")}`;
+      number++;
+    }while(p.used.has(bookNumber));
+    return {
+      bookNumber,
+      copyNumber:number-1,
+      status:"Available",
+      borrower:null,
+      borrowerName:null,
+      borrowerId:null,
+      borrowerAdm:null,
+      borrowerType:null,
+      borrowDate:null,
+      borrowDateISO:null,
+      dueDate:null,
+      returnedDate:null,
+      damageReason:null,
+      damagedDate:null,
+      lostReason:null,
+      lostDate:null,
+      repairReason:null,
+      repairDate:null,
+      withdrawnReason:null,
+      withdrawnDate:null,
+      addedDate:new Date().toLocaleDateString(),
+      addedAt:Date.now(),
+      history:[]
+    };
+  }
+
+  function mergeCopies(raw){
+    const copies={};
+    copyEntries(raw).forEach(([key,value])=>{
+      if(!value || typeof value!=="object") return;
+      const c={...value};
+      const bn=String(c.bookNumber || c.copyNumber || key).trim();
+      if(!bn) return;
+      c.bookNumber=bn;
+      c.copyNumber=c.copyNumber ?? bn;
+      c.status=normalizeStatus(c.status);
+      copies[bn]=c;
+    });
+    return copies;
+  }
+
+  /*
+     Reconciles legacy records too:
+       quantity=8, copies=2  -> creates the missing 6 physical copies.
+     It never deletes or changes an existing Borrowed/Lost/Damaged/Repair copy.
+  */
+  async function reconcileBook(bookId, bookInput, forceWrite=false){
+    const school=sid();
+    if(!school) throw new Error("School ID is missing. Please log in again.");
+
+    const book=bookInput ? {...bookInput} : ((await live(`library/${school}/${bookId}`)).val() || {});
+    let copies=mergeCopies(book.copies);
+    const beforeCount=Object.keys(copies).length;
+
+    const legacyQuantity=Math.max(0,Number(book.quantity)||0);
+    const targetTotal=Math.max(beforeCount,legacyQuantity);
+
+    if(beforeCount < targetTotal){
+      const p=numberPattern(copies,book);
+      let next=p.highest+1;
+      while(Object.keys(copies).length < targetTotal){
+        const c=makeCopy(book,copies,next++);
+        copies[c.bookNumber]=c;
+      }
+    }
+
+    const stats=copyStats(copies);
+    const metadata={
+      quantity:stats.total,
+      totalCopies:stats.total,
+      available:stats.available,
+      activeCopies:stats.active,
+      borrowedCopies:stats.borrowed,
+      lostCopies:stats.lost,
+      damagedCopies:stats.damaged,
+      repairCopies:stats.repair,
+      withdrawnCopies:stats.withdrawn,
+      updatedAt:Date.now()
+    };
+
+    const changed = forceWrite || beforeCount!==stats.total ||
+      Number(book.quantity)!==stats.total ||
+      Number(book.available)!==stats.available ||
+      Number(book.activeCopies)!==stats.active ||
+      JSON.stringify(book.copies||{})!==JSON.stringify(copies);
+
+    if(changed){
+      await save(`library/${school}/${bookId}`,{copies,...metadata});
+    }
+
+    return {school,book:{...book,copies,...metadata},copies,stats,changed};
+  }
+
+  async function reconcileAll(){
+    const school=sid();
+    if(!school || !window.db) return;
+    const snap=await live(`library/${school}`);
+    if(!snap.exists()) return;
+    const jobs=[];
+    snap.forEach(child=>{
+      const id=child.key;
+      const book=child.val()||{};
+      jobs.push(reconcileBook(id,book));
+    });
+    if(jobs.length) await Promise.all(jobs);
+  }
+
+  window.rasmLibraryReconcileBook=reconcileBook;
+  window.rasmLibraryReconcileAll=reconcileAll;
+  window.rasmLibraryCopyStats=copyStats;
+
+  async function refreshLibraryUI(){
+    try{
+      if(typeof window.loadLibrary==="function") await window.loadLibrary();
+      if(typeof window.renderReturnsFromBookCopies==="function") await window.renderReturnsFromBookCopies();
+    }catch(e){ console.warn("Library UI refresh warning",e); }
+  }
+
+  /* -------------------- TOP UP STOCK -------------------- */
+  window.topUpBookStock=async function(bookId){
+    const school=sid();
+    if(!school) return Swal.fire("School Missing","Please log in again.","error");
+
+    try{
+      const first=await live(`library/${school}/${bookId}`);
+      if(!first.exists()) throw new Error("Book not found.");
+      const base=await reconcileBook(bookId,first.val());
+      const result=await Swal.fire({
+        title:"Top Up Stock",
+        width:560,
+        html:`<div style="text-align:left;line-height:1.8">
+          <b>Book:</b> ${esc(base.book.title||"Untitled Book")}<br>
+          <b>Existing physical copies:</b> ${base.stats.total}<br>
+          <b>Currently available:</b> ${base.stats.available}<br>
+          <b>Currently borrowed:</b> ${base.stats.borrowed}<br><br>
+          Enter the <b>number of NEW physical copies</b> to add.
+        </div>`,
+        input:"number",
+        inputValue:1,
+        inputAttributes:{min:1,step:1},
+        showCancelButton:true,
+        confirmButtonText:"Add Stock",
+        preConfirm:value=>{
+          const n=Number(value);
+          if(!Number.isInteger(n)||n<1){Swal.showValidationMessage("Enter a whole number of new copies.");return false;}
+          return n;
+        }
+      });
+      if(!result.isConfirmed) return;
+
+      openSweetLoader("Updating library stock...");
+      const fresh=await live(`library/${school}/${bookId}`);
+      if(!fresh.exists()) throw new Error("Book was removed before the stock update could finish.");
+      const base2=await reconcileBook(bookId,fresh.val());
+      const copies={...base2.copies};
+      const p=numberPattern(copies,base2.book);
+      let next=p.highest+1;
+      const added=[];
+      for(let i=0;i<result.value;i++){
+        const c=makeCopy(base2.book,copies,next++);
+        copies[c.bookNumber]=c;
+        added.push(c.bookNumber);
+      }
+      const stats=copyStats(copies);
+      await save(`library/${school}/${bookId}`,{
+        copies,
+        quantity:stats.total,
+        totalCopies:stats.total,
+        available:stats.available,
+        activeCopies:stats.active,
+        borrowedCopies:stats.borrowed,
+        lostCopies:stats.lost,
+        damagedCopies:stats.damaged,
+        repairCopies:stats.repair,
+        withdrawnCopies:stats.withdrawn,
+        lastStockTopUpQuantity:result.value,
+        lastStockTopUpAt:Date.now(),
+        updatedAt:Date.now()
+      });
+      closeSweetLoader();
+
+      await Swal.fire({
+        icon:"success",
+        title:"Stock Updated",
+        html:`<div style="text-align:left;line-height:1.8">
+          <b>${result.value}</b> new physical copy/copies added.<br>
+          <b>Total copies:</b> ${stats.total}<br>
+          <b>Available now:</b> ${stats.available}<br>
+          <b>Borrowed:</b> ${stats.borrowed}<br>
+          <b>Lost:</b> ${stats.lost}<br>
+          <b>Damaged:</b> ${stats.damaged}<br><br>
+          <div style="max-height:160px;overflow:auto;background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:8px">${added.map(esc).join("<br>")}</div>
+        </div>`,
+        confirmButtonText:"Done"
+      });
+      await refreshLibraryUI();
+    }catch(error){
+      closeSweetLoader();
+      console.error("LIBRARY_TOPUP_ERROR",error);
+      Swal.fire("Stock Update Failed",error?.message||"Unable to update library stock.","error");
+    }
+  };
+
+  /* -------------------- VIEW / MANAGE COPIES -------------------- */
+  window.viewBookCopies=async function(bookId){
+    const school=sid();
+    if(!school) return Swal.fire("School Missing","Please log in again.","error");
+    try{
+      const snap=await live(`library/${school}/${bookId}`);
+      if(!snap.exists()) return Swal.fire("Not Found","Book not found.","error");
+      const prepared=await reconcileBook(bookId,snap.val());
+      const {book,copies,stats}=prepared;
+      const rows=Object.values(copies).map(copy=>{
+        const st=normalizeStatus(copy.status);
+        let action="<span style='color:#94a3b8'>—</span>";
+        if(st==="Borrowed") action=`<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center">
+          <button class="swal2-styled" style="background:#16a34a;padding:6px 9px" onclick="returnBookCopy('${esc(bookId)}','${esc(copy.bookNumber)}')">↩ Return</button>
+          <button class="swal2-styled" style="background:#f59e0b;padding:6px 9px" onclick="markBookDamaged('${esc(bookId)}','${esc(copy.bookNumber)}')">⚠ Damaged</button>
+          <button class="swal2-styled" style="background:#dc2626;padding:6px 9px" onclick="markBookLost('${esc(bookId)}','${esc(copy.bookNumber)}')">✖ Lost</button>
+        </div>`;
+        else if(st==="Damaged") action=`<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center">
+          <button class="swal2-styled" style="background:#7c3aed;padding:6px 9px" onclick="sendBookForRepair('${esc(bookId)}','${esc(copy.bookNumber)}')">🛠 Repair</button>
+          <button class="swal2-styled" style="background:#b91c1c;padding:6px 9px" onclick="withdrawBookCopy('${esc(bookId)}','${esc(copy.bookNumber)}')">🗑 Withdraw</button>
+        </div>`;
+        else if(st==="Under Repair") action=`<button class="swal2-styled" style="background:#7c3aed;padding:6px 9px" onclick="finishBookRepair('${esc(bookId)}','${esc(copy.bookNumber)}')">✔ Finish Repair</button>`;
+        else if(st==="Lost") action=`<button class="swal2-styled" style="background:#dc2626;padding:6px 9px" onclick="replaceLostBook('${esc(bookId)}','${esc(copy.bookNumber)}')">📚 Resolve / Replace</button>`;
+        return `<tr>
+          <td>${esc(copy.bookNumber)}</td>
+          <td>${esc(copy.copyNumber)}</td>
+          <td><b>${esc(st)}</b></td>
+          <td>${esc(copy.borrowerName||copy.borrower||"—")}</td>
+          <td>${esc(copy.borrowerAdm||"—")}</td>
+          <td>${esc(copy.borrowDate||"—")}</td>
+          <td>${esc(copy.dueDate||"—")}</td>
+          <td>${esc(st==="Lost"?(copy.lostReason||"—"):st==="Damaged"?(copy.damageReason||"—"):"—")}</td>
+          <td>${action}</td>
+        </tr>`;
+      }).join("");
+
+      const html=`<div style="text-align:left">
+        <h3 style="margin:0 0 4px">📚 ${esc(book.title||"Untitled Book")}</h3>
+        <div style="color:#64748b;margin-bottom:12px">Author: <b>${esc(book.author||"—")}</b> · Category: <b>${esc(book.category||"—")}</b> · ISBN: <b>${esc(book.isbn||"—")}</b></div>
+        <div style="display:grid;grid-template-columns:repeat(6,minmax(110px,1fr));gap:8px;margin-bottom:14px">
+          ${[["Total",stats.total,"#0f172a"],["Available",stats.available,"#16a34a"],["Active",stats.active,"#2563eb"],["Borrowed",stats.borrowed,"#2563eb"],["Lost",stats.lost,"#dc2626"],["Damaged",stats.damaged,"#f59e0b"]].map(x=>`<div style="background:${x[2]};color:#fff;border-radius:8px;padding:9px;text-align:center"><b style="font-size:20px">${x[1]}</b><div>${x[0]}</div></div>`).join("")}
+        </div>
+        <div style="max-height:480px;overflow:auto;border:1px solid #cbd5e1;border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;min-width:1050px">
+            <thead><tr style="background:#111827;color:#fff"><th style="padding:8px">Book No.</th><th>Copy</th><th>Status</th><th>Borrower</th><th>Admission/ID</th><th>Borrowed</th><th>Due</th><th>Lost/Damage Detail</th><th>Action</th></tr></thead>
+            <tbody>${rows||`<tr><td colspan="9" style="padding:15px;text-align:center">No physical copies registered.</td></tr>`}</tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px">
+          <b>Accountability:</b> Borrowed, Lost and Damaged copies remain tied to their recorded borrower until the exact copy is returned or formally resolved/replaced.
+        </div>
+      </div>`;
+      await Swal.fire({title:"📚 View / Manage Book Copies",html,width:1250,showConfirmButton:true,confirmButtonText:"Close"});
+    }catch(error){
+      console.error("LIBRARY_VIEW_COPIES_ERROR",error);
+      Swal.fire("Error",error?.message||"Unable to load the physical Book Copies.","error");
+    }
+  };
+
+  /* -------------------- EXACT COPY RETURN -------------------- */
+  window.returnBookCopy=async function(bookId,bookNumber,silent=false){
+    const school=sid();
+    if(!school) return false;
+    try{
+      if(!silent) openSweetLoader("Returning Book Copy...");
+      const snap=await live(`library/${school}/${bookId}`);
+      if(!snap.exists()) throw new Error("Book not found.");
+      const book=snap.val()||{};
+      const copies=mergeCopies(book.copies);
+      const copy=copies[bookNumber];
+      if(!copy) throw new Error("Book Copy not found.");
+      if(normalizeStatus(copy.status)!=="Borrowed") throw new Error("This copy is not currently Borrowed.");
+
+      const now=new Date().toLocaleDateString();
+      copy.status="Available";
+      copy.returnedDate=now;
+      copy.actualReturnDate=now;
+      copy.lastReturnedBy=copy.borrowerName||copy.borrower||null;
+      copy.borrower=null; copy.borrowerName=null; copy.borrowId=null; copy.borrowerId=null; copy.borrowerAdm=null; copy.borrowerType=null;
+      copy.borrowDate=null; copy.borrowDateISO=null; copy.dueDate=null;
+      if(typeof addCopyHistory==="function") addCopyHistory(copy,"Returned",copy.lastReturnedBy||"Borrower");
+
+      const stats=copyStats(copies);
+      const updates={copies,quantity:stats.total,totalCopies:stats.total,available:stats.available,activeCopies:stats.active,borrowedCopies:stats.borrowed,lostCopies:stats.lost,damagedCopies:stats.damaged,repairCopies:stats.repair,withdrawnCopies:stats.withdrawn,updatedAt:Date.now()};
+
+      /* Update the exact matching active loan, not merely the book total. */
+      const loans=await live(`libraryBorrowings/${school}`);
+      if(loans.exists()){
+        loans.forEach(child=>{
+          const loan=child.val()||{};
+          if(String(loan.bookId)===String(bookId) && String(loan.bookNumber)===String(bookNumber) && loan.returned!==true){
+            updates[`libraryBorrowings/${school}/${child.key}/returned`]=true;
+            updates[`libraryBorrowings/${school}/${child.key}/actualReturnDate`]=now;
+            updates[`libraryBorrowings/${school}/${child.key}/returnDateISO`]=new Date().toISOString().slice(0,10);
+          }
+        });
+      }
+      await window.update(window.ref(window.db),updates);
+      if(!silent) closeSweetLoader();
+      if(!silent) await Swal.fire("Returned","The exact Book Copy is now Available and the borrower record has been closed.","success");
+      await refreshLibraryUI();
+      return true;
+    }catch(error){
+      if(!silent) closeSweetLoader();
+      console.error("LIBRARY_EXACT_RETURN_ERROR",error);
+      if(!silent) Swal.fire("Return Failed",error?.message||"The Book Copy could not be returned.","error");
+      return false;
+    }
+  };
+
+  /* Keep old callers working. */
+  window.returnBorrowedBook=async function(borrowId,bookId,silent=false){
+    try{
+      const school=sid();
+      const loanSnap=await live(`libraryBorrowings/${school}/${borrowId}`);
+      const loan=loanSnap.exists()?(loanSnap.val()||{}):{};
+      const resolvedBookId=bookId||loan.bookId;
+      const resolvedBookNumber=loan.bookNumber||loan.copyNumber;
+      if(!resolvedBookId||!resolvedBookNumber) throw new Error("The borrowing record does not identify the exact Book Copy.");
+      return window.returnBookCopy(resolvedBookId,resolvedBookNumber,silent);
+    }catch(error){
+      if(!silent) Swal.fire("Return Failed",error?.message||"Unable to return the exact Book Copy.","error");
+      return false;
+    }
+  };
+
+  /* -------------------- LOST / DAMAGED -------------------- */
+  async function setBorrowedCopyIssue(bookId,bookNumber,kind){
+    const school=sid();
+    const prompt=await Swal.fire({
+      title:kind==="Lost"?"Mark Book Lost":"Mark Book Damaged",
+      input:"textarea",
+      inputLabel:kind==="Lost"?"Reason / Remarks":"Damage Description",
+      inputPlaceholder:kind==="Lost"?"Describe what happened to the book...":"Describe the damage...",
+      showCancelButton:true,
+      confirmButtonText:kind==="Lost"?"Mark Lost":"Mark Damaged",
+      confirmButtonColor:kind==="Lost"?"#dc2626":"#f59e0b"
+    });
+    if(!prompt.isConfirmed) return;
+
+    try{
+      openSweetLoader(kind==="Lost"?"Recording Lost Book...":"Recording Damaged Book...");
+      const snap=await live(`library/${school}/${bookId}`);
+      if(!snap.exists()) throw new Error("Book not found.");
+      const book=snap.val()||{};
+      const copies=mergeCopies(book.copies);
+      const copy=copies[bookNumber];
+      if(!copy) throw new Error("Book Copy not found.");
+      const oldStatus=normalizeStatus(copy.status);
+      if(oldStatus!=="Borrowed") throw new Error(`Only a currently Borrowed copy can be marked ${kind}.`);
+
+      const now=new Date().toLocaleDateString();
+      const reason=String(prompt.value||"").trim()||"No reason provided";
+      copy.status=kind;
+      if(kind==="Lost"){copy.lostReason=reason;copy.lostDate=now;}
+      else {copy.damageReason=reason;copy.damagedDate=now;}
+      if(typeof addCopyHistory==="function") addCopyHistory(copy,`Marked ${kind}`,reason);
+
+      const stats=copyStats(copies);
+      const updates={copies,quantity:stats.total,totalCopies:stats.total,available:stats.available,activeCopies:stats.active,borrowedCopies:stats.borrowed,lostCopies:stats.lost,damagedCopies:stats.damaged,repairCopies:stats.repair,withdrawnCopies:stats.withdrawn,updatedAt:Date.now()};
+      await save(`library/${school}/${bookId}`,updates);
+      closeSweetLoader();
+      await Swal.fire({icon:"success",title:`Book Marked ${kind}`,html:`<b>${esc(copy.bookNumber)}</b> remains accountable to <b>${esc(copy.borrowerName||copy.borrower||"the recorded borrower")}</b> until it is resolved/replaced.`,confirmButtonText:"Understood"});
+      await refreshLibraryUI();
+      return true;
+    }catch(error){
+      closeSweetLoader();
+      console.error(`LIBRARY_${kind.toUpperCase()}_ERROR`,error);
+      Swal.fire("Error",error?.message||`Unable to mark the Book Copy ${kind}.`,"error");
+      return false;
+    }
+  }
+  window.markBookLost=(bookId,bookNumber)=>setBorrowedCopyIssue(bookId,bookNumber,"Lost");
+  window.markBookDamaged=(bookId,bookNumber)=>setBorrowedCopyIssue(bookId,bookNumber,"Damaged");
+
+  /* -------------------- BORROW WRAPPER -------------------- */
+  function installBorrowWrapper(){
+    const original=window.borrowBook;
+    if(typeof original!=="function" || original.__rasmInventoryAuthority) return;
+    const wrapped=async function(bookId){
+      try{
+        const prepared=await reconcileBook(bookId);
+        const s=prepared.stats;
+        if(s.available<1){
+          return Swal.fire({icon:"warning",title:"No Available Copies",html:`<b>${esc(prepared.book.title||"This book")}</b><br><br>Registered physical copies: <b>${s.total}</b><br>Available: <b>${s.available}</b><br>Borrowed: <b>${s.borrowed}</b><br>Lost: <b>${s.lost}</b><br>Damaged: <b>${s.damaged}</b><br>Under Repair: <b>${s.repair}</b><br>Withdrawn: <b>${s.withdrawn}</b>`});
+        }
+        return original.call(this,bookId);
+      }catch(error){
+        console.error("LIBRARY_BORROW_AUTHORITY_ERROR",error);
+        return Swal.fire("Borrow Book Error",error?.message||"Unable to read the exact Book Copies.","error");
+      }
+    };
+    wrapped.__rasmInventoryAuthority=true;
+    window.borrowBook=wrapped;
+    window.borrowBookCopy=bookId=>window.borrowBook(bookId);
+  }
+
+  /* -------------------- LOAD LIBRARY WRAPPER -------------------- */
+  function installLoadWrapper(){
+    const original=window.loadLibrary;
+    if(typeof original!=="function" || original.__rasmInventoryAuthority) return false;
+    const wrapped=async function(...args){
+      try{ await reconcileAll(); }catch(e){ console.warn("Library stock reconciliation warning",e); }
+      return original.apply(this,args);
+    };
+    wrapped.__rasmInventoryAuthority=true;
+    window.loadLibrary=wrapped;
+    return true;
+  }
+
+  async function install(){
+    try{
+      installLoadWrapper();
+      await reconcileAll();
+      installBorrowWrapper();
+      installLoadWrapper();
+      if(typeof window.loadLibrary==="function") await window.loadLibrary();
+      console.log("✅ RASM 360 — Library single inventory authority active.");
+    }catch(error){
+      console.error("LIBRARY_INVENTORY_AUTHORITY_INIT_ERROR",error);
+    }
+  }
+
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",()=>setTimeout(install,0),{once:true});
+  else setTimeout(install,0);
+  window.addEventListener("load",()=>setTimeout(()=>{installBorrowWrapper();installLoadWrapper();},0),{once:true});
+})();
+
+</script>
 </html>
