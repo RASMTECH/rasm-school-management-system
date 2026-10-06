@@ -2033,6 +2033,26 @@ body.rasm-is-parent #subscriptionStatusBox{
     display:none !important;
 }
 
+/* =========================================================
+   PARENT / LEARNER VIEW-ONLY RESTRICTIONS
+   Parents can view assignments and results, but cannot select,
+   recycle, or navigate between other learners' results.
+========================================================= */
+body.rasm-is-parent #rasmAssignmentRecycleToolbar,
+body.rasm-is-parent .rasm-assignment-select,
+body.rasm-is-parent #rasmSelectAllAssignments,
+body.rasm-is-parent #rasmMoveAssignmentsToRecycle,
+body.rasm-is-parent #floatingSchoolsCounter,
+body.rasm-is-parent button[onclick="viewPreviousResult()"],
+body.rasm-is-parent button[onclick="viewNextResult()"]{
+    display:none !important;
+}
+
+body.rasm-is-parent button[onclick="viewPreviousResult()"],
+body.rasm-is-parent button[onclick="viewNextResult()"]{
+    pointer-events:none !important;
+}
+
 /* Learners/parents may view learning content but never create or publish it. */
 body.rasm-is-restricted-learner #courseCreatorToggleBtn,
 body.rasm-is-restricted-learner #courseCreatorPanel,
@@ -4687,7 +4707,7 @@ button.primary{
     position:fixed;
 
     top:0;
-    left:240px;
+    left:220px; /* Align flush with the 220px sidebar edge */
     right:0;
 
     display:flex;
@@ -7144,6 +7164,66 @@ button.primary{
 .rasm-assessment-summary-grid td { border:2px solid #000 !important; }
 .rasm-assessment-summary-grid td:has(b) { background:#000 !important; color:#fff !important; }
 </style>
+
+<style id="rasm-christmas-lights-style">
+/* Thin animated Christmas light strip for the Bottom Feature Strip.
+   It stays within the footer's top edge and does not cover feature content. */
+#authSection .rasm-feature-strip {
+  position: relative !important;
+  overflow: hidden !important;
+  padding-top: 18px !important;
+}
+#authSection .rasm-christmas-lights {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 14px;
+  overflow: hidden;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(10,35,20,.08), rgba(10,35,20,.02), rgba(10,35,20,.08));
+  border-bottom: 1px solid rgba(16,185,129,.18);
+}
+#authSection .rasm-christmas-light-wire {
+  position: absolute;
+  left: -20%; top: 1px;
+  width: 140%; height: 5px;
+  background: repeating-linear-gradient(90deg, transparent 0 13px, #16a34a 13px 15px, transparent 15px 27px);
+  animation: rasmChristmasWireRun 3.2s linear infinite;
+}
+#authSection .rasm-christmas-light-wire::before {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg,
+    #ff3030 0 5px, transparent 5px 18px,
+    #ffd60a 18px 23px, transparent 23px 36px,
+    #22c55e 36px 41px, transparent 41px 54px,
+    #38bdf8 54px 59px, transparent 59px 72px,
+    #c084fc 72px 77px, transparent 77px 90px);
+  background-size: 90px 5px;
+  filter: drop-shadow(0 0 2px rgba(255,255,255,.85));
+  animation: rasmChristmasBulbsRun 1.8s linear infinite, rasmChristmasTwinkle .8s steps(2, end) infinite;
+}
+#authSection .rasm-christmas-greeting {
+  position: absolute; inset: 0;
+  display: flex; align-items: center;
+  white-space: nowrap;
+  width: max-content;
+  padding-left: 100%;
+  color: #b91c1c;
+  font: 800 8px/12px Arial, sans-serif;
+  letter-spacing: .7px;
+  text-shadow: 0 0 3px rgba(255,255,255,.95);
+  animation: rasmChristmasGreetingRun 24s linear infinite;
+}
+@keyframes rasmChristmasWireRun { from { transform: translateX(0); } to { transform: translateX(18%); } }
+@keyframes rasmChristmasBulbsRun { from { background-position: 0 0; } to { background-position: 90px 0; } }
+@keyframes rasmChristmasTwinkle { 0%,100% { opacity: 1; } 50% { opacity: .68; } }
+@keyframes rasmChristmasGreetingRun { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) {
+  #authSection .rasm-christmas-light-wire,
+  #authSection .rasm-christmas-light-wire::before,
+  #authSection .rasm-christmas-greeting { animation-duration: 12s; }
+}
+</style>
 </head>
 
 <body>
@@ -7301,7 +7381,7 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
       <div
         class="rasm-login-background"
         style="
-          background-image:url('https://i.imgur.com/tllGwj6.png');
+          background-image:url('https://i.imgur.com/CSALAlJ.png');
         ">
       </div>
 
@@ -7580,6 +7660,12 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
        BOTTOM FEATURE STRIP
   ====================================================== -->
   <footer class="rasm-feature-strip">
+
+    <!-- THIN ANIMATED CHRISTMAS LIGHTS / GREETING -->
+    <div class="rasm-christmas-lights" aria-label="Merry Christmas greeting">
+      <div class="rasm-christmas-light-wire"></div>
+      <div class="rasm-christmas-greeting">✨ RASM 360 WISHES YOU A JOYFUL AND SUCCESSFUL DAY ✨</div>
+    </div>
 
 
     <!-- SECURE ACCESS -->
@@ -8823,15 +8909,6 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
         Select Target Grade
     </option>
 
-    <option>Grade 1</option>
-    <option>Grade 2</option>
-    <option>Grade 3</option>
-    <option>Grade 4</option>
-    <option>Grade 5</option>
-    <option>Grade 6</option>
-    <option>Grade 7</option>
-    <option>Grade 8</option>
-    <option>Grade 9</option>
 
 </select>
 
@@ -15763,7 +15840,7 @@ font-weight:bold;
 
     background-image:
         linear-gradient(rgba(0,0,0,.20), rgba(0,0,0,.20)),
-        url('https://i.imgur.com/73KUcER.png');
+        url('https://i.imgur.com/GU5QEh0.jpeg');
 
     background-size:cover;
     background-position:center;
@@ -16073,10 +16150,26 @@ Generate
       ">
         View all registered users for this school.
       </p>
-<input id="userSearch"
-  placeholder="🔍 Search users..."
-  oninput="window.renderUsersTable(window._allUsersCache, this.value.toLowerCase())"
-  style="padding:10px;width:100%;margin-bottom:10px;border-radius:10px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:12px;">
+  <input id="userSearch" type="search" placeholder="🔍 Search name, email or role..."
+    oninput="window.renderUsersTable(window._allUsersCache, this.value)"
+    style="padding:10px;width:100%;margin:0;border-radius:10px;">
+  <select id="userParentGradeFilter" onchange="window.renderUsersTable(window._allUsersCache)"
+    aria-label="Filter parent accounts by grade"
+    style="padding:10px;width:100%;margin:0;border-radius:10px;">
+    <option value="">All Users / All Grades</option>
+  </select>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+  <label style="display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.12);padding:9px 12px;border-radius:9px;">
+    <input id="selectAllParentUsers" type="checkbox" onchange="window.toggleSelectAllParentUsers(this.checked)" style="width:17px;height:17px;margin:0;">
+    Select visible parents
+  </label>
+  <span id="selectedParentUsersCount" style="font-weight:700;">0 parents selected</span>
+  <button type="button" onclick="window.bulkSetParentAccountsActive(false)" style="padding:10px 12px;border:0;border-radius:9px;background:#f59e0b;color:#111827;font-weight:800;cursor:pointer;">⛔ Bulk Disable</button>
+  <button type="button" onclick="window.bulkSetParentAccountsActive(true)" style="padding:10px 12px;border:0;border-radius:9px;background:#16a34a;color:#fff;font-weight:800;cursor:pointer;">✅ Bulk Enable</button>
+  <button type="button" onclick="window.bulkDeleteParentAccounts()" style="padding:10px 12px;border:0;border-radius:9px;background:#dc2626;color:#fff;font-weight:800;cursor:pointer;">🗑 Bulk Delete</button>
+</div>
       <!-- TABLE CARD -->
       <div style="
            background:rgba(255,255,255,0.12);
@@ -16095,16 +16188,17 @@ Generate
         ">
 
           <thead>
-            <tr style="
-                text-align:left;
-                border-bottom:1px solid rgba(255,255,255,0.3);
-            ">
+            <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,0.3);">
+              <th style="padding:10px;">Select</th>
               <th style="padding:10px;">Name</th>
               <th style="padding:10px;">Email</th>
               <th style="padding:10px;">Role</th>
+              <th style="padding:10px;">Grade</th>
               <th style="padding:10px;">School</th>
               <th style="padding:10px;">Status</th>
               <th style="padding:10px;">Created At</th>
+              <th style="padding:10px;">Account Actions</th>
+              <th style="padding:10px;">Delete</th>
             </tr>
           </thead>
 
@@ -17770,8 +17864,11 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 window.db = db;
+window.rasmRef = function(path) { return ref(db, path); };
 window.ref = ref;
 window.set = firebaseSet;
+window.rasmRemove = firebaseRemove;
+window.rasmGet = firebaseGet;
 
 /* ============================================================
    🚀 RASM 360 — SLOW-NETWORK / OFFLINE-FIRST DATA BRIDGE
@@ -19718,6 +19815,14 @@ async function getRasmActiveLearnerCount() {
                 "NO_SCHOOL_ASSIGNED"
             );
 
+        }
+
+        if (["student", "learner", "pupil"].includes(String(userData.role || "").trim().toLowerCase())) {
+            const feeStatus = await window.rasmCheckLearnerFeeBalance(uid, schoolId, userData, userEmail);
+            if (feeStatus.found && Number(feeStatus.balance) >= 1500) {
+                try { await signOut(auth); } catch (e) { console.warn("Sign-out after fee restriction:", e); }
+                throw new Error("LEARNER_FEE_BALANCE_RESTRICTED");
+            }
         }
 
 
@@ -28258,6 +28363,12 @@ if (!document.getElementById("rasmLoginSpinnerStyle")) {
 
 window.__loggingIn = false;
 
+/* RASM production diagnostics: timing only; never log passwords or tokens. */
+window.__rasmLoginMetrics = window.__rasmLoginMetrics || {
+    lastStartedAt: 0,
+    lastCompletedMs: null
+};
+
 
 /* ============================================================
    📧 EMAIL VALIDATION
@@ -28673,6 +28784,40 @@ if (
    🔐 MAIN LOGIN
 ============================================================ */
 
+/* Learner fee gate: uses this year's school-scoped fee record. */
+window.rasmCheckLearnerFeeBalance = async function(uid, schoolId, userData, loginEmail) {
+  const role=String(userData?.role||"").trim().toLowerCase();
+  if(!["student","learner","pupil"].includes(role)) return {found:false,balance:0};
+  const year=String(new Date().getFullYear());
+  const candidates=[userData.studentId,userData.learnerId,userData.studentRecordId,userData.admissionNo,userData.admissionNumber,userData.adm,userData.id]
+    .map(v=>String(v??"").trim()).filter(Boolean);
+  const read=async id=>{
+    const r=ref(db,`schools/${schoolId}/fees/${year}/${id}`);
+    const snap=await window.withTimeout(typeof window.rasmFreshGet==="function"?window.rasmFreshGet(r):fastGet(r),6500,"Fee verification timed out.");
+    if(!snap?.exists()) return null;
+    const fee=snap.val()||{};
+    let balance=fee.balance!==undefined&&fee.balance!==null&&fee.balance!==""?Number(fee.balance):Number(fee.expectedTotal??fee.totalExpected??0)-Number(fee.totalPaid??0);
+    return {found:true,balance:Number.isFinite(balance)?balance:0,year,studentId:id};
+  };
+  try {
+    for(const id of [...new Set(candidates)]) { const fee=await read(id); if(fee) return fee; }
+    const sr=ref(db,`schools/${schoolId}/students`);
+    const snap=await window.withTimeout(typeof window.rasmFreshGet==="function"?window.rasmFreshGet(sr):fastGet(sr),6500,"Learner fee verification timed out.");
+    const norm=v=>String(v||"").trim().toLowerCase().replace(/\s+/g," ");
+    const email=norm(userData.email||loginEmail), name=norm(userData.fullName||userData.name||userData.displayName||userData.studentName);
+    const matches=[];
+    if(snap?.exists()) snap.forEach(child=>{
+      const s=child.val()||{}, ids=[child.key,s.id,s.studentId,s.learnerId,s.admissionNo,s.admissionNumber,s.adm].map(v=>String(v??"").trim());
+      const strong=candidates.some(id=>ids.includes(id))||[s.uid,s.userUid,s.studentUid,s.learnerUid].some(v=>String(v||"")===String(uid))||(email&&norm(s.email||s.studentEmail)===email);
+      const sameName=name&&norm(s.name||s.fullName||s.studentName)===name;
+      if(strong||sameName) matches.push({key:String(child.key),ids,strong});
+    });
+    const resolved=matches.filter(m=>m.strong).length===1?matches.find(m=>m.strong):(matches.length===1?matches[0]:null);
+    if(resolved) for(const id of [...new Set([resolved.key,...resolved.ids].filter(Boolean))]) { const fee=await read(id); if(fee) return fee; }
+    return {found:false,balance:0,year};
+  } catch(error){console.error("Learner fee access check failed:",error);throw new Error("FEE_BALANCE_CHECK_FAILED");}
+};
+
 window.login = async function () {
 
     /* --------------------------------------------------------
@@ -28695,6 +28840,8 @@ window.login = async function () {
     /* --------------------------------------------------------
        INPUTS
     -------------------------------------------------------- */
+
+    window.__rasmLoginMetrics.lastStartedAt = performance.now();
 
     const emailInput =
         document.getElementById("email");
@@ -28853,15 +29000,15 @@ window.login = async function () {
                             userPassword
                         ),
 
-                        30000,
+                        12000,
 
-                        "Authentication timed out."
+                        "Authentication timed out. Check your connection and try again."
 
                     ),
 
-                3,
+                2,
 
-                1500
+                400
 
             );
 
@@ -28919,15 +29066,15 @@ window.login = async function () {
                                 )
                             ),
 
-                            45000,
+                            9000,
 
-                            "User profile is taking longer than usual."
+                            "User profile could not be loaded quickly. Please retry."
 
                         ),
 
-                    5,
+                    2,
 
-                    2500
+                    400
 
                 );
 
@@ -28961,6 +29108,11 @@ window.login = async function () {
 
         const userData =
             userSnapshot.val() || {};
+
+        if (userData.active === false || userData.deleted === true) {
+            try { await signOut(auth); } catch (e) { console.warn("Sign-out after blocked profile:", e); }
+            throw new Error(userData.deleted === true ? "USER_ACCOUNT_DELETED" : "USER_ACCOUNT_DISABLED");
+        }
 
 
         /* ====================================================
@@ -29122,8 +29274,8 @@ window.login = async function () {
                                 `schools/${schoolId}`
                             )
                         ),
-                        20000,
-                        "School verification is taking longer than usual."
+                        9000,
+                        "School verification timed out. Please retry."
                     );
 
                 if (!snapshot?.exists()) {
@@ -29339,9 +29491,9 @@ window.login = async function () {
                                 window.checkSubscriptionAccess()
                             ),
 
-                            75000,
+                            12000,
 
-                            "Subscription verification is taking longer than usual. Please check your connection and try again."
+                            "Subscription verification timed out. Check your connection and try again."
 
                         );
 
@@ -29494,19 +29646,20 @@ window.login = async function () {
            use a lightweight toast instead.
         ==================================================== */
 
-        try {
-            if (typeof Swal !== "undefined") {
-                Swal.fire({
-                    toast: true,
-                    position: "top-end",
-                    icon: "success",
-                    title: `Welcome to ${schoolName}`,
-                    showConfirmButton: false,
-                    timer: 1400,
-                    timerProgressBar: true
-                });
-            }
-        } catch (_) {}
+      try {
+if (typeof Swal !== "undefined") {
+Swal.fire({
+toast: true,
+position: "top-end",
+icon: "success",
+title: `Welcome to ${schoolName}`,
+showConfirmButton: false,
+timer: 1400,
+timerProgressBar: true,
+});
+}
+} catch (_) {}
+
 
 
         /* ====================================================
@@ -29573,14 +29726,22 @@ window.login = async function () {
             "function"
         ) {
 
-            Promise.resolve()
-                .then(() => window.loadAll())
-                .catch(error => {
-                    console.error(
-                        "Application background loading error:",
-                        error
-                    );
-                });
+            const startBackgroundLoad = () => {
+                Promise.resolve()
+                    .then(() => window.loadAll())
+                    .catch(error => {
+                        console.error(
+                            "Application background loading error:",
+                            error
+                        );
+                    });
+            };
+            // Give the browser one paint to show the dashboard first.
+            if (typeof requestAnimationFrame === "function") {
+                requestAnimationFrame(() => setTimeout(startBackgroundLoad, 0));
+            } else {
+                setTimeout(startBackgroundLoad, 0);
+            }
 
         }
 
@@ -29730,6 +29891,22 @@ window.login = async function () {
         /* ====================================================
            CUSTOM ERRORS
         ==================================================== */
+
+        else if (["USER_ACCOUNT_DISABLED", "USER_ACCOUNT_DELETED"].includes(errorMessage)) {
+            title = errorMessage === "USER_ACCOUNT_DELETED" ? "Account Removed" : "Account Disabled";
+            message = "This account has been disabled or removed by the school administrator. Please contact the school office.";
+            icon = "warning";
+        }
+        else if (errorMessage === "LEARNER_FEE_BALANCE_RESTRICTED") {
+            title = "Outstanding School Fees";
+            message = "Login is blocked because the learner's outstanding fee balance is KES 1,500 or more. Please contact the school office after payment.";
+            icon = "warning";
+        }
+        else if (errorMessage === "FEE_BALANCE_CHECK_FAILED") {
+            title = "Unable to Verify School Fees";
+            message = "We could not verify the learner's fee balance. Please check your connection and try again.";
+            icon = "warning";
+        }
 
         else if (
             errorMessage ===
@@ -30013,6 +30190,14 @@ window.login = async function () {
         window.__loggingIn =
             false;
 
+
+        const loginElapsedMs = window.__rasmLoginMetrics.lastStartedAt
+            ? Math.round(performance.now() - window.__rasmLoginMetrics.lastStartedAt)
+            : null;
+
+        window.__rasmLoginMetrics.lastCompletedMs = loginElapsedMs;
+
+        console.info("⏱️ RASM login duration:", loginElapsedMs, "ms");
 
         console.log(
             "🔓 RASM: Login process unlocked."
@@ -36596,7 +36781,8 @@ function loadStudents() {
 
     // ================= EMPTY DATABASE =================
     if (!snap.exists()) {
-
+      window.allStudents = [];
+      if (typeof window.refreshRasmLearningGradeOptions === "function") window.refreshRasmLearningGradeOptions();
       renderStudents([]);
 
       loadDefaulterGrades();
@@ -36625,6 +36811,9 @@ function loadStudents() {
     });
 
     filtersReady = true;
+    // Share the registered learners with learning-content grade selectors.
+    window.allStudents = allStudents;
+    if (typeof window.refreshRasmLearningGradeOptions === "function") window.refreshRasmLearningGradeOptions();
 
     // ================= CORE UI =================
     bindFilterEvents();
@@ -68065,7 +68254,44 @@ const recordedSubjects = new Set();
 // =========================================================
 function getMeritSubjectShortName(subjectName, gradeValue = "") {
     const full = String(subjectName || "").trim();
-    const grade = getGradeNumber(gradeValue || document.getElementById("resultsGradeFilter")?.value || "");
+    // Read the actual grade number directly so labels still shorten when the
+    // selected grade is supplied as "Grade 1", "Grade 2", "G3", or "1A".
+    const gradeSource = String(
+        gradeValue ||
+        document.getElementById("resultsGradeFilter")?.value ||
+        window.reportContext?.grade ||
+        window.__rasmReportGradeContext ||
+        ""
+    );
+    const grade = Number(gradeSource.match(/\d+/)?.[0] || 0);
+    const normalizedSubject = full
+        .replace(/[–—-]/g, "—")
+        .replace(/\s*—\s*/g, " — ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+    // Handle canonical spelling variants used by saved marks as well as the
+    // standard display names, without changing the underlying subject keys.
+    if (grade >= 1 && grade <= 3) {
+        const grade13Labels = {
+            "english — listening": "LISTEN",
+            "english — reading": "Reading",
+            "english — writing": "TO WRIT",
+            "english — grammar": "GRAM",
+            "kiswahili — kusikiliza": "KUZIK",
+            "kiswahili — kusoma": "KUSM",
+            "kiswahili — kuandika": "KUAND",
+            "kiswahili — sarufi": "Sarufi",
+            "environmental and cre": "Env. & CRE",
+            "environmental and c r e": "Env. & CRE",
+            "environmental and cre — environmental": "ENVR",
+            "environmental and c r e — environmental": "ENVR",
+            "environmental and cre — cre": "CRE",
+            "environmental and c r e — c r e": "CRE"
+        };
+        if (grade13Labels[normalizedSubject]) return grade13Labels[normalizedSubject];
+    }
 
     const abbreviations = {
         "Integrated Science": grade >= 4 && grade <= 6 ? "Science & Technology" : "Science",
@@ -68092,16 +68318,21 @@ function getMeritSubjectShortName(subjectName, gradeValue = "") {
         "Kiswahili": "Kiswahili",
         "Mathematics": "Math",
         "English": "English",
-        "English — Listening": grade >= 1 && grade <= 3 ? "Listening" : "English — Listening",
+        "English — Listening": grade >= 1 && grade <= 3 ? "LISTEN" : "English — Listening",
         "English — Reading": grade >= 1 && grade <= 3 ? "Reading" : "English — Reading",
-        "English — Writing": grade >= 1 && grade <= 3 ? "Writing" : "English — Writing",
-        "English — Grammar": grade >= 1 && grade <= 3 ? "Grammar" : "English — Grammar",
-        "Kiswahili — Kusikiliza": grade >= 1 && grade <= 3 ? "Kusikiliza" : "Kiswahili — Kusikiliza",
-        "Kiswahili — Kusoma": grade >= 1 && grade <= 3 ? "Kusoma" : "Kiswahili — Kusoma",
-        "Kiswahili — Kuandika": grade >= 1 && grade <= 3 ? "Kuandika" : "Kiswahili — Kuandika",
+        "English — Writing": grade >= 1 && grade <= 3 ? "TO WRIT" : "English — Writing",
+        "English — Grammar": grade >= 1 && grade <= 3 ? "GRAM" : "English — Grammar",
+        "Kiswahili — Kusikiliza": grade >= 1 && grade <= 3 ? "KUZIK" : "Kiswahili — Kusikiliza",
+        "Kiswahili — Kusoma": grade >= 1 && grade <= 3 ? "KUSM" : "Kiswahili — Kusoma",
+        "Kiswahili — Kuandika": grade >= 1 && grade <= 3 ? "KUAND" : "Kiswahili — Kuandika",
         "Kiswahili — Sarufi": grade >= 1 && grade <= 3 ? "Sarufi" : "Kiswahili — Sarufi",
-        "Environmental and CRE — Environmental": grade >= 1 && grade <= 3 ? "Environmental" : "Environmental and CRE — Environmental",
-        "Environmental and CRE — CRE": grade >= 1 && grade <= 3 ? "CRE" : "Environmental and CRE — CRE"
+        "Environmental and CRE — Environmental": grade >= 1 && grade <= 3 ? "ENVR" : "Environmental and CRE — Environmental",
+        "Environmental and CRE — CRE": grade >= 1 && grade <= 3 ? "CRE" : "Environmental and CRE — CRE",
+        "Environmental and C R E": grade >= 1 && grade <= 3 ? "Env. & CRE" : "Environmental and C R E",
+        "Environmental and C R E — C R E": grade >= 1 && grade <= 3 ? "CRE" : "Environmental and C R E — C R E",
+        "Environmental and C R E — Environmental": grade >= 1 && grade <= 3 ? "ENVR" : "Environmental and C R E — Environmental",
+        "Creative Arts": "Creative Arts",
+        "Math": "Math"
     };
 
     if (abbreviations[full]) return abbreviations[full];
@@ -68407,7 +68638,7 @@ ${window.getSchoolPrintHeader("MERIT LIST REPORT")}
   subjects.forEach(s => {
 
     html += `
-      <th colspan="${isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key) ? 1 : 3}" class="subhead">${s.shortName}</th>
+      <th colspan="${isGrade1To3Value(grade) && isReportSubLearningArea(s.key) ? (rasmGrade13SubHasLevel(s.key) ? 2 : 1) : 3}" class="subhead">${s.shortName}</th>
     `;
   });
 
@@ -68420,13 +68651,15 @@ ${window.getSchoolPrintHeader("MERIT LIST REPORT")}
 `;
 
 subjects.forEach(s => {
-    const scoreOnly = isGrade1To3Value(grade) &&
-        isReportSubLearningArea(s.key) &&
-        !rasmGrade13SubHasLevel(s.key);
+    const grade13SubArea = isGrade1To3Value(grade) && isReportSubLearningArea(s.key);
+    const scoreOnly = grade13SubArea && !rasmGrade13SubHasLevel(s.key);
+    const scoreAndLevelOnly = grade13SubArea && rasmGrade13SubHasLevel(s.key);
 
     html += scoreOnly
         ? `<th class="merit-spl-header">SCO</th>`
-        : `<th class="merit-spl-header">SCO</th><th class="merit-spl-header">PTS</th><th class="merit-spl-header">LEV</th>`;
+        : scoreAndLevelOnly
+            ? `<th class="merit-spl-header">SCO</th><th class="merit-spl-header">LEV</th>`
+            : `<th class="merit-spl-header">SCO</th><th class="merit-spl-header">PTS</th><th class="merit-spl-header">LEV</th>`;
 });
 
   html += `
@@ -68481,13 +68714,15 @@ const score =
     ? Number(value)
     : "";
 
-    const scoreOnly = isGrade1To3Value(grade) &&
-        isReportSubLearningArea(s.key) &&
-        !rasmGrade13SubHasLevel(s.key);
+    const grade13SubArea = isGrade1To3Value(grade) && isReportSubLearningArea(s.key);
+    const scoreOnly = grade13SubArea && !rasmGrade13SubHasLevel(s.key);
+    const scoreAndLevelOnly = grade13SubArea && rasmGrade13SubHasLevel(s.key);
 
     html += scoreOnly
       ? `<td class="merit-score-cell">${score}</td>`
-      : `<td class="merit-score-cell">${score}</td><td class="merit-points-cell">${score === "" ? "" : getLevel(score)}</td><td class="merit-level-cell">${score === "" ? "" : getLevelName(score)}</td>`;
+      : scoreAndLevelOnly
+        ? `<td class="merit-score-cell">${score}</td><td class="merit-level-cell">${score === "" ? "" : getLevelName(score)}</td>`
+        : `<td class="merit-score-cell">${score}</td><td class="merit-points-cell">${score === "" ? "" : getLevel(score)}</td><td class="merit-level-cell">${score === "" ? "" : getLevelName(score)}</td>`;
     });
 
     html += `
@@ -68510,8 +68745,14 @@ const score =
 
   subjects.forEach(s => {
 
-    const scoreOnly = isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
-    html += scoreOnly ? `<td class="merit-score-cell">${totals[s.key]}</td>` : `<td class="merit-score-cell">${totals[s.key]}</td><td class="merit-points-cell">-</td><td class="merit-level-cell">-</td>`;
+    const grade13SubArea = isGrade1To3Value(grade) && isReportSubLearningArea(s.key);
+    const scoreOnly = grade13SubArea && !rasmGrade13SubHasLevel(s.key);
+    const scoreAndLevelOnly = grade13SubArea && rasmGrade13SubHasLevel(s.key);
+    html += scoreOnly
+      ? `<td class="merit-score-cell">${totals[s.key]}</td>`
+      : scoreAndLevelOnly
+        ? `<td class="merit-score-cell">${totals[s.key]}</td><td class="merit-level-cell">-</td>`
+        : `<td class="merit-score-cell">${totals[s.key]}</td><td class="merit-points-cell">-</td><td class="merit-level-cell">-</td>`;
   });
 
   html += `
@@ -68531,8 +68772,14 @@ const score =
 
   subjects.forEach(s => {
 
-    const scoreOnly = isGrade1To3Value(grade) && isReportSubLearningArea(s.key) && !rasmGrade13SubHasLevel(s.key);
-    html += scoreOnly ? `<td class="merit-score-cell">${avg(totals[s.key])}</td>` : `<td class="merit-score-cell">${avg(totals[s.key])}</td><td class="merit-points-cell">-</td><td class="merit-level-cell">-</td>`;
+    const grade13SubArea = isGrade1To3Value(grade) && isReportSubLearningArea(s.key);
+    const scoreOnly = grade13SubArea && !rasmGrade13SubHasLevel(s.key);
+    const scoreAndLevelOnly = grade13SubArea && rasmGrade13SubHasLevel(s.key);
+    html += scoreOnly
+      ? `<td class="merit-score-cell">${avg(totals[s.key])}</td>`
+      : scoreAndLevelOnly
+        ? `<td class="merit-score-cell">${avg(totals[s.key])}</td><td class="merit-level-cell">-</td>`
+        : `<td class="merit-score-cell">${avg(totals[s.key])}</td><td class="merit-points-cell">-</td><td class="merit-level-cell">-</td>`;
   });
 
   html += `
@@ -123613,254 +123860,158 @@ window.printReceipt = function(receipt) {
 };
 window._allUsersCache = [];
 window._usersListener = null;
+window.__selectedParentUserIds = window.__selectedParentUserIds || new Set();
 
-window.loadUsersTable = function () {
+window.__rasmUserEsc = function(value) {
+  return String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+};
+window.__rasmParentGrade = function(user) {
+  const children = Array.isArray(user?.children) ? user.children : [];
+  return String(user?.grade || user?.learnerGrade || user?.studentGrade ||
+    user?.class || children.find(c => c?.grade)?.grade || "").trim();
+};
+window.__rasmIsAdminUser = function() {
+  return [window.currentUserRole, window.currentUser?.role, localStorage.getItem("userRole"),
+    sessionStorage.getItem("userRole"), localStorage.getItem("role"), sessionStorage.getItem("role")]
+    .filter(Boolean).some(r => ["admin","superadmin"].includes(String(r).toLowerCase().trim()));
+};
+window.__rasmRequireUserAdmin = function() {
+  if (window.__rasmIsAdminUser()) return true;
+  Swal.fire({icon:"warning",title:"Admin Only",text:"Only the school administrator can manage user accounts."});
+  return false;
+};
 
+window.loadUsersTable = function() {
   const tbody = document.getElementById("usersTableBody");
   if (!tbody) return;
-
-  const schoolId = localStorage.getItem("schoolId");
-
+  const schoolId = String(window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId") || "").trim();
   if (!schoolId) {
-    console.warn("❌ Missing schoolId - retrying...");
-    setTimeout(window.loadUsersTable, 500);
+    tbody.innerHTML = '<tr><td colspan="10" style="padding:18px;text-align:center">Please log in again to load users.</td></tr>';
     return;
   }
-
-  const usersRef = ref(db, "users");
-
-  // 🔥 IMPORTANT: remove old listener before attaching new one
-  if (window._usersListener) {
-    window._usersListener(); // unsubscribe old listener
+  if (typeof window.fastOnValue !== "function") {
+    tbody.innerHTML = '<tr><td colspan="10" style="padding:18px;text-align:center">User service is not ready. Please refresh.</td></tr>';
+    return;
   }
-
-  window._usersListener = window.fastOnValue(usersRef, (snapshot) => {
-
-    window._allUsersCache = [];
-    tbody.innerHTML = "";
-
-    if (!snapshot.exists()) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="7" style="padding:10px; text-align:center;">
-            No users found
-          </td>
-        </tr>`;
-      return;
-    }
-
-    snapshot.forEach((child) => {
-
-      const user = child.val();
-
-      // 🔥 SAFE FILTER
-      if (!user.schoolId || user.schoolId !== schoolId) return;
-
-      window._allUsersCache.push(user);
+  if (typeof window._usersListener === "function") { try { window._usersListener(); } catch (_) {} }
+  window._usersListener = window.fastOnValue(ref(db,"users"), snapshot => {
+    const rows=[];
+    if (snapshot?.exists()) snapshot.forEach(child => {
+      const user=child.val() || {};
+      if (String(user.schoolId || "") !== schoolId) return;
+      rows.push({...user, uid:String(user.uid || child.key)});
     });
-
-    window.renderUsersTable(window._allUsersCache);
-
+    window._allUsersCache=rows;
+    const currentSelected=window.__selectedParentUserIds || new Set();
+    window.__selectedParentUserIds=new Set([...currentSelected].filter(uid =>
+      rows.some(u => String(u.uid)===String(uid) && String(u.role||"").toLowerCase()==="parent" && u.deleted!==true)));
+    window.populateUserParentGradeFilter();
+    window.renderUsersTable(rows,document.getElementById("userSearch")?.value || "");
   });
 };
-window.renderUsersTable = function(users = [], search = "") {
-  const tbody = document.getElementById("usersTableBody");
-  if (!tbody) return;
 
-  tbody.innerHTML = "";
+window.populateUserParentGradeFilter = function() {
+  const select=document.getElementById("userParentGradeFilter"); if(!select) return;
+  const previous=select.value;
+  const grades=[...new Set((window._allUsersCache||[]).filter(u=>String(u.role||"").toLowerCase()==="parent" && u.deleted!==true)
+    .map(window.__rasmParentGrade).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:"base"}));
+  select.innerHTML='<option value="">All Users / All Grades</option>'+grades.map(g=>`<option value="${window.__rasmUserEsc(g)}">Parents — ${window.__rasmUserEsc(g)}</option>`).join("");
+  if(grades.includes(previous)) select.value=previous;
+};
 
-  const filtered = users.filter(u =>
-    (u.fullName || "").toLowerCase().includes(search) ||
-    (u.email || "").toLowerCase().includes(search) ||
-    (u.role || "").toLowerCase().includes(search)
-  );
+window.renderUsersTable = function(users=window._allUsersCache||[],search="") {
+  const tbody=document.getElementById("usersTableBody"); if(!tbody) return;
+  const term=String(search || document.getElementById("userSearch")?.value || "").trim().toLowerCase();
+  const grade=String(document.getElementById("userParentGradeFilter")?.value || "").trim();
+  const filtered=(Array.isArray(users)?users:[]).filter(u=>{
+    if(u.deleted===true) return false;
+    const role=String(u.role||"").toLowerCase(), isParent=role==="parent";
+    if(grade && (!isParent || window.__rasmParentGrade(u)!==grade)) return false;
+    const hay=[u.fullName,u.name,u.email,u.role,u.schoolName,window.__rasmParentGrade(u)].join(" ").toLowerCase();
+    return !term || hay.includes(term);
+  });
+  if(!filtered.length){tbody.innerHTML='<tr><td colspan="10" style="padding:18px;text-align:center">No matching users</td></tr>';}
+  else tbody.innerHTML=filtered.map(user=>{
+    const uid=window.__rasmUserEsc(user.uid), role=String(user.role||""), isParent=role.toLowerCase()==="parent";
+    const active=user.active!==false, protectedUser=role.toLowerCase()==="admin" || String(user.uid)===String(auth.currentUser?.uid||"");
+    const checked=isParent && window.__selectedParentUserIds.has(String(user.uid));
+    const name=window.__rasmUserEsc(user.fullName||user.name||user.displayName||""), email=window.__rasmUserEsc(user.email||"");
+    const created=user.createdAt?new Date(user.createdAt).toLocaleString():"—";
+    return `<tr>
+      <td style="padding:10px">${isParent?`<input type="checkbox" class="rasm-parent-user-check" data-uid="${uid}" ${checked?"checked":""} onchange="window.setParentUserSelected(this.dataset.uid,this.checked)" aria-label="Select parent ${name}">`:"—"}</td>
+      <td style="padding:10px">${name}</td><td style="padding:10px">${email}</td>
+      <td style="padding:10px">${window.__rasmUserEsc(role)}</td><td style="padding:10px">${window.__rasmUserEsc(window.__rasmParentGrade(user)||"—")}</td>
+      <td style="padding:10px">${window.__rasmUserEsc(user.schoolName||"")}</td>
+      <td style="padding:10px">${active?"🟢 Active":"🔴 Disabled"}</td><td style="padding:10px">${window.__rasmUserEsc(created)}</td>
+      <td style="padding:10px">${protectedUser?'<button disabled>Protected</button>':`<button type="button" onclick="window.toggleUser('${uid}',${active})">${active?"Disable":"Enable"}</button>`}</td>
+      <td style="padding:10px">${protectedUser?'<button disabled>Protected</button>':`<button type="button" style="background:#dc2626;color:white" onclick="window.deleteUser('${uid}')">Delete Profile</button>`}</td>
+    </tr>`;
+  }).join("");
+  const allParentChecks=[...tbody.querySelectorAll(".rasm-parent-user-check")];
+  const selectAll=document.getElementById("selectAllParentUsers");
+  if(selectAll) selectAll.checked=allParentChecks.length>0 && allParentChecks.every(c=>c.checked);
+  window.updateSelectedParentCount();
+};
 
-  if (filtered.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="7" style="padding:10px; text-align:center;">
-          No matching users
-        </td>
-      </tr>`;
-    return;
-  }
-
-  filtered.forEach(user => {
-
-    const row = document.createElement("tr");
-
-    row.innerHTML = `
-      <td style="padding:10px;">${user.fullName || ""}</td>
-      <td style="padding:10px;">${user.email || ""}</td>
-
-      <td style="padding:10px;">
-        <span style="
-          padding:4px 8px;
-          border-radius:8px;
-          background:#2563eb;
-          color:white;
-          font-size:12px;">
-          ${user.role || ""}
-        </span>
-      </td>
-
-      <td style="padding:10px;">
-        ${user.active ? "🟢 Active" : "🔴 Disabled"}
-      </td>
-
-      <td style="padding:10px;">
-        ${new Date(user.createdAt).toLocaleString()}
-      </td>
-
-      <td style="padding:10px;">
-        <button onclick="toggleUser('${user.uid}', ${user.active})">
-          ${user.active ? "Disable" : "Enable"}
-        </button>
-      </td>
-
-<td style="padding:10px;">
-  ${
-    user.role === "admin"
-      ? `<button disabled
-            style="
-              background:#999;
-              color:white;
-              cursor:not-allowed;
-              opacity:.7;">
-            Protected
-         </button>`
-      : `<button onclick="deleteUser('${user.uid}')"
-            style="background:red;color:white;">
-            Delete Login
-         </button>`
-  }
-</td>
-    `;
-
-    tbody.appendChild(row);
+window.setParentUserSelected = function(uid,selected) {
+  const user=(window._allUsersCache||[]).find(u=>String(u.uid)===String(uid));
+  if(!user || String(user.role||"").toLowerCase()!=="parent") return;
+  if(selected) window.__selectedParentUserIds.add(String(uid)); else window.__selectedParentUserIds.delete(String(uid));
+  window.updateSelectedParentCount();
+};
+window.toggleSelectAllParentUsers = function(selected) {
+  document.querySelectorAll("#usersTableBody .rasm-parent-user-check").forEach(check=>{
+    check.checked=!!selected; window.setParentUserSelected(check.dataset.uid,!!selected);
   });
 };
-window.getActiveSchoolId = function () {
-
-  const id =
-    window.schoolId ||
-    localStorage.getItem("schoolId");
-
-  if (!id) return null;
-
-  window.schoolId = id;
-  localStorage.setItem("schoolId", id);
-
-  return id;
+window.updateSelectedParentCount = function() {
+  const el=document.getElementById("selectedParentUsersCount");
+  if(el) el.textContent=`${window.__selectedParentUserIds.size} parent(s) selected`;
 };
-window.toggleUser = async function(uid, currentState) {
-
-  rasmBackgroundUpdate(ref(db, `users/${uid}`), {
-    active: !currentState
-  });
-
-};
-
-window.deleteUser = async function(uid) {
-
+window.bulkSetParentAccountsActive = async function(active) {
+  if(!window.__rasmRequireUserAdmin()) return;
+  const ids=[...window.__selectedParentUserIds];
+  if(!ids.length) return Swal.fire({icon:"info",title:"No Parents Selected",text:"Select one or more parent accounts first."});
+  const result=await Swal.fire({icon:"question",title:active?"Enable selected parents?":"Disable selected parents?",text:`${ids.length} parent account(s) will be ${active?"enabled":"disabled"}.`,showCancelButton:true,confirmButtonText:active?"Enable":"Disable"});
+  if(!result.isConfirmed) return;
   try {
-
-    // 🔒 Prevent deleting your own account
-    if (auth.currentUser && uid === auth.currentUser.uid) {
-      return Swal.fire({
-        icon: "warning",
-        title: "Action Blocked",
-        text: "You cannot delete your own account."
-      });
-    }
-
-    // Read user
-    const snap = await fastGet(ref(db, `users/${uid}`));
-
-    if (!snap.exists()) {
-      return Swal.fire({
-        icon: "error",
-        title: "User Not Found",
-        text: "The selected user no longer exists."
-      });
-    }
-
-    const user = snap.val();
-
-    // 🔒 Protect admins
-    if ((user.role || "").toLowerCase() === "admin") {
-      return Swal.fire({
-        icon: "info",
-        title: "Protected Account",
-        text: "Administrator accounts cannot be deleted."
-      });
-    }
-
-    // ⚠️ Confirmation
-    const result = await Swal.fire({
-      title: "Delete User Login?",
-      html: `
-        <div style="font-size:15px;">
-          You are about to permanently delete the login for:
-          <br><br>
-          <b>${user.fullName || user.email}</b>
-          <br><br>
-          <span style="color:#d33;font-weight:bold;">
-            The record can be restored later from the Recycle Bin.
-          </span>
-        </div>
-      `,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "🗑 Delete",
-      cancelButtonText: "Cancel",
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#6c757d",
-      reverseButtons: true,
-      focusCancel: true
-    });
-
-    if (!result.isConfirmed) return;
-
-    // ⏳ Loading dialog
-    Swal.fire({
-      title: "Deleting User...",
-      html: "Please wait while we remove the user login.",
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
-
-    // Delete user
-    rasmBackgroundRemove(ref(db, `users/${uid}`));
-
-    Swal.fire({
-      icon: "success",
-      title: "Deleted!",
-      text: "User login has been deleted successfully.",
-      timer: 1800,
-      showConfirmButton: false
-    });
-
-  } catch (error) {
-
-    console.error(error);
-
-    Swal.fire({
-      icon: "error",
-      title: "Delete Failed",
-      text: error.message || "An unexpected error occurred."
-    });
-
-  }
-
+    await Promise.all(ids.map(uid=>set(ref(db,`users/${uid}`),{...(window._allUsersCache||[]).find(u=>String(u.uid)===uid),active,updatedAt:Date.now()})));
+    Swal.fire({icon:"success",title:"Updated",text:`${ids.length} parent account(s) ${active?"enabled":"disabled"}.`});
+  } catch(error) { console.error(error); Swal.fire({icon:"error",title:"Update Failed",text:error.message||"Could not update the selected accounts."}); }
 };
-document.addEventListener("DOMContentLoaded", () => {
-  window.loadUsersTable();
-});
+window.bulkDeleteParentAccounts = async function() {
+  if(!window.__rasmRequireUserAdmin()) return;
+  const ids=[...window.__selectedParentUserIds];
+  if(!ids.length) return Swal.fire({icon:"info",title:"No Parents Selected",text:"Select one or more parent accounts first."});
+  const result=await Swal.fire({icon:"warning",title:"Delete selected parent profiles?",html:`This removes <b>${ids.length}</b> parent profile(s) from the RASM 360 database. It does not delete their Firebase Authentication accounts.`,showCancelButton:true,confirmButtonText:"Delete Profiles",confirmButtonColor:"#dc2626"});
+  if(!result.isConfirmed) return;
+  try {
+    await Promise.all(ids.map(uid=>remove(ref(db,`users/${uid}`))));
+    ids.forEach(uid=>window.__selectedParentUserIds.delete(uid));
+    Swal.fire({icon:"success",title:"Profiles Deleted",text:`Removed ${ids.length} parent profile(s). Firebase Authentication accounts, if any, must be deleted separately by an authorized backend.`});
+  } catch(error) { console.error(error); Swal.fire({icon:"error",title:"Delete Failed",text:error.message||"Could not delete the selected profiles."}); }
+};
+window.toggleUser = async function(uid,currentState) {
+  if(!window.__rasmRequireUserAdmin()) return;
+  try { await update(ref(db,`users/${uid}`),{active:!currentState,updatedAt:Date.now()}); }
+  catch(error){console.error(error);Swal.fire({icon:"error",title:"Update Failed",text:error.message||"Could not update this account."});}
+};
+window.deleteUser = async function(uid) {
+  if(!window.__rasmRequireUserAdmin()) return;
+  if(String(uid)===String(auth.currentUser?.uid||"")) return Swal.fire({icon:"warning",title:"Action Blocked",text:"You cannot delete your own profile."});
+  try {
+    const snap=await fastGet(ref(db,`users/${uid}`));
+    if(!snap.exists()) return Swal.fire({icon:"info",title:"Not Found",text:"This user profile no longer exists."});
+    const user=snap.val()||{};
+    if(String(user.role||"").toLowerCase()==="admin") return Swal.fire({icon:"info",title:"Protected Account",text:"Administrator profiles cannot be deleted here."});
+    const result=await Swal.fire({icon:"warning",title:"Delete user profile?",html:`Remove <b>${window.__rasmUserEsc(user.fullName||user.name||user.email||uid)}</b> from the RASM 360 user profiles? This does not delete the Firebase Authentication identity.`,showCancelButton:true,confirmButtonText:"Delete Profile",confirmButtonColor:"#dc2626"});
+    if(!result.isConfirmed) return;
+    await remove(ref(db,`users/${uid}`));
+    Swal.fire({icon:"success",title:"Profile Deleted",text:"The RASM 360 profile was removed. Authentication identity deletion is separate."});
+  } catch(error){console.error(error);Swal.fire({icon:"error",title:"Delete Failed",text:error.message||"Could not delete this profile."});}
+};
+document.addEventListener("DOMContentLoaded", () => { window.loadUsersTable(); });
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -143202,6 +143353,13 @@ window.openAdminRecycleBin = function () {
     const container = document.getElementById("assignmentContainer");
     if(!container) return;
 
+    const role = String(window.currentUserRole || window.currentUser?.role || "").toLowerCase().trim();
+    if (["parent", "student"].includes(role)) {
+      document.getElementById("rasmAssignmentRecycleToolbar")?.remove();
+      container.querySelectorAll(".rasm-assignment-select").forEach(el => el.closest("div")?.remove());
+      return;
+    }
+
     assignmentToolbar();
 
     container.querySelectorAll(".assignment-card").forEach(card => {
@@ -143237,6 +143395,12 @@ window.openAdminRecycleBin = function () {
   }
 
   async function moveSelectedAssignments(){
+    const role = String(window.currentUserRole || window.currentUser?.role || "").toLowerCase().trim();
+    if (["parent", "student"].includes(role)) {
+      const toolbar = document.getElementById("rasmAssignmentRecycleToolbar");
+      if (toolbar) toolbar.style.display = "none";
+      return Swal.fire({icon:"error",title:"View Only",text:"Parents and learners cannot delete or move assignments to the Recycle Bin."});
+    }
     const ids = selectedAssignmentIds();
     if(!ids.length){
       return Swal.fire({icon:"info",title:"No Assignment Selected",text:"Select one or more assignments first."});
@@ -143713,7 +143877,7 @@ window.openAdminRecycleBin = function () {
     if(typeof window.__rasmLibraryBookUnsub==="function") {
       try{window.__rasmLibraryBookUnsub();}catch(_){}
     }
-    window.__rasmLibraryBookUnsub=window.fastOnValue(ref(db,`library/${schoolId}`),snap=>{
+    window.__rasmLibraryBookUnsub=window.fastOnValue(window.rasmRef(`library/${schoolId}`),snap=>{
       window.__libraryBooksCache=[];
       const grades=new Set();
       if(snap.exists()) snap.forEach(child=>{
@@ -143738,7 +143902,7 @@ window.openAdminRecycleBin = function () {
     if(typeof window.__rasmLibraryBorrowUnsub==="function"){
       try{window.__rasmLibraryBorrowUnsub();}catch(_){}
     }
-    window.__rasmLibraryBorrowUnsub=window.fastOnValue(ref(db,`libraryBorrowings/${schoolId}`),snap=>{
+    window.__rasmLibraryBorrowUnsub=window.fastOnValue(window.rasmRef(`libraryBorrowings/${schoolId}`),snap=>{
       window.__libraryBorrowingsCache=[];
       if(snap.exists()) snap.forEach(child=>{
         const d=child.val()||{};
@@ -143868,7 +144032,7 @@ window.openAdminRecycleBin = function () {
     });
     if(!result.isConfirmed) return;
     const schoolId=sid();
-    const refBook=ref(db,`library/${schoolId}/${bookId}`);
+    const refBook=window.rasmRef(`library/${schoolId}/${bookId}`);
     const old=item.data;
     item.data=result.value;
     renderCatalogue();
@@ -149200,7 +149364,16 @@ ${headerHtml}
         <table><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Category</th><th>Shelf</th><th>Total Copies</th><th>Available</th><th>Borrowed</th><th>Damaged</th><th>Lost</th><th>Withdrawn</th><th>Under Repair</th></tr></thead><tbody>${rows || `<tr><td colspan="12">No books registered for ${esc(selectedGrade)}.</td></tr>`}</tbody></table>
         <div class="footer"><span>Library Management Report — Grade ${esc(selectedGrade)}</span><span>Overdue Loans: ${overdue}</span></div>
         <script>window.onload=function(){setTimeout(function(){window.print();},250)};<\/script>
-      </body></html>`);
+      
+
+
+
+
+
+
+
+
+</body></html>`);
       w.document.close();
     }catch(error){
       console.error("RASM360 grade Library Report error:",error);
@@ -149221,6 +149394,201 @@ ${headerHtml}
   console.log("✅ RASM 360 — Library consistency + single clearance + grade report authority active.");
 })();
 </script>
+
+<script id="rasm-parent-self-service-v2">
+(function(){
+  const byId = id => document.getElementById(id);
+  const normPhone = value => {
+    let p = String(value || '').replace(/[\s()-]/g, '');
+    if (p.startsWith('+254')) p = '0' + p.slice(4);
+    else if (p.startsWith('254')) p = '0' + p.slice(3);
+    return p;
+  };
+  const getRole = () => String(window.currentUserRole || '').toLowerCase();
+  const currentSchoolRef = path => {
+    if (typeof schoolRef === 'function') return schoolRef(path || '');
+    const sid = window.schoolId || sessionStorage.getItem('schoolId') || localStorage.getItem('schoolId');
+    if (!sid || typeof ref !== 'function' || typeof db === 'undefined') throw new Error('School context missing. Please sign in again.');
+    return ref(db, `schools/${sid}${path ? '/' + path : ''}`);
+  };
+  async function freshGet(path) {
+    if (typeof fastGet === 'function') return fastGet(currentSchoolRef(path));
+    if (typeof window.rasmFreshGet === 'function') return window.rasmFreshGet(currentSchoolRef(path));
+    if (typeof get === 'function') return get(currentSchoolRef(path));
+    throw new Error('Firebase read helper is unavailable.');
+  }
+  function normalizeLearners(raw) {
+    if (Array.isArray(raw)) return raw.filter(Boolean).map((x,i)=>({...x,id:String(x.id || x.studentId || x.key || i)}));
+    return Object.entries(raw || {}).map(([id,x])=>({...x,id:String(x?.id || x?.studentId || id)})).filter(x=>x && x.id);
+  }
+  async function getLearners(force) {
+    let list = normalizeLearners(window.allStudents || []);
+    if (!force && list.length) return list;
+    const snap = await freshGet('students');
+    list = normalizeLearners(snap && typeof snap.val === 'function' ? snap.val() : snap);
+    window.allStudents = list;
+    try { allStudents = list; } catch (_) {}
+    return list;
+  }
+  function getMarksKeys(learners) {
+    const found = new Map();
+    (learners || []).forEach(st => {
+      const marks = st.marks || {};
+      Object.keys(marks).forEach(k => { if (k && !found.has(k)) found.set(k,k); });
+    });
+    return [...found.values()].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}));
+  }
+  function nicePeriod(value) {
+    return String(value || '').replace(/[-_]/g,' ').replace(/\s+/g,' ').replace(/\b(\d{4})\s+(Term\s*\d)\s+(Opener|Midterm|End Term)\b/i,'$1, $2, $3 Exam').trim();
+  }
+  function fillExamPeriods(select, learners) {
+    if (!select) return;
+    const previous = select.value;
+    const periods = getMarksKeys(learners);
+    if (periods.length) {
+      select.innerHTML = '<option value="">Select Exam Period</option>' + periods.map(k=>`<option value="${String(k).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}">${nicePeriod(k).replace(/</g,'&lt;')}</option>`).join('');
+      if (periods.includes(previous)) select.value = previous;
+    } else if (!select.options.length || select.options.length < 2) {
+      const y = new Date().getFullYear();
+      const fallback=[];
+      for(let yr=y+1;yr>=y-5;yr--) for(let term=1;term<=3;term++) for(const exam of ['Opener Exam','Midterm Exam','End Term Exam']) fallback.push(`${yr}, Term ${term}, ${exam}`);
+      select.innerHTML = '<option value="">Select Exam Period</option>' + fallback.map(k=>`<option value="${k}">${k}</option>`).join('');
+    }
+  }
+  window.canAccessResults = function(studentId){
+    const role=getRole();
+    if(role==='admin'||role==='teacher') return true;
+    if(role!=='parent'||!studentId) return false;
+    const entered=normPhone(byId('checkResultsParentPhone')?.value || window.currentUser?.phone || window.currentUser?.phoneNumber);
+    const list=normalizeLearners(window.allStudents || []);
+    const learner=list.find(s=>String(s.id)===String(studentId));
+    return !!learner && !!entered && entered===normPhone(learner.parentPhone||learner.parentPhoneNumber||learner.guardianPhone);
+  };
+  function setFieldVisibility() {
+    const parent = getRole() === 'parent';
+    const grade = byId('checkResultsGrade');
+    if (grade && grade.parentElement) grade.parentElement.style.display = parent ? 'none' : '';
+    const student = byId('checkResultsStudentContainer');
+    if (student) student.style.display = parent ? 'none' : '';
+    const feeGrade = byId('feeGradeContainer');
+    const feeStudent = byId('feeStudentContainer');
+    if (feeGrade) feeGrade.style.display = parent ? 'none' : '';
+    if (feeStudent) feeStudent.style.display = parent ? 'none' : '';
+  }
+  window.loadFeeBalanceStudents = async function(){
+    const yearSelect=byId('feeBalanceYear'), gradeSelect=byId('feeBalanceGrade'), studentSelect=byId('feeBalanceStudent');
+    if (!yearSelect || !gradeSelect || !studentSelect) return;
+    const currentYear=new Date().getFullYear(), oldYear=yearSelect.value;
+    yearSelect.innerHTML=Array.from({length:7},(_,i)=>currentYear+1-i).map(y=>`<option value="${y}">${y}</option>`).join('');
+    if (oldYear && [...yearSelect.options].some(o=>o.value===oldYear)) yearSelect.value=oldYear;
+    try {
+      const learners=await getLearners(false);
+      const grades=[...new Set(learners.map(s=>String(s.grade||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+      const oldGrade=gradeSelect.value;
+      gradeSelect.innerHTML='<option value="">All Grades</option>'+grades.map(g=>`<option value="${g.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${g}</option>`).join('');
+      if (grades.includes(oldGrade)) gradeSelect.value=oldGrade;
+      const render=()=>{
+        const grade=gradeSelect.value;
+        const filtered=grade?learners.filter(s=>String(s.grade||'')===grade):learners;
+        studentSelect.innerHTML='<option value="">Select Learner</option>'+filtered.map(s=>`<option value="${s.id}">${s.name||s.fullName||s.studentName||s.id} (${s.grade||''})</option>`).join('');
+      };
+      render(); gradeSelect.onchange=render;
+      const role=getRole();
+      if(role==='parent') setFieldVisibility();
+    } catch(e) { console.error('Fee balance learner/grade load failed:',e); if(gradeSelect) gradeSelect.innerHTML='<option value="">Could not load grades</option>'; }
+    setFieldVisibility();
+  };
+  window.checkFeeBalance = async function(){
+    const year=byId('feeBalanceYear')?.value;
+    const phone=normPhone(byId('feeParentPhone')?.value);
+    const result=byId('feeBalanceResult');
+    if(!year) return Swal.fire('Academic Year Required','Please select the academic year.','warning');
+    if(getRole()==='parent' && !phone) return Swal.fire('Phone Required','Enter your registered parent phone number.','warning');
+    if(getRole()!=='parent' && !byId('feeBalanceStudent')?.value && !phone) return Swal.fire('Search Required','Select a learner or enter a parent phone number.','warning');
+    try {
+      Swal.fire({title:'Checking fee balance…',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+      const learners=await getLearners(false);
+      let matched;
+      if(getRole()==='parent' || phone) matched=learners.filter(s=>normPhone(s.parentPhone||s.parentPhoneNumber||s.guardianPhone)===phone);
+      else { const id=byId('feeBalanceStudent')?.value; matched=learners.filter(s=>String(s.id)===String(id)); }
+      if(!matched.length){Swal.close(); if(result)result.innerHTML=''; return Swal.fire('No Learner Found','No learner is linked to that registered phone number. Check the number and try again.','error');}
+      const snap=await freshGet(`fees/${year}`), feeRoot=(snap&&typeof snap.val==='function'?snap.val():snap)||{};
+      const feeEntries=Object.entries(feeRoot);
+      const money=n=>Number(n||0).toLocaleString('en-KE');
+      const cards=matched.map(st=>{
+        const pair=feeEntries.find(([key,f])=>String(f?.studentId||f?.learnerId||f?.student_id||key)===String(st.id));
+        const fee=pair?.[1];
+        if(!fee) return `<div style="padding:16px;border:1px solid #fecaca;background:#fff7f7;border-radius:12px;margin:10px 0"><b>${st.name||st.fullName||st.studentName||'Learner'}</b><div>Grade: ${st.grade||'—'}</div><div style="color:#b91c1c;font-weight:700;margin-top:6px">No fee record found for ${year}.</div></div>`;
+        const expected=Number(fee.expectedTotal ?? fee.totalFee ?? fee.totalFees ?? 0);
+        const paid=Number(fee.totalPaid ?? fee.paid ?? fee.amountPaid ?? 0);
+        const balance=Number(fee.balance ?? Math.max(0,expected-paid));
+        const status=balance<=0?'PAID':paid>0?'PARTIAL':'OWING';
+        const color=balance<=0?'#15803d':paid>0?'#b45309':'#b91c1c';
+        return `<div style="padding:18px;border:1px solid #dbeafe;background:#fff;border-radius:12px;margin:10px 0;color:#0f172a"><div style="font-size:17px;font-weight:800">${st.name||st.fullName||st.studentName||'Learner'}</div><div style="color:#64748b;margin:4px 0 12px">Grade: ${st.grade||'—'} · Academic year: ${year}</div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px"><div style="background:#f8fafc;padding:12px;border-radius:8px">Total expected<br><b>KSh ${money(expected)}</b></div><div style="background:#f8fafc;padding:12px;border-radius:8px">Total paid<br><b>KSh ${money(paid)}</b></div></div><div style="font-size:22px;font-weight:900;color:${color};margin-top:14px">Balance: KSh ${money(balance)}</div><div style="font-weight:800;color:${color}">${status}</div></div>`;
+      }).join('');
+      Swal.close(); if(result) result.innerHTML=`<div style="background:#f8fafc;padding:14px;border-radius:14px;color:#0f172a"><h3 style="margin:0 0 8px">Fee Balance · ${year}</h3>${cards}</div>`;
+    } catch(e){console.error('Parent fee balance check failed:',e);Swal.close();Swal.fire('Unable to Check Balance','The school fee records could not be loaded. Please try again or contact the school.','error');}
+  };
+  window.loadResultsFilters = async function(){
+    const grade=byId('checkResultsGrade'), exam=byId('checkResultsExamPeriod'), student=byId('checkResultsStudent'), phone=byId('checkResultsParentPhone');
+    if(!exam || !student) return;
+    try {
+      const learners=await getLearners(false);
+      const grades=[...new Set(learners.map(s=>String(s.grade||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+      if(grade){const old=grade.value;grade.innerHTML='<option value="">Select Grade</option>'+grades.map(g=>`<option value="${g}">${g}</option>`).join('');if(grades.includes(old))grade.value=old;}
+      student.innerHTML='<option value="">Select Learner</option>'+learners.map(s=>`<option value="${s.id}">${s.name||s.fullName||s.studentName||s.id}</option>`).join('');
+      fillExamPeriods(exam,learners);
+      const updatePeriods=()=>{const entered=normPhone(phone?.value);const linked=entered?learners.filter(s=>normPhone(s.parentPhone||s.parentPhoneNumber||s.guardianPhone)===entered):learners;fillExamPeriods(exam,linked);};
+      phone?.removeEventListener('input',window.__rasmResultPhoneListener || (()=>{}));
+      window.__rasmResultPhoneListener=updatePeriods;
+      phone?.addEventListener('input',updatePeriods);
+      if(grade) grade.onchange=()=>{const filtered=grade.value?learners.filter(s=>String(s.grade)===String(grade.value)):learners;student.innerHTML='<option value="">Select Learner</option>'+filtered.map(s=>`<option value="${s.id}">${s.name||s.fullName||s.studentName||s.id}</option>`).join('');fillExamPeriods(exam,filtered);};
+    } catch(e){console.error('Results filters failed:',e);if(exam)exam.innerHTML='<option value="">Could not load exam periods</option>';if(grade)grade.innerHTML='<option value="">Could not load grades</option>';}
+    setFieldVisibility();
+  };
+  window.handleCheckResults = async function(){
+    const role=getRole(), phone=normPhone(byId('checkResultsParentPhone')?.value), exam=byId('checkResultsExamPeriod')?.value;
+    if(!exam) return Swal.fire('Exam Period Required','Select the examination period you want to view.','warning');
+    try {
+      const learners=await getLearners(false);
+      let chosen=null, grade='';
+      if(role==='parent'){
+        if(!phone) return Swal.fire('Phone Required','Enter your registered parent phone number.','warning');
+        const linked=learners.filter(s=>normPhone(s.parentPhone||s.parentPhoneNumber||s.guardianPhone)===phone);
+        if(!linked.length) return Swal.fire('No Learner Found','No learner is linked to that phone number. Check the number and try again.','error');
+        const withResults=linked.filter(s=>s.marks && Object.keys(s.marks).some(k=>String(k).replace(/[\s,_-]/g,'').toLowerCase()===String(exam).replace(/[\s,_-]/g,'').toLowerCase()));
+        const choices=withResults.length?withResults:linked;
+        if(choices.length===1) chosen=choices[0];
+        else {
+          const options={}; choices.forEach(s=>options[s.id]=`${s.name||s.fullName||s.studentName||'Learner'} — ${s.grade||''}`);
+          const picked=await Swal.fire({title:'Select learner',text:'This phone number is linked to more than one learner.',input:'select',inputOptions:options,inputPlaceholder:'Choose learner',showCancelButton:true});
+          if(!picked.value) return; chosen=choices.find(s=>String(s.id)===String(picked.value));
+        }
+        grade=chosen?.grade||'';
+      } else {
+        grade=byId('checkResultsGrade')?.value||'';
+        const id=byId('checkResultsStudent')?.value;
+        if(!id) return Swal.fire('Learner Required','Please select a learner.','warning');
+        chosen=learners.find(s=>String(s.id)===String(id));
+        if(!chosen) return Swal.fire('Learner Not Found','Please reload learners and try again.','error');
+        grade=grade||chosen.grade||'';
+      }
+      if(!chosen) return;
+      // Set phone before existing access-check runs; parent identity is verified against the learner record.
+      if(role==='parent' && byId('checkResultsParentPhone')) byId('checkResultsParentPhone').value=phone;
+      await window.loadStudentResults(chosen.id,exam,grade);
+    } catch(e){console.error('Learner results lookup failed:',e);Swal.close();Swal.fire('Unable to Load Results','Could not retrieve results. Please check your connection and try again.','error');}
+  };
+  document.addEventListener('DOMContentLoaded',()=>{setFieldVisibility();window.loadFeeBalanceStudents?.();window.loadResultsFilters?.();});
+  // Re-apply role-based layout whenever the relevant sections are opened.
+  const oldShow=window.show;
+  if(typeof oldShow==='function'&&!oldShow.__rasmParentLayoutWrapped){
+    const wrapped=function(section){const out=oldShow.apply(this,arguments);if(section==='feeBalanceSection'){setFieldVisibility();window.loadFeeBalanceStudents?.();}if(section==='checkResultsSection'||section==='learnerResultsSection'||section==='checkLearnerResultsSection'){setFieldVisibility();window.loadResultsFilters?.();}return out;};
+    wrapped.__rasmParentLayoutWrapped=true;window.show=wrapped;
+  }
+})();
+</script>
+
 
 <script id="rasm360-bulk-return-all-final">
 /* ================================================================
@@ -150223,5 +150591,463 @@ ${headerHtml}
   window.addEventListener("load",()=>setTimeout(()=>{installBorrowWrapper();installLoadWrapper();},0),{once:true});
 })();
 
+</script>
+
+
+<!-- RASM 360 — PARENT RESULTS PHONE LOOKUP + ROLE-BASED NAVIGATION -->
+<script id="rasm-parent-results-phone-grade-final">
+(function(){
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const role = () => String(window.currentUserRole || '').trim().toLowerCase();
+  const phoneNorm = value => {
+    let p = String(value || '').replace(/[^0-9+]/g, '');
+    if (p.startsWith('+254')) p = '0' + p.slice(4);
+    else if (p.startsWith('254')) p = '0' + p.slice(3);
+    return p;
+  };
+  const learnerName = s => String(s.name || s.fullName || s.studentName || s.learnerName || s.id || 'Learner');
+  const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  function learners(){
+    const source = window.allStudents || (typeof allStudents !== 'undefined' ? allStudents : []);
+    if (Array.isArray(source)) return source.filter(Boolean).map((s,i)=>({...s,id:String(s.id || s.studentId || s.key || i)}));
+    return Object.entries(source || {}).map(([id,s])=>({...s,id:String(s && (s.id || s.studentId) || id)}));
+  }
+  function parentLinked(list){
+    const phone = phoneNorm(byId('checkResultsParentPhone')?.value);
+    if (!phone) return [];
+    return list.filter(s => phoneNorm(s.parentPhone || s.parentPhoneNumber || s.guardianPhone || s.fatherPhone || s.motherPhone) === phone);
+  }
+  function setParentLayout(){
+    const isParent = role() === 'parent';
+    const grade = byId('checkResultsGrade');
+    const gradeWrap = grade?.parentElement;
+    const studentWrap = byId('checkResultsStudentContainer');
+    const phoneWrap = byId('checkResultsPhoneContainer');
+    if (gradeWrap) gradeWrap.style.display = '';
+    if (studentWrap) studentWrap.style.display = '';
+    if (phoneWrap) phoneWrap.style.display = isParent ? '' : (role()==='admin' || role()==='teacher' ? 'none' : '');
+    if (grade) grade.disabled = isParent;
+    const student = byId('checkResultsStudent');
+    if (student) student.disabled = false;
+    const nav = byId('resultsLearnerNavigation');
+    if (nav) nav.style.display = isParent ? 'none' : '';
+  }
+  function periodsFor(list){
+    const periods = new Set();
+    list.forEach(s => Object.keys(s.marks || {}).forEach(k => periods.add(k)));
+    return [...periods].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+  }
+  function fillPeriodSelect(select, list){
+    if (!select) return;
+    const old = select.value;
+    const periods = periodsFor(list);
+    select.innerHTML = '<option value="">Select Exam Period</option>' + periods.map(k=>`<option value="${esc(k)}">${esc(String(k).replace(/[-_]/g,' ').replace(/\s+/g,' '))}</option>`).join('');
+    if (periods.includes(old)) select.value = old;
+    else if (periods.length === 1) select.value = periods[0];
+  }
+  function updateParentFields(){
+    const list = learners();
+    const phone = byId('checkResultsParentPhone');
+    const grade = byId('checkResultsGrade');
+    const student = byId('checkResultsStudent');
+    const exam = byId('checkResultsExamPeriod');
+    if (!grade || !student || !exam) return;
+    const isParent = role() === 'parent';
+    if (!isParent) {
+      const grades = [...new Set(list.map(s=>String(s.grade || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+      const oldGrade = grade.value;
+      grade.innerHTML = '<option value="">Select Grade</option>' + grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+      if (grades.includes(oldGrade)) grade.value = oldGrade;
+      const selectedGrade = grade.value;
+      const filtered = selectedGrade ? list.filter(s=>String(s.grade||'')===selectedGrade) : list;
+      const oldStudent = student.value;
+      student.innerHTML = '<option value="">Select Learner</option>' + filtered.map(s=>`<option value="${esc(s.id)}">${esc(learnerName(s))}</option>`).join('');
+      if (filtered.some(s=>String(s.id)===oldStudent)) student.value = oldStudent;
+      fillPeriodSelect(exam, filtered.length ? filtered : list);
+      setParentLayout();
+      return;
+    }
+    const linked = parentLinked(list);
+    const oldStudent = student.value;
+    const grades = [...new Set(linked.map(s=>String(s.grade || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+    grade.innerHTML = '<option value="">Grade will appear after phone entry</option>' + grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+    grade.disabled = true;
+    if (grades.length === 1) grade.value = grades[0];
+    const filtered = grade.value ? linked.filter(s=>String(s.grade||'')===String(grade.value)) : linked;
+    student.innerHTML = `<option value="">${linked.length ? 'Select Learner' : 'Learner name will appear after phone entry'}</option>` + linked.map(s=>`<option value="${esc(s.id)}">${esc(learnerName(s))}${s.grade ? ' — '+esc(s.grade) : ''}</option>`).join('');
+    if (linked.some(s=>String(s.id)===oldStudent)) student.value = oldStudent;
+    else if (linked.length === 1) student.value = linked[0].id;
+    else if (filtered.length === 1) student.value = filtered[0].id;
+    fillPeriodSelect(exam, linked);
+    if (!phoneNorm(phone?.value)) {
+      grade.value = '';
+      student.value = '';
+      exam.value = '';
+    }
+    setParentLayout();
+  }
+  window.loadResultsFilters = async function(){
+    try {
+      if ((!learners().length) && typeof window.loadFeeBalanceStudents === 'function') await window.loadFeeBalanceStudents();
+      updateParentFields();
+    } catch (e) { console.error('Parent results filter loading failed:',e); }
+  };
+  window.handleCheckResults = async function(){
+    const isParent = role() === 'parent';
+    const phone = phoneNorm(byId('checkResultsParentPhone')?.value);
+    const exam = byId('checkResultsExamPeriod')?.value;
+    if (isParent && !phone) return Swal.fire('Phone Required','Enter the registered parent phone number.','warning');
+    if (!exam) return Swal.fire('Exam Period Required','Select the examination period you want to view.','warning');
+    let list = learners();
+    if (!list.length && typeof window.loadFeeBalanceStudents === 'function') { await window.loadFeeBalanceStudents(); list = learners(); }
+    let chosen;
+    let gradeValue = byId('checkResultsGrade')?.value || '';
+    if (isParent) {
+      const linked = parentLinked(list);
+      if (!linked.length) return Swal.fire('No Learner Found','No learner is linked to that registered phone number. Check the number and try again.','error');
+      const studentId = byId('checkResultsStudent')?.value;
+      chosen = linked.find(s=>String(s.id)===String(studentId));
+      if (!chosen && linked.length === 1) chosen = linked[0];
+      if (!chosen && linked.length > 1) {
+        const options = {}; linked.forEach(s=>options[s.id] = `${learnerName(s)}${s.grade ? ' — '+s.grade : ''}`);
+        const picked = await Swal.fire({title:'Select learner',text:'This phone number is linked to more than one learner.',input:'select',inputOptions:options,inputPlaceholder:'Choose learner',showCancelButton:true,confirmButtonText:'View Results'});
+        if (!picked.isConfirmed || !picked.value) return;
+        chosen = linked.find(s=>String(s.id)===String(picked.value));
+      }
+      gradeValue = chosen?.grade || '';
+    } else {
+      const id = byId('checkResultsStudent')?.value;
+      if (!id) return Swal.fire('Learner Required','Please select a learner.','warning');
+      chosen = list.find(s=>String(s.id)===String(id));
+      if (!chosen) return Swal.fire('Learner Not Found','Please reload learners and try again.','error');
+      gradeValue = gradeValue || chosen.grade || '';
+    }
+    if (!chosen) return;
+    if (isParent && byId('checkResultsParentPhone')) byId('checkResultsParentPhone').value = phone;
+    window.currentResultGrade = gradeValue;
+    window.currentResultExam = exam;
+    window.currentResultStudentId = chosen.id;
+    try {
+      if (typeof window.loadStudentResults !== 'function') throw new Error('Results loader is unavailable.');
+      await window.loadStudentResults(chosen.id, exam, gradeValue);
+    } catch(e) { console.error('Parent results lookup failed:',e); Swal.fire('Unable to Load Results',e.message || 'Could not retrieve results. Please try again.','error'); }
+  };
+  const originalRenderer = window.renderResultsUI;
+  if (typeof originalRenderer === 'function' && !originalRenderer.__rasmRoleAware) {
+    const wrappedRenderer = function(data){
+      let html = originalRenderer.apply(this, arguments);
+      if (role() === 'parent' && typeof html === 'string') {
+        html = html.replace(/<div style="\s*display:flex;\s*gap:10px;\s*margin-top:18px;\s*">\s*<button\b(?=[\s\S]*?onclick="viewPreviousResult\(\)")[\s\S]*?<\/button>\s*<button\b(?=[\s\S]*?onclick="viewNextResult\(\)")[\s\S]*?<\/button>\s*<\/div>/i, '');
+        html = html.replace(/<button\b[^>]*onclick="viewPreviousResult\(\)"[\s\S]*?<\/button>/i, '').replace(/<button\b[^>]*onclick="viewNextResult\(\)"[\s\S]*?<\/button>/i, '');
+      }
+      return html;
+    };
+    wrappedRenderer.__rasmRoleAware = true;
+    window.renderResultsUI = wrappedRenderer;
+  }
+  function bind(){
+    const phone = byId('checkResultsParentPhone');
+    if (phone && !phone.__rasmParentResultsBound) {
+      phone.__rasmParentResultsBound = true;
+      phone.addEventListener('input', updateParentFields);
+      phone.addEventListener('change', updateParentFields);
+      phone.addEventListener('blur', updateParentFields);
+    }
+    const grade = byId('checkResultsGrade');
+    if (grade && !grade.__rasmParentGradeBound) { grade.__rasmParentGradeBound = true; grade.addEventListener('change', updateParentFields); }
+    setParentLayout();
+    window.loadResultsFilters();
+  }
+  const oldShow = window.show;
+  if (typeof oldShow === 'function' && !oldShow.__rasmParentResultsRoleAware) {
+    const wrappedShow = function(section){ const out = oldShow.apply(this, arguments); if (/result/i.test(String(section||''))) setTimeout(bind,0); return out; };
+    wrappedShow.__rasmParentResultsRoleAware = true;
+    window.show = wrappedShow;
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',bind,{once:true}); else bind();
+  window.addEventListener('load',()=>setTimeout(bind,0),{once:true});
+  console.log('✅ RASM 360 — Parent results phone-to-learner lookup and role-based Previous/Next visibility enabled.');
+})();
+
+/* RASM 360 — Populate learning-content and assignment grade selectors from registered learners. */
+(function(){
+  'use strict';
+  const ids = ['courseGrade','assignmentGrade'];
+  const esc = value => String(value == null ? '' : value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  function learnerRows(){
+    let source = window.allStudents;
+    if (!Array.isArray(source) && typeof allStudents !== 'undefined') source = allStudents;
+    if (!Array.isArray(source)) source = window.registeredLearners || window.students || [];
+    if (Array.isArray(source)) return source.filter(Boolean);
+    if (source && typeof source === 'object') return Object.values(source).filter(Boolean);
+    return [];
+  }
+  function gradeOf(student){
+    if (!student || typeof student !== 'object') return '';
+    return String(student.grade ?? student.gradeName ?? student.gradeLevel ?? student.grade_level ?? student.className ?? student.class ?? '').trim();
+  }
+  function gradesFromLearners(){
+    const grades = learnerRows().map(gradeOf).filter(Boolean);
+    return [...new Set(grades)].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+  }
+  function refresh(){
+    const grades = gradesFromLearners();
+    ids.forEach(id=>{
+      const select = document.getElementById(id);
+      if (!select) return;
+      const previous = String(select.value || '').trim();
+      const placeholder = id === 'assignmentGrade' ? 'Select Target Grade' : 'Select Grade';
+      select.innerHTML = '<option value="">' + placeholder + '</option>' + grades.map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>').join('');
+      if (grades.includes(previous)) select.value = previous;
+      select.dataset.rasmGradesSource = 'registered-learners';
+    });
+  }
+  window.refreshRasmLearningGradeOptions = refresh;
+  // Run after learner loading and when the learning-content section is opened.
+  const oldLoadGrades = window.loadGradesFromStudents;
+  if (typeof oldLoadGrades === 'function' && !oldLoadGrades.__rasmLearningGradeRefresh) {
+    const wrapped = function(){
+      const result = oldLoadGrades.apply(this, arguments);
+      Promise.resolve(result).finally(refresh);
+      return result;
+    };
+    wrapped.__rasmLearningGradeRefresh = true;
+    window.loadGradesFromStudents = wrapped;
+  }
+  const oldShow = window.show;
+  if (typeof oldShow === 'function' && !oldShow.__rasmLearningGradeRefresh) {
+    const wrappedShow = function(){
+      const result = oldShow.apply(this, arguments);
+      setTimeout(refresh, 0);
+      return result;
+    };
+    wrappedShow.__rasmLearningGradeRefresh = true;
+    window.show = wrappedShow;
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', refresh, {once:true});
+  else refresh();
+  window.addEventListener('load', refresh, {once:true});
+  // Firebase learner data can arrive after the login screen is first rendered.
+  let attempts = 0;
+  const waitForLearners = () => {
+    refresh();
+    if (!gradesFromLearners().length && attempts++ < 40) setTimeout(waitForLearners, 500);
+  };
+  waitForLearners();
+})();
+</script>
+
+
+
+<script id="rasm-kenya-holiday-wishes">
+/* RASM 360 — Kenya holiday greetings.
+   Fixed-date public holidays and Easter dates are calculated locally.
+   Lunar/religious dates are configurable because official dates can shift by moon sighting or Gazette notice. */
+(function () {
+  'use strict';
+  const greetingSelector = '#authSection .rasm-christmas-greeting, .rasm-feature-strip .rasm-christmas-greeting';
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  // Update these date overrides when Kenya's official annual dates are announced.
+  // Format: YYYY-MM-DD. The 2026 dates below are calendar references and may be subject to official notice.
+  const movableHolidayOverrides = {
+    2026: [
+      { date: '2026-03-20', name: 'EID-UL-FITR', greeting: 'HAPPY EID-UL-FITR' },
+      { date: '2026-05-27', name: 'EID-UL-ADHA', greeting: 'HAPPY EID-UL-ADHA' },
+      { date: '2026-11-08', name: 'DIWALI', greeting: 'HAPPY DIWALI' }
+    ],
+    // Add each year's official Eid and Diwali dates here when confirmed.
+  };
+
+  function localDateKey(date) {
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
+  function dateFromKey(key) {
+    const parts = key.split('-').map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  function easterSunday(year) {
+    // Gregorian Easter calculation (Meeus/Jones/Butcher algorithm).
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+  }
+  function plusDays(date, count) {
+    const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    copy.setDate(copy.getDate() + count);
+    return copy;
+  }
+  function annualHolidays(year) {
+    const fixed = [
+      ['01-01', "NEW YEAR'S DAY", 'HAPPY NEW YEAR'],
+      ['05-01', 'LABOUR DAY', 'HAPPY LABOUR DAY'],
+      ['06-01', 'MADARAKA DAY', 'HAPPY MADARAKA DAY'],
+      ['10-10', 'MAZINGIRA DAY', 'HAPPY MAZINGIRA DAY'],
+      ['10-20', 'MASHUJAA DAY', 'HAPPY MASHUJAA DAY'],
+      ['12-12', 'JAMHURI DAY', 'HAPPY JAMHURI DAY'],
+      ['12-25', 'CHRISTMAS DAY', 'MERRY CHRISTMAS'],
+      ['12-26', 'BOXING DAY', 'HAPPY BOXING DAY']
+    ].map(item => ({ date: year + '-' + item[0], name: item[1], greeting: item[2] }));
+
+    const easter = easterSunday(year);
+    const goodFriday = plusDays(easter, -2);
+    const easterMonday = plusDays(easter, 1);
+    const christian = [
+      { date: localDateKey(goodFriday), name: 'GOOD FRIDAY', greeting: 'BLESSINGS ON GOOD FRIDAY' },
+      { date: localDateKey(easter), name: 'EASTER SUNDAY', greeting: 'HAPPY EASTER' },
+      { date: localDateKey(easterMonday), name: 'EASTER MONDAY', greeting: 'HAPPY EASTER MONDAY' }
+    ];
+    return fixed.concat(christian, movableHolidayOverrides[year] || []);
+  }
+  function daysBetween(fromDate, toDate) {
+    const from = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate()).getTime();
+    const to = dateFromKey(toDate).getTime();
+    return Math.round((to - from) / DAY_MS);
+  }
+  function greetingForHoliday(holiday, daysAway) {
+    let timing = daysAway === 0 ? 'TODAY' : daysAway === 1 ? 'TOMORROW' : 'IN 2 DAYS';
+    let lead = holiday.greeting || ('HAPPY ' + holiday.name);
+    if (holiday.name === 'CHRISTMAS DAY') lead = 'MERRY CHRISTMAS';
+    return '🎉 RASM 360 WISHES YOU ' + lead + (daysAway === 0 ? ' — ' : ' — ') + holiday.name + ' ' + timing + ' ✨ WISHING YOU JOY, PEACE & UNITY 🎉';
+  }
+  function updateGreeting() {
+    const elements = document.querySelectorAll(greetingSelector);
+    if (!elements.length) return false;
+    const today = new Date();
+    const keyToday = localDateKey(today);
+    const candidates = annualHolidays(today.getFullYear()).concat(annualHolidays(today.getFullYear() + 1));
+    const upcoming = candidates
+      .map(holiday => ({ holiday, daysAway: daysBetween(today, holiday.date) }))
+      .filter(item => item.daysAway >= 0 && item.daysAway <= 2)
+      .sort((a, b) => a.daysAway - b.daysAway);
+
+    let message;
+    if (upcoming.length) {
+      const nearest = upcoming[0];
+      const sameDay = upcoming.filter(item => item.daysAway === nearest.daysAway);
+      message = sameDay.length > 1
+        ? '🎉 RASM 360 WISHES YOU A JOYFUL ' + sameDay.map(item => item.holiday.name).join(' & ') + ' ✨ WISHING YOU PEACE, JOY & UNITY 🎉'
+        : greetingForHoliday(nearest.holiday, nearest.daysAway);
+    } else {
+      message = '✨ RASM 360 WISHES YOU A SUCCESSFUL DAY — KEEP LEARNING, KEEP GROWING! ✨';
+    }
+    // Duplicate the message to make the moving ticker feel continuous.
+    elements.forEach(el => {
+      if (el.dataset.rasmHolidayMessage !== message) {
+        el.textContent = message + '　　 ✦　　 ' + message;
+        el.dataset.rasmHolidayMessage = message;
+        el.setAttribute('aria-label', message);
+        el.title = message;
+      }
+    });
+    return true;
+  }
+  function scheduleNextCheck() {
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 2);
+    window.setTimeout(() => { updateGreeting(); scheduleNextCheck(); }, Math.max(1000, nextMidnight.getTime() - now.getTime()));
+  }
+  function start() {
+    updateGreeting();
+    scheduleNextCheck();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+})();
+</script>
+
+<script id="rasm360-recycle-bin-instant-bulk-delete">
+(function(){
+  "use strict";
+  const LABELS={students:"👨‍🎓 Students",teachers:"👨‍🏫 Teachers",supportStaff:"🧹 Support Staff",ict:"💻 ICT",attendance:"🗓️ Attendance",library:"📚 Library",fees:"💰 Fees",transport:"🚌 Transport",hostel:"🏨 Hostel",inventory:"📦 Inventory",examResults:"📝 Exam Results"};
+  const clean=v=>String(v==null?"":v).trim();
+  const esc=v=>String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  const sid=()=>clean(window.schoolId||localStorage.getItem("schoolId")||sessionStorage.getItem("schoolId"));
+  const isAdmin=()=>[window.currentUserRole,window.userRole,window.currentUser?.role,localStorage.getItem("userRole"),sessionStorage.getItem("userRole"),localStorage.getItem("role"),sessionStorage.getItem("role")].some(v=>String(v||"").trim().toLowerCase()==="admin"||String(v||"").trim().toLowerCase()==="superadmin");
+  const fresh=r=>typeof window.rasmFreshGet==="function"?window.rasmFreshGet(r):typeof window.fastGet==="function"?window.fastGet(r):window.rasmGet(r);
+  function recordPath(r,schoolId){
+    if(r.source==="teacherTrash") return `schools/${schoolId}/teacherTrash/${r.key}`;
+    if(r.source==="deletedFees") return `schools/${schoolId}/deletedFees/${r.originalYear}/${String(r.key).slice(String(r.originalYear).length+1)}`;
+    return `schools/${schoolId}/recycleBin/${r.module}/${r.key}`;
+  }
+  function displayName(r){const d=r.data||{};return d.name||d.studentName||d.learnerName||d.teacherName||d.deviceName||d.itemName||d.bookName||d.busName||d.hostelName||d.title||r.originalId||"Deleted Record";}
+  function render(rows){
+    if(!rows.length)return '<div style="padding:30px;text-align:center;color:#64748b;border:1px dashed #cbd5e1;border-radius:12px">🗑️<br><b>No deleted records found.</b></div>';
+    return `<div style="display:grid;gap:8px">${rows.map((r,i)=>`<div style="display:flex;gap:10px;align-items:center;padding:11px;border:1px solid #e2e8f0;border-radius:10px;background:#fff"><label style="display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0;cursor:pointer"><input type="checkbox" class="rasm-rb-check" data-index="${i}" style="appearance:checkbox!important;-webkit-appearance:checkbox!important;display:inline-block!important;visibility:visible!important;opacity:1!important;position:static!important;width:24px!important;height:24px!important;margin:2px 0 0!important;accent-color:#dc2626!important;flex-shrink:0;cursor:pointer"><span style="min-width:0"><b>${esc(r.moduleLabel||LABELS[r.module]||r.module||"Record")} — ${esc(displayName(r))}</b><br><small style="color:#64748b">Deleted: ${esc(r.deletedAt?new Date(Number(r.deletedAt)).toLocaleString():"Unknown")} · ID: ${esc(r.originalId||"-")}</small></span></label><button type="button" class="rasm-rb-restore" data-index="${i}" style="padding:7px 9px;border:0;border-radius:7px;background:#16a34a;color:white;font-weight:800;white-space:nowrap">♻️ Restore</button></div>`).join("")}</div>`;
+  }
+  async function fetchRecords(schoolId){
+    const root=window.RASM360_RB_ROOT||"schools";
+    const paths=[`${root}/${schoolId}/recycleBin`,`schools/${schoolId}/teacherTrash`,`schools/${schoolId}/deletedFees`];
+    const snaps=await Promise.all(paths.map(p=>fresh(window.rasmRef(p)).catch(e=>{console.warn("Recycle Bin read warning",p,e);return null;})));
+    const out=[];
+    const n=snaps[0];
+    if(n&&n.exists()) n.forEach(ms=>ms.forEach(it=>out.push({source:"recycleBin",key:it.key,module:ms.key,...(it.val()||{}),module:ms.key,moduleLabel:(it.val()||{}).moduleLabel||LABELS[ms.key]||ms.key})));
+    const t=snaps[1]; if(t&&t.exists()) t.forEach(it=>out.push({source:"teacherTrash",key:it.key,module:"teachers",moduleLabel:LABELS.teachers,data:it.val()||{},originalId:it.key,deletedAt:it.val()?.deletedAt||0,deletedBy:it.val()?.deletedBy||"Unknown"}));
+    const f=snaps[2]; if(f&&f.exists()) f.forEach(ys=>ys.forEach(it=>{const d=it.val()||{};out.push({source:"deletedFees",key:`${ys.key}_${it.key}`,originalYear:ys.key,module:"fees",moduleLabel:LABELS.fees,data:d,originalId:it.key,deletedAt:d.deletedAt||0,deletedBy:d.deletedBy||"Unknown"});}));
+    return out.sort((a,b)=>Number(b.deletedAt||0)-Number(a.deletedAt||0));
+  }
+  async function deleteRows(rows,schoolId){
+    const paths=rows.map(r=>recordPath(r,schoolId));
+    if(paths.some(p=>!p||p.includes("undefined")||p.includes("null"))) throw new Error("A Recycle Bin record path could not be identified. No records were deleted.");
+    let removed=0; const errors=[];
+    await Promise.all(rows.map(async(r,i)=>{try{await window.rasmRemove(window.rasmRef(paths[i]));removed++;}catch(e){errors.push(`${displayName(r)}: ${e?.message||e}`);}}));
+    if(errors.length) throw new Error(`${removed} record(s) deleted; ${errors.length} could not be deleted. ${errors.slice(0,3).join("; ")}`);
+    return removed;
+  }
+  window.openRasmRecycleBin=async function(preferredModule="all"){
+    if(!isAdmin()) return Swal.fire("Admin Only","Only an administrator can restore or permanently delete records.","warning");
+    const schoolId=sid(); if(!schoolId)return Swal.fire("School Session Missing","Please log in again.","error");
+    let records=[]; let currentRows=[]; let busy=false;
+    Swal.fire({title:"♻️ Recycle Bin",width:Math.min(window.innerWidth-20,940),showConfirmButton:false,showCloseButton:true,html:`<div style="text-align:left"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><select id="rasmRBFilter" style="flex:1;min-width:180px;padding:10px;border:1px solid #cbd5e1;border-radius:8px"><option value="all">📦 All Modules</option>${Object.entries(LABELS).map(([k,v])=>`<option value="${k}" ${k===preferredModule?"selected":""}>${v}</option>`).join("")}</select><span id="rasmRBCount" style="font-weight:800;color:#5b21b6">Loading…</span></div><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0;padding:12px;border:2px solid #dc2626;border-radius:10px;background:#fff7f7"><label style="display:flex;align-items:center;gap:10px;font-weight:900;font-size:16px;color:#991b1b;cursor:pointer;padding:4px"><input type="checkbox" id="rasmRBSelectAll" aria-label="Select all shown records" style="appearance:checkbox!important;-webkit-appearance:checkbox!important;display:inline-block!important;visibility:visible!important;opacity:1!important;position:static!important;width:28px!important;height:28px!important;margin:0!important;accent-color:#dc2626!important;flex-shrink:0;cursor:pointer"> ☑ SELECT ALL SHOWN</label><button id="rasmRBDeleteSelected" style="padding:9px 12px;border:0;border-radius:8px;background:#dc2626;color:white;font-weight:800">🗑 Delete Selected</button><button id="rasmRBDeleteAll" style="padding:9px 12px;border:0;border-radius:8px;background:#7f1d1d;color:white;font-weight:800">🧹 Delete ALL in Recycle Bin</button></div><div id="rasmRBList" style="max-height:55vh;overflow:auto"><div style="padding:22px;text-align:center;color:#64748b">Loading deleted records…</div></div></div>`,didOpen:()=>{
+      const popup=Swal.getPopup(),filter=popup.querySelector("#rasmRBFilter"),list=popup.querySelector("#rasmRBList"),count=popup.querySelector("#rasmRBCount"),all=popup.querySelector("#rasmRBSelectAll"),delSelected=popup.querySelector("#rasmRBDeleteSelected"),delAll=popup.querySelector("#rasmRBDeleteAll");
+      function draw(){const mod=filter.value;currentRows=mod==="all"?records:records.filter(r=>r.module===mod);list.innerHTML=render(currentRows);count.textContent=`${currentRows.length} record(s)`;all.checked=false;all.indeterminate=false;updateSelectedCount();}
+      function updateSelectedCount(){const chosen=list.querySelectorAll(".rasm-rb-check:checked").length;const label=popup.querySelector("#rasmRBDeleteSelected");if(label)label.textContent=chosen?`🗑 Delete Selected (${chosen})`:"🗑 Delete Selected";}
+      all.addEventListener("change",()=>{list.querySelectorAll(".rasm-rb-check").forEach(cb=>cb.checked=all.checked);all.indeterminate=false;updateSelectedCount();});
+      list.addEventListener("change",e=>{if(!e.target.matches(".rasm-rb-check"))return;const boxes=[...list.querySelectorAll(".rasm-rb-check")];all.checked=boxes.length>0&&boxes.every(x=>x.checked);all.indeterminate=boxes.some(x=>x.checked)&&!all.checked;updateSelectedCount();});
+      list.addEventListener("click",e=>{const btn=e.target.closest(".rasm-rb-restore");if(!btn)return;const item=currentRows[Number(btn.dataset.index)];if(item&&typeof window.rasmRestoreOne==="function")window.rasmRestoreOne(item.source||"recycleBin",String(item.key||""),String(item.module||""));});
+      filter.addEventListener("change",draw);
+      delSelected.addEventListener("click",async()=>{if(busy)return;const indexes=[...list.querySelectorAll(".rasm-rb-check:checked")].map(cb=>Number(cb.dataset.index));const chosen=indexes.map(i=>currentRows[i]).filter(Boolean);if(!chosen.length)return Swal.fire("Select Records","Tick one or more records first.","info");const ok=await Swal.fire({icon:"warning",title:"Permanently delete selected records?",html:`<b>${chosen.length}</b> selected record(s) will be permanently deleted and cannot be restored.`,showCancelButton:true,confirmButtonText:"Delete Selected Forever",cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"});if(!ok.isConfirmed)return;busy=true;delSelected.disabled=delAll.disabled=true;try{Swal.fire({title:"Deleting records…",text:"Please wait while selected records are removed.",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});const removed=await deleteRows(chosen,schoolId);records=records.filter(r=>!chosen.includes(r));Swal.close();draw();await Swal.fire({icon:"success",title:"Deleted",text:`${removed} record(s) permanently deleted.`,timer:1100,showConfirmButton:false});}catch(e){Swal.close();await Swal.fire("Delete Failed",e.message||"Some records could not be deleted.","error");try{records=await fetchRecords(schoolId);draw();}catch(_){}}finally{busy=false;delSelected.disabled=delAll.disabled=false;}});
+      delAll.addEventListener("click",async()=>{if(busy)return;if(!records.length)return Swal.fire("Recycle Bin Empty","There are no records to delete.","info");const ok=await Swal.fire({icon:"warning",title:"Delete EVERYTHING in the Recycle Bin?",html:`This will permanently delete <b>all ${records.length} records across every module</b>. This cannot be undone.`,showCancelButton:true,confirmButtonText:"Delete Everything Forever",cancelButtonText:"Cancel",confirmButtonColor:"#991b1b",focusCancel:true});if(!ok.isConfirmed)return;busy=true;delSelected.disabled=delAll.disabled=true;try{Swal.fire({title:"Clearing Recycle Bin…",text:`Removing ${records.length} record(s).`,allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});const removed=await deleteRows([...records],schoolId);records=[];Swal.close();draw();await Swal.fire({icon:"success",title:"Recycle Bin Cleared",text:`${removed} record(s) permanently deleted.`});}catch(e){Swal.close();await Swal.fire("Delete Failed",e.message||"Some records could not be deleted.","error");try{records=await fetchRecords(schoolId);draw();}catch(_){}}finally{busy=false;delSelected.disabled=delAll.disabled=false;}});
+      /* The modal is visible immediately; Firebase data loads in the background. */
+      fetchRecords(schoolId).then(data=>{records=data;if(popup.isConnected)draw();}).catch(error=>{console.error("Recycle Bin load failed",error);if(popup.isConnected)list.innerHTML=`<div style="padding:18px;color:#b91c1c">Unable to load records: ${esc(error?.message||error)}</div>`;count.textContent="Load failed";});
+    }});
+  };
+  window.openAdminRecycleBin=function(){return window.openRasmRecycleBin("all");};
+  window.openRecycleBin=function(module="all"){return window.openRasmRecycleBin(module||"all");};
+})();
+</script>
+
+<script id="rasm360-recycle-bin-click-emergency-fix">
+(function(){
+  "use strict";
+  function launchRecycleBin(event){
+    const target=event.target && event.target.closest ? event.target.closest('#menuRecycleBin, #userManagementRecycleBtn, .rasm-user-recycle-btn, [onclick*="openAdminRecycleBin"]') : null;
+    if(!target) return;
+    event.preventDefault(); event.stopPropagation();
+    if(typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+    try{
+      if(typeof window.openRasmRecycleBin === "function") window.openRasmRecycleBin("all");
+      else if(typeof window.openAdminRecycleBin === "function") window.openAdminRecycleBin();
+      else if(window.Swal && typeof window.Swal.fire === "function") window.Swal.fire({icon:"error",title:"Recycle Bin did not load",text:"The Recycle Bin script is unavailable. Please refresh the page and try again."});
+      else alert("Recycle Bin could not open because its script or alert library did not load. Refresh the page and try again.");
+    }catch(error){
+      console.error("RASM360_RECYCLE_BIN_OPEN_ERROR",error);
+      if(window.Swal && typeof window.Swal.fire === "function") window.Swal.fire({icon:"error",title:"Recycle Bin Error",text:error && error.message ? error.message : String(error)});
+      else alert("Recycle Bin error: "+(error && error.message ? error.message : String(error)));
+    }
+  }
+  document.addEventListener("click",launchRecycleBin,true);
+  window.openAdminRecycleBin=function(){
+    if(typeof window.openRasmRecycleBin === "function") return window.openRasmRecycleBin("all");
+    if(window.Swal && typeof window.Swal.fire === "function") return window.Swal.fire({icon:"error",title:"Recycle Bin did not load",text:"Refresh the page and try again."});
+    alert("Recycle Bin did not load. Refresh the page and try again.");
+  };
+})();
 </script>
 </html>
