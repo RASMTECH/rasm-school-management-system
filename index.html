@@ -36306,6 +36306,24 @@ window.viewTeacherAttendance = async function (date) {
 
     if (!container) return;
 
+    // ==================================================
+    // LOAD REAL TEACHER ASSIGNMENTS FROM FIREBASE
+    // ==================================================
+    try {
+        if (typeof schoolRef === "function" && typeof fastGet === "function") {
+            const teacherSnap = await fastGet(schoolRef("teachers"));
+            if (teacherSnap && teacherSnap.exists()) {
+                const loadedTeachers = [];
+                teacherSnap.forEach(child => {
+                    loadedTeachers.push({ id: child.key, ...(child.val() || {}) });
+                });
+                window.__teacherData = loadedTeachers;
+            }
+        }
+    } catch (teacherLoadError) {
+        console.warn("RASM360 assessment report teacher load warning:", teacherLoadError);
+    }
+
     container.innerHTML = `
     <div style="padding:40px;text-align:center;">
         <i class="fas fa-spinner fa-spin fa-2x"></i>
@@ -54987,7 +55005,7 @@ Recommended: ${pathway.bestPathway}
 // ✅ Automatically hides previous exam when unavailable
 // ======================================================
 
-window.generateAssessmentReports = function () {
+window.generateAssessmentReports = async function () {
 
     const container =
         document.getElementById("assessmentReportsContent");
@@ -55969,15 +55987,31 @@ window.generateAssessmentReports = function () {
                     }
                 });
 
-                let subjects = [...canonicalSubjectMap.entries()]
-                    .filter(([key]) => {
-                        if (isGrade1To3) return true;
-                        return recordedCanonical.has(key);
-                    })
-                    .map(([, canonical]) => canonical);
+                let subjects;
 
-                // Stable curriculum/report order without duplicate aliases.
-                subjects.sort((a, b) => a.localeCompare(b));
+                if (isGrade1To3) {
+                    // ==================================================
+                    // GRADE 1-3: EXACTLY FIVE MAIN LEARNING AREAS
+                    // ==================================================
+                    // Do NOT use marksTableSubjects here because it can
+                    // contain the component assessment keys:
+                    // English — Grammar/Listening/Reading/Writing,
+                    // Kiswahili — Kusoma/Kusikiliza/Kuandika/Sarufi,
+                    // and Environmental and CRE — Environmental/CRE.
+                    // Those are assessment components, not separate
+                    // learning-area rows in the final report.
+                    //
+                    // Keep the five rows even when a particular mark is
+                    // blank; getCanonicalMark() will display "-".
+                    subjects = [...REPORT_GRADE13_MAIN_SUBJECTS];
+                } else {
+                    subjects = [...canonicalSubjectMap.entries()]
+                        .filter(([key]) => recordedCanonical.has(key))
+                        .map(([, canonical]) => canonical);
+
+                    // Stable curriculum/report order without duplicate aliases.
+                    subjects.sort((a, b) => a.localeCompare(b));
+                }
 
                 // ==================================================
                 // SUBJECT TABLE
@@ -56056,16 +56090,69 @@ window.generateAssessmentReports = function () {
                 }
 
                 function getCanonicalTeacher(canonicalSubject) {
-                    const target = String(canonicalSubject || '').trim().toLowerCase();
-                    const teachers = reportMeta?.subjectTeachers || {};
-                    for (const rawKey of Object.keys(teachers)) {
-                        const canonicalKey = String(
-                            rasmCanonicalSubjectName(rawKey, s.grade) || rawKey
-                        ).trim().toLowerCase();
-                        if (canonicalKey === target && String(teachers[rawKey] || '').trim()) {
-                            return String(teachers[rawKey]).trim();
+                    // Assessment Reports use ONLY the teacher names entered
+                    // in the Subject Teachers fields. Never use Registered Teachers.
+                    function normalizeTeacherSubject(value) {
+                        let raw = String(value || '').trim().toLowerCase();
+                        if (!raw) return '';
+
+                        raw = raw
+                            .replace(/[—–-]/g, ' ')
+                            .replace(/&/g, ' and ')
+                            .replace(/[^a-z0-9]+/g, ' ')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+
+                        // Treat common curriculum/report aliases as identical.
+                        const aliases = {
+                            'cre': 'christian religious education',
+                            'christian religious education': 'christian religious education',
+                            'christian religious edu': 'christian religious education',
+                            'religious education': 'christian religious education',
+                            'pre tech': 'pre technical studies',
+                            'pre technical': 'pre technical studies',
+                            'pre technical studies': 'pre technical studies',
+                            'pre tech studies': 'pre technical studies'
+                        };
+
+                        return aliases[raw] || raw;
+                    }
+
+                    const targetSubject = normalizeTeacherSubject(canonicalSubject);
+                    if (!targetSubject) return 'Not Assigned';
+
+                    // First use the names captured in the current Subject Teachers form.
+                    const currentTeachers = reportMeta?.subjectTeachers || {};
+                    for (const rawKey of Object.keys(currentTeachers)) {
+                        const enteredName = String(currentTeachers[rawKey] || '').trim();
+                        if (!enteredName) continue;
+                        if (normalizeTeacherSubject(rawKey) === targetSubject) {
+                            return enteredName;
                         }
                     }
+
+                    // If the report is regenerated later, use the same names saved
+                    // by the Subject Teachers form for this exact report grade.
+                    try {
+                        const allSaved = typeof loadTeacherSetup === 'function'
+                            ? loadTeacherSetup()
+                            : {};
+                        const gradeKey = String(
+                            reportMeta?.grade || s.grade || ''
+                        ).trim();
+                        const savedTeachers = allSaved?.[gradeKey] || {};
+
+                        for (const rawKey of Object.keys(savedTeachers)) {
+                            const savedName = String(savedTeachers[rawKey] || '').trim();
+                            if (!savedName) continue;
+                            if (normalizeTeacherSubject(rawKey) === targetSubject) {
+                                return savedName;
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('RASM360 Subject Teacher saved-name lookup failed:', error);
+                    }
+
                     return 'Not Assigned';
                 }
 
@@ -59887,6 +59974,22 @@ function getGrade16LevelLabel(score) {
 function getGrade16Points(score) {
     const level = getGrade16Level(score);
     return level || 0;
+}
+
+
+// GRADE 1-3 ASSESSMENT REPORT: ONLY FIVE MAIN LEARNING AREAS.
+// Scoped to report generation; underlying marks and Grades 4+ are unchanged.
+const RASM_GRADE13_REPORT_ONLY_MAIN = new Set([
+  "English", "Kiswahili", "Environmental and CRE", "Mathematics", "Creative Arts"
+]);
+
+function rasmGrade13ReportSubjects(subjects, gradeValue) {
+  const grade = getGradeNumber(gradeValue);
+  if (!(grade >= 1 && grade <= 3)) return subjects || [];
+  return (subjects || []).filter(subject => {
+    const name = typeof subject === "string" ? subject : (subject?.name || subject?.subject || subject?.key || "");
+    return RASM_GRADE13_REPORT_ONLY_MAIN.has(String(name).trim());
+  });
 }
 
 function getReportMainSubjectKeysForLearner(learner) {
