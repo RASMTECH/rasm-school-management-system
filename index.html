@@ -3622,11 +3622,7 @@ button.primary{
   PRINT
 =========================================================*/
 
-@page{
-
-    size:A4;
-
-    margin:6mm;
+@page{margin:6mm;
 
 }
 
@@ -5067,10 +5063,7 @@ button.primary{
 
     }
 
-    @page{
-
-        size:A4;
-        margin:8mm;
+    @page{margin:8mm;
 
     }
 
@@ -48844,9 +48837,7 @@ window.generateBulkReceiptsByGrade = async function () {
 
                 <style>
 
-                    @page {
-                        size: A4;
-                        margin: 8mm;
+                    @page {margin: 8mm;
                     }
 
 
@@ -62971,9 +62962,7 @@ updateProgress(
 const styles = `
 <style>
 
-@page{
-  size:A4;
-  margin:8mm;
+@page{margin:8mm;
 }
 
 .merit-wrap{
@@ -69580,7 +69569,7 @@ learner.average =
       .combined-report-table tr:hover td.combined-level-cell{background:#dce9df !important}
 
       @media print{
-        @page{size:A4;margin:7mm}
+        @page{margin:7mm}
         html,body{width:100%;margin:0 !important;padding:0 !important;background:#fff !important}
         .combined-marks-scroll{width:100% !important;max-width:none !important;overflow:visible !important;padding:0 !important;background:#fff !important}
         .combined-report-table{width:100% !important;min-width:0 !important;table-layout:fixed !important;font-size:7.2px !important}
@@ -86171,9 +86160,7 @@ const commonPrintStyles = `
     margin:4px 0;
   }
 
-  @page{
-    size:A4;
-    margin:4mm;
+  @page{margin:4mm;
   }
 
   @media print {
@@ -97535,12 +97522,7 @@ window.generateLibraryCardsByGrade = async function () {
                        A4
                     ===================================== */
 
-                    @page {
-
-                        size:
-                            A4;
-
-                        margin:
+                    @page {margin:
                             6mm;
 
                     }
@@ -125170,10 +125152,7 @@ body{
 
 }
 
-@page{
-
-    size:A4;
-    margin:4mm;
+@page{margin:4mm;
 
 }
 
@@ -127154,11 +127133,7 @@ Overall Top 5 Per Grade
    PAGE
 ===================================================== */
 
-@page {
-
-    size:A4;
-
-    margin:12mm;
+@page {margin:12mm;
 
 }
 
@@ -129879,11 +129854,7 @@ Parents Meeting Notices - ${safe(selectedGrade)}
    A4 PAGE
 ===================================================== */
 
-@page {
-
-    size: A4;
-
-    margin: 5mm;
+@page {margin: 5mm;
 
 }
 
@@ -131491,11 +131462,7 @@ window.generateFeeBalanceNotices = async function () {
    A4
 ===================================================== */
 
-@page {
-
-    size:A4;
-
-    margin:5mm;
+@page {margin:5mm;
 
 }
 
@@ -136888,7 +136855,7 @@ return `
 <meta charset="utf-8">
 <title>${escX(title)}</title>
 <style>
-  @page{size:A4;margin:9mm 9mm 11mm 9mm;}
+  @page{margin:9mm 9mm 11mm 9mm;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:#fff;color:#111827;font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;}
   body{width:100%;}
@@ -137053,7 +137020,7 @@ return `
     }
     win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escX(title)}</title>
       <style>
-        @page{size:A4;margin:12mm}
+        @page{margin:12mm}
         *{box-sizing:border-box}
         body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:0;font-size:11px}
         h1,h2,h3{color:#111827}
@@ -138571,9 +138538,7 @@ return `
 
 <style>
 
-@page {
-  size: A4;
-  margin: 12mm;
+@page {margin: 12mm;
 }
 
 * {
@@ -144281,7 +144246,7 @@ window.openAdminRecycleBin = function () {
       body{font-family:Arial,sans-serif;padding:25px;color:#111827}h1{margin-bottom:4px}p{color:#64748b}
       .metrics{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.metric{border:1px solid #ddd;padding:12px;border-radius:8px}
       table{width:100%;border-collapse:collapse;margin-top:15px}th,td{border:1px solid #bbb;padding:7px;font-size:12px}th{background:#111827;color:#fff}
-      @page{size:A4;margin:10mm}</style></head><body>
+      @page{margin:10mm}</style></head><body>
       <h1>📚 Library Management Report</h1><p>Generated ${esc(now.toLocaleString())}</p>
       <div class="metrics"><div class="metric"><b>Titles</b><br>${books.length}</div><div class="metric"><b>Active Loans</b><br>${loans.filter(x=>!x.returned).length}</div><div class="metric"><b>Overdue</b><br>${overdue}</div></div>
       <table><thead><tr><th>#</th><th>Book</th><th>Grade</th><th>Author</th><th>Total</th><th>Available</th><th>Borrowed</th><th>Lost</th><th>Shelf</th></tr></thead><tbody>${rows}</tbody></table>
@@ -149070,9 +149035,7 @@ window.openAdminRecycleBin = function () {
 <meta charset="utf-8">
 <title>Library Management Report</title>
 <style>
-  @page {
-    size: A4;
-    margin: 9mm;
+  @page {margin: 9mm;
   }
 
   * {
@@ -149570,7 +149533,7 @@ ${headerHtml}
       if(!w) return Swal.fire("Print Blocked","Please allow pop-ups for RASM 360 and try again.","warning");
       w.document.open();
       w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Library Management Report - ${esc(selectedGrade)}</title><style>
-        @page{size:A4;margin:8mm}
+        @page{margin:8mm}
         *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#000;font-size:9pt}
         .schoolHeader{text-align:center;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:7px;display:flex;align-items:center;justify-content:center;gap:14px}.schoolHeader img{width:65px;height:65px;object-fit:contain}.schoolHeader h1{margin:0;font-size:19pt}.schoolHeader h2{margin:4px 0;font-size:13pt}.schoolHeader div{margin:2px 0}
         .meta{display:flex;justify-content:space-between;border:1px solid #000;padding:6px;margin-bottom:8px;font-weight:800}
