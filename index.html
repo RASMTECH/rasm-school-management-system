@@ -3624,7 +3624,7 @@ button.primary{
 
 @page{
 
-    size:A4 portrait;
+    size:A4;
 
     margin:6mm;
 
@@ -5069,7 +5069,7 @@ button.primary{
 
     @page{
 
-        size:A4 landscape;
+        size:A4;
         margin:8mm;
 
     }
@@ -13939,6 +13939,10 @@ Balance
 
 <th style="padding:12px;">
 Status
+</th>
+
+<th style="padding:12px;">
+Actions
 </th>
 
 </tr>
@@ -29636,29 +29640,24 @@ window.login = async function () {
 
 
         /* ====================================================
-           🚀 LOGIN COMPLETE — DO NOT BLOCK ON A MODAL
-           ----------------------------------------------------
-           The old welcome SweetAlert paused login until the user
-           clicked "Enter Dashboard". That made login feel much
-           slower and delayed the data-loading phase.
-
-           The dashboard is already visible and authenticated, so
-           use a lightweight toast instead.
-        ==================================================== */
-
+         LOGIN WELCOME — CENTERED AND CONFIRMED BY USER
+         ==================================================== */
       try {
-if (typeof Swal !== "undefined") {
-Swal.fire({
-toast: true,
-position: "top-end",
-icon: "success",
-title: `Welcome to ${schoolName}`,
-showConfirmButton: false,
-timer: 1400,
-timerProgressBar: true,
-});
-}
-} catch (_) {}
+        if (typeof Swal !== "undefined") {
+          await Swal.fire({
+            icon: "success",
+            title: `Welcome to ${schoolName}`,
+            text: "You are now signed in. Click Okay to continue to the dashboard.",
+            position: "center",
+            confirmButtonText: "Okay",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: true
+          });
+        }
+      } catch (welcomeError) {
+        console.warn("Welcome confirmation could not be displayed:", welcomeError);
+      }
 
 
 
@@ -39723,6 +39722,10 @@ window.loadFees = async function () {
                 📩 Send SMS
             </option>
 
+            <option value="whatsapp">
+                🟢 Remind Parent on WhatsApp
+            </option>
+
             <option value="refund">
                 💸 Process Refund
             </option>
@@ -40609,6 +40612,23 @@ function (
 
 
     // =====================================================
+    // 🟢 WHATSAPP FEE REMINDER
+    // =====================================================
+
+    else if (
+      action === "whatsapp"
+    ) {
+
+      if (typeof window.sendFeeWhatsAppReminder === "function") {
+        window.sendFeeWhatsAppReminder(year, studentId);
+      } else {
+        throw new Error("WhatsApp fee reminder is not available.");
+      }
+
+    }
+
+
+    // =====================================================
     // 💸 REFUND
     // =====================================================
 
@@ -40815,6 +40835,96 @@ document.addEventListener(
    🚀 Fast validation
    🚀 Safe UI handling
    ============================================================ */
+
+/* ============================================================
+   🟢 RASM 360 — WHATSAPP FEE BALANCE REMINDER
+   Opens WhatsApp with a pre-filled message; admin reviews and sends it.
+   ============================================================ */
+window.sendFeeWhatsAppReminder = async function (year, studentId) {
+    try {
+        const schoolId = window.schoolId || window.currentSchoolId || localStorage.getItem("schoolId");
+        if (!schoolId) {
+            return Swal.fire("School ID Missing", "Please log in again and retry.", "warning");
+        }
+
+        const snap = await fastGet(schoolRef(`fees/${year}/${studentId}`));
+        if (!snap || !snap.exists()) {
+            return Swal.fire("Fee Record Not Found", "The learner's fee record could not be found.", "warning");
+        }
+
+        const fee = snap.val() || {};
+        const studentName = String(fee.studentName || fee.name || "Learner").trim();
+        const balance = Number(fee.balance || 0);
+        if (!(balance > 0)) {
+            return Swal.fire("No Outstanding Balance", `${studentName} has no outstanding fee balance.`, "info");
+        }
+
+        // The parent phone is normally stored on the learner's Students record,
+        // not necessarily on the fee record. Use the same learner data shown in
+        // the fee register first, then fall back to the school-scoped Students node.
+        let learner = null;
+        const learnerId = String(fee.studentId ?? studentId);
+        const learnerLists = [
+            Array.isArray(window.allStudents) ? window.allStudents : [],
+            Array.isArray(window.allLearners) ? window.allLearners : []
+        ];
+        for (const list of learnerLists) {
+            learner = list.find(item => item && (
+                String(item.id ?? item.studentId ?? item.learnerId ?? "") === learnerId ||
+                String(item.key ?? "") === learnerId
+            ));
+            if (learner) break;
+        }
+
+        if (!learner) {
+            try {
+                const learnersSnap = await fastGet(schoolRef("students"));
+                const learnersData = learnersSnap && learnersSnap.exists() ? learnersSnap.val() : {};
+                if (learnersData && typeof learnersData === "object") {
+                    for (const [key, value] of Object.entries(learnersData)) {
+                        if (!value || typeof value !== "object") continue;
+                        if (String(key) === learnerId ||
+                            String(value.id ?? value.studentId ?? value.learnerId ?? "") === learnerId) {
+                            learner = { ...value, id: value.id ?? key };
+                            break;
+                        }
+                    }
+                }
+            } catch (lookupError) {
+                console.warn("Could not look up learner parent phone:", lookupError);
+            }
+        }
+
+        let phone = String(
+            learner?.parentPhone || learner?.parent_phone || learner?.parentPhoneNumber ||
+            learner?.parentContact || learner?.guardianPhone || learner?.guardianPhoneNumber ||
+            learner?.phone || fee.parentPhone || fee.parent_phone || fee.parentPhoneNumber ||
+            fee.parentContact || fee.guardianPhone || fee.guardianPhoneNumber || ""
+        ).trim();
+        phone = phone.replace(/[\s\-()]/g, "");
+        if (phone.startsWith("+")) phone = phone.substring(1);
+        if (phone.startsWith("0")) phone = "254" + phone.substring(1);
+        if (!/^254[17]\d{8}$/.test(phone)) {
+            return Swal.fire("Parent Phone Required", `Please update a valid Kenyan parent/guardian phone number for ${studentName}. The fee reminder could not find it in the learner record.`, "warning");
+        }
+
+        const school = window.currentSchool || {};
+        const schoolName = String(school.name || window.schoolName || "Our School").trim();
+        const message = `Dear Parent/Guardian,\n\nThis is a fee reminder from ${schoolName}. Our records show that ${studentName} has an outstanding school fee balance of KES ${balance.toLocaleString()}. Kindly arrange to clear the balance at your earliest convenience. If you have already paid, please share the payment details with the school office.\n\nThank you.\n${schoolName}`;
+        const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
+        const opened = window.open(url, "_blank", "noopener,noreferrer");
+        if (!opened) {
+            await Swal.fire({
+                icon: "info",
+                title: "WhatsApp Ready",
+                text: "Your browser blocked the WhatsApp window. Allow pop-ups for RASM 360 and try again."
+            });
+        }
+    } catch (error) {
+        console.error("WhatsApp fee reminder error:", error);
+        Swal.fire("Unable to Open WhatsApp", error?.message || "Please check the fee record and try again.", "error");
+    }
+};
 
 window.sendSingleSMS = async function (
     year,
@@ -41354,7 +41464,7 @@ window.showDefaulters = async function () {
             <tr>
 
                 <td
-                    colspan="6"
+                    colspan="7"
                     style="
                         padding:50px;
                         text-align:center;
@@ -41716,6 +41826,14 @@ window.showDefaulters = async function () {
 
                     </td>
 
+                    <td style="text-align:center;padding:10px;">
+                        <button type="button"
+                            onclick="sendFeeWhatsAppReminder('${selectedYear}', '${feeId}')"
+                            style="background:#25D366;color:#fff;border:0;border-radius:7px;padding:9px 12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                            🟢 WhatsApp
+                        </button>
+                    </td>
+
                 </tr>
 
             `);
@@ -41737,7 +41855,7 @@ window.showDefaulters = async function () {
                 <tr>
 
                     <td
-                        colspan="6"
+                        colspan="7"
                         style="
                             padding:60px;
                             text-align:center;
@@ -41913,7 +42031,7 @@ window.showDefaulters = async function () {
                 <tr>
 
                     <td
-                        colspan="6"
+                        colspan="7"
                         style="
                             padding:50px;
                             text-align:center;
@@ -46408,43 +46526,42 @@ target.innerHTML=source.innerHTML;
 }
 
 // ===================================================
-// LOAD CURRENT FEE
+// LOAD CURRENT FEE BY ACADEMIC YEAR + GRADE RANGE
 // ===================================================
 
 window.loadCurrentSchoolFee=async function(){
+  const year = document.getElementById("schoolFeeYear")?.value;
+  const level = document.getElementById("schoolFeeLevel")?.value;
+  const amountInput = document.getElementById("schoolFeeAmount");
+  if (!amountInput) return;
 
-const year=document.getElementById("schoolFeeYear").value;
+  // Do not show a misleading default. The amount belongs to a
+  // specific academic year AND grade range.
+  if (!year || !level) {
+    amountInput.value = "";
+    return;
+  }
 
-if(!year)return;
+  try {
+    const snap = await fastGet(
+      schoolRef(`settings/schoolFee/${year}/${level}`)
+    );
+    amountInput.value = snap.exists()
+      ? (Number(snap.val()?.amount) || "")
+      : "";
+  } catch (error) {
+    console.error("Unable to load grade-range school fee:", error);
+    amountInput.value = "";
+    if (typeof Swal !== "undefined") {
+      Swal.fire("Unable to Load Fee", "Please check your connection and try again.", "error");
+    }
+  }
+};
 
-const snap=await fastGet(
-
-schoolRef(`settings/schoolFee/${year}`)
-
-);
-
-if(snap.exists()){
-
-document.getElementById("schoolFeeAmount").value=
-
-snap.val().amount||0;
-
-}else{
-
-document.getElementById("schoolFeeAmount").value="";
-
-}
-
-}
-
-document.addEventListener("change",e=>{
-
-if(e.target.id==="schoolFeeYear"){
-
-loadCurrentSchoolFee();
-
-}
-
+document.addEventListener("change", e => {
+  if (e.target.id === "schoolFeeYear" || e.target.id === "schoolFeeLevel") {
+    loadCurrentSchoolFee();
+  }
 });
 
 // ===================================================
@@ -48728,7 +48845,7 @@ window.generateBulkReceiptsByGrade = async function () {
                 <style>
 
                     @page {
-                        size: A4 portrait;
+                        size: A4;
                         margin: 8mm;
                     }
 
@@ -62855,7 +62972,7 @@ const styles = `
 <style>
 
 @page{
-  size:A4 landscape;
+  size:A4;
   margin:8mm;
 }
 
@@ -69463,7 +69580,7 @@ learner.average =
       .combined-report-table tr:hover td.combined-level-cell{background:#dce9df !important}
 
       @media print{
-        @page{size:A4 landscape;margin:7mm}
+        @page{size:A4;margin:7mm}
         html,body{width:100%;margin:0 !important;padding:0 !important;background:#fff !important}
         .combined-marks-scroll{width:100% !important;max-width:none !important;overflow:visible !important;padding:0 !important;background:#fff !important}
         .combined-report-table{width:100% !important;min-width:0 !important;table-layout:fixed !important;font-size:7.2px !important}
@@ -86055,7 +86172,7 @@ const commonPrintStyles = `
   }
 
   @page{
-    size:A4 landscape;
+    size:A4;
     margin:4mm;
   }
 
@@ -97421,7 +97538,7 @@ window.generateLibraryCardsByGrade = async function () {
                     @page {
 
                         size:
-                            A4 portrait;
+                            A4;
 
                         margin:
                             6mm;
@@ -125055,7 +125172,7 @@ body{
 
 @page{
 
-    size:A4 landscape;
+    size:A4;
     margin:4mm;
 
 }
@@ -127039,7 +127156,7 @@ Overall Top 5 Per Grade
 
 @page {
 
-    size:A4 portrait;
+    size:A4;
 
     margin:12mm;
 
@@ -129764,7 +129881,7 @@ Parents Meeting Notices - ${safe(selectedGrade)}
 
 @page {
 
-    size: A4 portrait;
+    size: A4;
 
     margin: 5mm;
 
@@ -131376,7 +131493,7 @@ window.generateFeeBalanceNotices = async function () {
 
 @page {
 
-    size:A4 portrait;
+    size:A4;
 
     margin:5mm;
 
@@ -136771,7 +136888,7 @@ return `
 <meta charset="utf-8">
 <title>${escX(title)}</title>
 <style>
-  @page{size:A4 landscape;margin:9mm 9mm 11mm 9mm;}
+  @page{size:A4;margin:9mm 9mm 11mm 9mm;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:#fff;color:#111827;font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;}
   body{width:100%;}
@@ -136936,7 +137053,7 @@ return `
     }
     win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escX(title)}</title>
       <style>
-        @page{size:A4 portrait;margin:12mm}
+        @page{size:A4;margin:12mm}
         *{box-sizing:border-box}
         body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:0;font-size:11px}
         h1,h2,h3{color:#111827}
@@ -138455,7 +138572,7 @@ return `
 <style>
 
 @page {
-  size: A4 portrait;
+  size: A4;
   margin: 12mm;
 }
 
@@ -144164,7 +144281,7 @@ window.openAdminRecycleBin = function () {
       body{font-family:Arial,sans-serif;padding:25px;color:#111827}h1{margin-bottom:4px}p{color:#64748b}
       .metrics{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.metric{border:1px solid #ddd;padding:12px;border-radius:8px}
       table{width:100%;border-collapse:collapse;margin-top:15px}th,td{border:1px solid #bbb;padding:7px;font-size:12px}th{background:#111827;color:#fff}
-      @page{size:A4 landscape;margin:10mm}</style></head><body>
+      @page{size:A4;margin:10mm}</style></head><body>
       <h1>📚 Library Management Report</h1><p>Generated ${esc(now.toLocaleString())}</p>
       <div class="metrics"><div class="metric"><b>Titles</b><br>${books.length}</div><div class="metric"><b>Active Loans</b><br>${loans.filter(x=>!x.returned).length}</div><div class="metric"><b>Overdue</b><br>${overdue}</div></div>
       <table><thead><tr><th>#</th><th>Book</th><th>Grade</th><th>Author</th><th>Total</th><th>Available</th><th>Borrowed</th><th>Lost</th><th>Shelf</th></tr></thead><tbody>${rows}</tbody></table>
@@ -148954,7 +149071,7 @@ window.openAdminRecycleBin = function () {
 <title>Library Management Report</title>
 <style>
   @page {
-    size: A4 landscape;
+    size: A4;
     margin: 9mm;
   }
 
@@ -149453,7 +149570,7 @@ ${headerHtml}
       if(!w) return Swal.fire("Print Blocked","Please allow pop-ups for RASM 360 and try again.","warning");
       w.document.open();
       w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Library Management Report - ${esc(selectedGrade)}</title><style>
-        @page{size:A4 landscape;margin:8mm}
+        @page{size:A4;margin:8mm}
         *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#000;font-size:9pt}
         .schoolHeader{text-align:center;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:7px;display:flex;align-items:center;justify-content:center;gap:14px}.schoolHeader img{width:65px;height:65px;object-fit:contain}.schoolHeader h1{margin:0;font-size:19pt}.schoolHeader h2{margin:4px 0;font-size:13pt}.schoolHeader div{margin:2px 0}
         .meta{display:flex;justify-content:space-between;border:1px solid #000;padding:6px;margin-bottom:8px;font-weight:800}
@@ -151123,6 +151240,95 @@ ${headerHtml}
   };
   window.openAdminRecycleBin=function(){return window.openRasmRecycleBin("all");};
   window.openRecycleBin=function(module="all"){return window.openRasmRecycleBin(module||"all");};
+})();
+</script>
+
+
+<!-- RASM 360: final delete-to-recycle + immediate table refresh reliability patch -->
+<script id="rasm360-all-sections-delete-refresh-final">
+(function(){
+  "use strict";
+  if(window.__rasm360AllSectionsDeleteRefreshInstalled) return;
+  window.__rasm360AllSectionsDeleteRefreshInstalled = true;
+
+  function refPath(r){
+    try {
+      const candidates = [r && r.path, r && r._path, r && r.__rasmPath];
+      for (const candidate of candidates) {
+        if (candidate != null) {
+          const value = typeof candidate.toString === 'function' ? candidate.toString() : String(candidate);
+          if (value && value !== '[object Object]') return value.replace(/^\/+|\/+$/g, '');
+        }
+      }
+    } catch (_) {}
+    return '';
+  }
+  function moduleFor(path){
+    const p=String(path||'').split('/').filter(Boolean);
+    const i=p.indexOf('schools');
+    const m=i>=0?p[i+2]:p.length>1?p[0]:'';
+    const aliases={students:'students',teachers:'teachers',supportStaff:'supportStaff',ict:'ict',attendance:'attendance',library:'library',fees:'fees',transport:'transport',hostel:'hostel',inventory:'inventory',assignments:'assignments',courses:'courses',users:'users'};
+    return aliases[m]||m;
+  }
+  async function refreshAfterDelete(path){
+    const module=moduleFor(path);
+    const loaders={
+      students:['loadStudents','loadLearners','renderStudents','loadLearnersTable'],
+      teachers:['loadTeachers'], supportStaff:['loadSupportStaff','loadStaff'],
+      ict:['loadICT'], attendance:['loadAttendance'], library:['loadLibrary','loadBooks'],
+      fees:['loadFees','loadFeeRecords'], transport:['loadTransport'], hostel:['loadHostel','loadHostels'],
+      inventory:['loadInventory'], assignments:['renderAssignments','loadAssignments'],
+      courses:['loadCourses','renderCourses'], users:['loadUsers','loadSystemUsers']
+    };
+    for(const name of (loaders[module]||[])){
+      if(typeof window[name]==='function'){
+        try { await window[name](); break; } catch(e) { console.warn('Table refresh after delete:',name,e); }
+      }
+    }
+    try { if(typeof window.recycleRefresh==='function') await window.recycleRefresh('all'); } catch(_) {}
+    try { if(typeof window.renderRecycleBin==='function') await window.renderRecycleBin(); } catch(_) {}
+  }
+
+  // The final low-level remover is the shared path used by most section delete
+  // handlers. Ensure modular Firebase refs are recognized, then refresh only
+  // the affected section after the recycle operation completes successfully.
+  const original=window.rasmBackgroundRemove;
+  if(typeof original==='function' && !original.__rasm360RefreshWrapped){
+    const wrapped=async function(firebaseRef){
+      const path=refPath(firebaseRef);
+      if(firebaseRef && !firebaseRef.path && path){
+        try { firebaseRef.__rasmPath=path; firebaseRef.path=path; } catch(_) {}
+      }
+      const result=await original.apply(this,arguments);
+      if(path && !/\/(recycleBin|teacherTrash|deletedFees)\//.test('/'+path+'/')) {
+        await refreshAfterDelete(path);
+      }
+      return result;
+    };
+    wrapped.__rasm360RefreshWrapped=true;
+    wrapped.__rasmOriginal=original;
+    window.rasmBackgroundRemove=wrapped;
+  }
+
+  // Ensure the generic recycle function also accepts modular DatabaseReference
+  // objects and triggers a refresh once the backup and deletion are complete.
+  const recycle=window.rasmRecycleDelete;
+  if(typeof recycle==='function' && !recycle.__rasm360RefreshWrapped){
+    const wrappedRecycle=async function(firebaseRef){
+      const path=refPath(firebaseRef);
+      if(firebaseRef && !firebaseRef.path && path){
+        try { firebaseRef.__rasmPath=path; firebaseRef.path=path; } catch(_) {}
+      }
+      const result=await recycle.apply(this,arguments);
+      if(path && !/\/(recycleBin|teacherTrash|deletedFees)\//.test('/'+path+'/')) {
+        await refreshAfterDelete(path);
+      }
+      return result;
+    };
+    wrappedRecycle.__rasm360RefreshWrapped=true;
+    wrappedRecycle.__rasmOriginal=recycle;
+    window.rasmRecycleDelete=wrappedRecycle;
+  }
 })();
 </script>
 
