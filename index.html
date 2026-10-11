@@ -11464,6 +11464,21 @@ border-radius:6px;
 
     </div>
 
+    <!-- Search learner by typing -->
+    <div class="fee-filter-group fee-learner-search-group">
+      <label for="filterFeeLearnerSearch">Find Learner</label>
+      <input
+        id="filterFeeLearnerSearch"
+        type="search"
+        autocomplete="off"
+        placeholder="Type learner name or parent phone..."
+        aria-label="Search fee records by learner name or parent phone"
+        oninput="scheduleFeeLearnerSearch()"
+        style="width:100%;max-width:none;min-height:44px;margin:0;padding:10px 12px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#0f172a;"
+      >
+      <small style="color:#64748b;font-size:11px;">Results filter as you type.</small>
+    </div>
+
   </div>
 
 </div>
@@ -38778,6 +38793,37 @@ window.__feesRendered = 0;
 window.__feesBatchSize = 50;
 window.__feesFinished = false;
 window.__feesFooterAdded = false;
+window.__feesRawCache = window.__feesRawCache || null;
+window.__feeLearnerSearchTimer = window.__feeLearnerSearchTimer || null;
+
+window.scheduleFeeLearnerSearch = function () {
+    if (window.__feeLearnerSearchTimer) {
+        clearTimeout(window.__feeLearnerSearchTimer);
+    }
+    const applySearch = () => {
+        // If a year/grade refresh is in progress, wait for its cached data
+        // instead of dropping the user's search input.
+        if (window.__feesLoading) {
+            window.__feeLearnerSearchTimer = setTimeout(applySearch, 100);
+            return;
+        }
+        if (typeof window.loadFees === "function") {
+            // Reuse the year data already in memory while searching; typing
+            // does not trigger a fresh Firebase download for every character.
+            window.loadFees({ useCache: true });
+        }
+    };
+    window.__feeLearnerSearchTimer = setTimeout(applySearch, 250);
+};
+
+function feeNormalizeSearch(value) {
+    return String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+}
 
 window.feeActionData =
     window.feeActionData || {};
@@ -38916,7 +38962,7 @@ function removeFeeScrollListener() {
    🚀 MAIN FEE LOADER
    ============================================================ */
 
-window.loadFees = async function () {
+window.loadFees = async function (options = {}) {
 
     /* ========================================================
        PREVENT DUPLICATE LOADS
@@ -38970,6 +39016,10 @@ window.loadFees = async function () {
                 "filterFeeGrade"
             )?.value ||
             "";
+
+        const selectedLearnerSearch = feeNormalizeSearch(
+            document.getElementById("filterFeeLearnerSearch")?.value || ""
+        );
 
 
         /* ====================================================
@@ -39063,12 +39113,26 @@ window.loadFees = async function () {
            6. FETCH SELECTED YEAR
            ==================================================== */
 
-        const snapshot =
-            await fastGet(
-                schoolRef(
-                    `fees/${selectedYear}`
-                )
+        let data;
+        const cachedFeeData = window.__feesRawCache;
+        if (
+            options && options.useCache === true &&
+            cachedFeeData &&
+            String(cachedFeeData.year) === String(selectedYear) &&
+            cachedFeeData.data && typeof cachedFeeData.data === "object"
+        ) {
+            data = cachedFeeData.data;
+        } else {
+            const snapshot = await fastGet(
+                schoolRef(`fees/${selectedYear}`)
             );
+            data = snapshot.exists() ? (snapshot.val() || {}) : {};
+            window.__feesRawCache = {
+                year: String(selectedYear),
+                data,
+                loadedAt: Date.now()
+            };
+        }
 
 
         /* ====================================================
@@ -39083,12 +39147,6 @@ window.loadFees = async function () {
             return;
 
         }
-
-
-        const data =
-            snapshot.exists()
-                ? snapshot.val()
-                : {};
 
 
         /* ====================================================
@@ -39110,17 +39168,10 @@ window.loadFees = async function () {
                 of window.allStudents
             ) {
 
-                if (
-                    student?.id != null
-                ) {
-
-                    studentMap.set(
-                        String(
-                            student.id
-                        ),
-                        student
-                    );
-
+                if (student && typeof student === "object") {
+                    [student.id, student.studentId, student.learnerId, student.key]
+                        .filter(value => value !== undefined && value !== null && String(value).trim() !== "")
+                        .forEach(value => studentMap.set(String(value), student));
                 }
 
             }
@@ -39289,6 +39340,30 @@ window.loadFees = async function () {
 
             if (!fee) continue;
 
+            const learnerLookupId = String(
+                fee.studentId ?? fee.learnerId ?? fee.student_id ?? feeId
+            );
+            let matchedLearner = studentMap.get(learnerLookupId) || null;
+            if (!matchedLearner && Array.isArray(window.allStudents)) {
+                const feeNameForLookup = feeNormalizeSearch(fee.studentName || fee.name || "");
+                if (feeNameForLookup) {
+                    matchedLearner = window.allStudents.find(item =>
+                        feeNormalizeSearch(item?.name || item?.studentName || item?.fullName || "") === feeNameForLookup
+                    ) || null;
+                }
+            }
+
+            if (selectedLearnerSearch) {
+                const searchableValues = [
+                    matchedLearner?.name, matchedLearner?.studentName, matchedLearner?.fullName,
+                    fee.studentName, fee.name, fee.grade, feeId,
+                    matchedLearner?.parentPhone, matchedLearner?.parent_phone,
+                    matchedLearner?.parentPhoneNumber, matchedLearner?.parentContact,
+                    matchedLearner?.guardianPhone, matchedLearner?.guardianPhoneNumber,
+                    fee.parentPhone, fee.parent_phone, fee.parentPhoneNumber, fee.parentContact
+                ].map(feeNormalizeSearch).filter(Boolean).join(" ");
+                if (!searchableValues.includes(selectedLearnerSearch)) continue;
+            }
 
             /* ================================================
                GRADE FILTER
@@ -39460,24 +39535,28 @@ window.loadFees = async function () {
                    LEARNER LOOKUP
                    ============================================ */
 
-                const student =
-                    studentMap.get(
-                        String(
-                            fee.studentId
-                        )
-                    );
-
+                let student = studentMap.get(String(
+                    fee.studentId ?? fee.learnerId ?? fee.student_id ?? feeId
+                )) || null;
+                if (!student && Array.isArray(window.allStudents)) {
+                    const feeNameForLookup = feeNormalizeSearch(fee.studentName || fee.name || "");
+                    if (feeNameForLookup) {
+                        student = window.allStudents.find(item =>
+                            feeNormalizeSearch(item?.name || item?.studentName || item?.fullName || "") === feeNameForLookup
+                        ) || null;
+                    }
+                }
 
                 const studentName =
-                    student?.name ||
-                    fee.studentName ||
-                    "-";
-
+                    student?.name || student?.studentName || student?.fullName ||
+                    fee.studentName || fee.name || "-";
 
                 const parentPhone =
-                    student?.parentPhone ||
-                    fee.parentPhone ||
-                    "";
+                    student?.parentPhone || student?.parent_phone || student?.parentPhoneNumber ||
+                    student?.parentContact || student?.guardianPhone || student?.guardianPhoneNumber ||
+                    student?.parent?.phone || student?.guardian?.phone ||
+                    fee.parentPhone || fee.parent_phone || fee.parentPhoneNumber ||
+                    fee.parentContact || fee.guardianPhone || fee.guardianPhoneNumber || "";
 
 
                 const displayName =
@@ -40833,6 +40912,78 @@ document.addEventListener(
    🟢 RASM 360 — WHATSAPP FEE BALANCE REMINDER
    Opens WhatsApp with a pre-filled message; admin reviews and sends it.
    ============================================================ */
+/* ============================================================
+   📱 COMMON FEE LEARNER + PARENT PHONE LOOKUP
+   Uses the same registered learner record used by Fee Records.
+   ============================================================ */
+window.rasmResolveFeeLearnerAndPhone = async function (fee, feeId) {
+    fee = fee || {};
+    const candidateIds = new Set([
+        fee.studentId, fee.learnerId, fee.student_id, fee.learner_id,
+        feeId, fee.id, fee.studentKey
+    ].filter(value => value !== undefined && value !== null && String(value).trim() !== "").map(String));
+    const feeName = feeNormalizeSearch(fee.studentName || fee.name || fee.learnerName || "");
+    const lists = [
+        Array.isArray(window.allStudents) ? window.allStudents : [],
+        Array.isArray(window.allLearners) ? window.allLearners : []
+    ];
+    let learner = null;
+    const matchesLearner = item => {
+        if (!item || typeof item !== "object") return false;
+        const ids = [item.id, item.studentId, item.learnerId, item.key]
+            .filter(value => value !== undefined && value !== null && String(value).trim() !== "").map(String);
+        if (ids.some(id => candidateIds.has(id))) return true;
+        const name = feeNormalizeSearch(item.name || item.studentName || item.fullName || item.learnerName || "");
+        return !!feeName && !!name && name === feeName;
+    };
+    for (const list of lists) {
+        learner = list.find(matchesLearner) || null;
+        if (learner) break;
+    }
+
+    // Last-resort lookup from the current school's registered learners.
+    if (!learner) {
+        try {
+            const snapshot = await fastGet(schoolRef("students"));
+            const learnersData = snapshot && snapshot.exists() ? snapshot.val() : {};
+            if (learnersData && typeof learnersData === "object") {
+                for (const [key, value] of Object.entries(learnersData)) {
+                    if (!value || typeof value !== "object") continue;
+                    const candidate = { ...value, id: value.id ?? key, key };
+                    if (matchesLearner(candidate)) {
+                        learner = candidate;
+                        break;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn("Could not read registered learner phone details:", error);
+        }
+    }
+
+    const phoneValue =
+        learner?.parentPhone || learner?.parent_phone || learner?.parentPhoneNumber ||
+        learner?.parentContact || learner?.parent_contact || learner?.guardianPhone ||
+        learner?.guardianPhoneNumber || learner?.guardian_phone ||
+        learner?.parent?.phone || learner?.guardian?.phone || learner?.contacts?.parentPhone ||
+        learner?.phone || fee.parentPhone || fee.parent_phone || fee.parentPhoneNumber ||
+        fee.parentContact || fee.parent_contact || fee.guardianPhone || fee.guardianPhoneNumber ||
+        fee.parent?.phone || fee.guardian?.phone || "";
+
+    return { learner, phone: String(phoneValue || "").trim() };
+};
+
+window.rasmNormalizeKenyaPhone = function (value) {
+    let phone = String(value || "").trim().replace(/[\s\-()]/g, "");
+    if (phone.startsWith("+")) phone = phone.slice(1);
+    if (phone.startsWith("0")) phone = "254" + phone.slice(1);
+    return /^254[17]\d{8}$/.test(phone) ? phone : "";
+};
+
+/* ============================================================
+   🟢 RASM 360 — WHATSAPP FEE REMINDER / THANK-YOU NOTICE
+   Opens WhatsApp with a pre-filled message for admin review.
+   ============================================================ */
 window.sendFeeWhatsAppReminder = async function (year, studentId) {
     try {
         const schoolId = window.schoolId || window.currentSchoolId || localStorage.getItem("schoolId");
@@ -40846,64 +40997,26 @@ window.sendFeeWhatsAppReminder = async function (year, studentId) {
         }
 
         const fee = snap.val() || {};
-        const studentName = String(fee.studentName || fee.name || "Learner").trim();
-        const balance = Number(fee.balance || 0);
-        if (!(balance > 0)) {
-            return Swal.fire("No Outstanding Balance", `${studentName} has no outstanding fee balance.`, "info");
-        }
-
-        // The parent phone is normally stored on the learner's Students record,
-        // not necessarily on the fee record. Use the same learner data shown in
-        // the fee register first, then fall back to the school-scoped Students node.
-        let learner = null;
-        const learnerId = String(fee.studentId ?? studentId);
-        const learnerLists = [
-            Array.isArray(window.allStudents) ? window.allStudents : [],
-            Array.isArray(window.allLearners) ? window.allLearners : []
-        ];
-        for (const list of learnerLists) {
-            learner = list.find(item => item && (
-                String(item.id ?? item.studentId ?? item.learnerId ?? "") === learnerId ||
-                String(item.key ?? "") === learnerId
-            ));
-            if (learner) break;
-        }
-
-        if (!learner) {
-            try {
-                const learnersSnap = await fastGet(schoolRef("students"));
-                const learnersData = learnersSnap && learnersSnap.exists() ? learnersSnap.val() : {};
-                if (learnersData && typeof learnersData === "object") {
-                    for (const [key, value] of Object.entries(learnersData)) {
-                        if (!value || typeof value !== "object") continue;
-                        if (String(key) === learnerId ||
-                            String(value.id ?? value.studentId ?? value.learnerId ?? "") === learnerId) {
-                            learner = { ...value, id: value.id ?? key };
-                            break;
-                        }
-                    }
-                }
-            } catch (lookupError) {
-                console.warn("Could not look up learner parent phone:", lookupError);
-            }
-        }
-
-        let phone = String(
-            learner?.parentPhone || learner?.parent_phone || learner?.parentPhoneNumber ||
-            learner?.parentContact || learner?.guardianPhone || learner?.guardianPhoneNumber ||
-            learner?.phone || fee.parentPhone || fee.parent_phone || fee.parentPhoneNumber ||
-            fee.parentContact || fee.guardianPhone || fee.guardianPhoneNumber || ""
+        const { learner, phone: rawPhone } = await window.rasmResolveFeeLearnerAndPhone(fee, studentId);
+        const studentName = String(
+            learner?.name || learner?.studentName || learner?.fullName ||
+            fee.studentName || fee.name || "Learner"
         ).trim();
-        phone = phone.replace(/[\s\-()]/g, "");
-        if (phone.startsWith("+")) phone = phone.substring(1);
-        if (phone.startsWith("0")) phone = "254" + phone.substring(1);
-        if (!/^254[17]\d{8}$/.test(phone)) {
-            return Swal.fire("Parent Phone Required", `Please update a valid Kenyan parent/guardian phone number for ${studentName}. The fee reminder could not find it in the learner record.`, "warning");
+        const phone = window.rasmNormalizeKenyaPhone(rawPhone);
+        if (!phone) {
+            return Swal.fire("Parent Phone Required", `Please update a valid Kenyan parent/guardian phone number for ${escapeHTMLSafe(studentName)}. RASM 360 checked both the fee record and the registered learner record.`, "warning");
         }
 
+        const balance = Number(fee.balance || 0);
         const school = window.currentSchool || {};
         const schoolName = String(school.name || window.schoolName || "Our School").trim();
-        const message = `Dear Parent/Guardian,\n\nThis is a fee reminder from ${schoolName}. Our records show that ${studentName} has an outstanding school fee balance of KES ${balance.toLocaleString()}. Kindly arrange to clear the balance at your earliest convenience. If you have already paid, please share the payment details with the school office.\n\nThank you.\n${schoolName}`;
+        let message;
+        if (balance > 0) {
+            message = `Dear Parent/Guardian,\n\nThis is a fee reminder from ${schoolName}. Our records show that ${studentName} has an outstanding school fee balance of KES ${balance.toLocaleString()}. Kindly arrange to clear the balance at your earliest convenience. If you have already paid, please share the payment details with the school office.\n\nThank you.\n${schoolName}`;
+        } else {
+            message = `Dear Parent/Guardian,\n\nThank you for keeping ${studentName}'s school fees up to date. Our records currently show no outstanding school fee balance for ${studentName} for ${year}. We appreciate your timely payments and your continued support of ${schoolName}. If you have made a recent payment, please keep your receipt for your records.\n\nThank you.\n${schoolName}`;
+        }
+
         const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
         const opened = window.open(url, "_blank", "noopener,noreferrer");
         if (!opened) {
@@ -41027,7 +41140,8 @@ window.sendSingleSMS = async function (
 
         const studentName =
             String(
-                fee.studentName ||
+                fee.studentName || fee.name ||
+                window.feeActionData?.[String(studentId)]?.studentName ||
                 "Learner"
             ).trim();
 
@@ -41037,11 +41151,14 @@ window.sendSingleSMS = async function (
            📱 PHONE NUMBER
            ==================================================== */
 
-        let phone =
-            String(
-                fee.parentPhone ||
-                ""
-            ).trim();
+        const { learner: registeredLearner, phone: resolvedPhone } =
+            await window.rasmResolveFeeLearnerAndPhone(fee, studentId);
+
+        const displayStudentName =
+            registeredLearner?.name || registeredLearner?.studentName || registeredLearner?.fullName ||
+            fee.studentName || fee.name || studentName;
+
+        let phone = String(resolvedPhone || "").trim();
 
 
         if (!phone) {
@@ -41058,7 +41175,7 @@ window.sendSingleSMS = async function (
 
                     <b>
                         ${escapeHTMLSafe(
-                            studentName
+                            displayStudentName
                         )}
                     </b>
 
@@ -41196,7 +41313,7 @@ window.sendSingleSMS = async function (
 
 This is a reminder from ${schoolName}.
 
-Your child ${studentName} has an outstanding school fee balance of KES ${formattedBalance}.
+Your child ${displayStudentName} has an outstanding school fee balance of KES ${formattedBalance}.
 
 Kindly clear the balance at your earliest convenience.
 
@@ -41226,7 +41343,7 @@ Thank you.`;
 
                     <b>
                         ${escapeHTMLSafe(
-                            studentName
+                            displayStudentName
                         )}
                     </b>
 
@@ -41302,7 +41419,7 @@ Thank you.`;
 
                     <b>
                         ${escapeHTMLSafe(
-                            studentName
+                            displayStudentName
                         )}
                     </b>
 
@@ -50331,11 +50448,17 @@ function refreshGrade13Subjects() {
     if (!subject || !wrap || !sub) return;
 
     if (!isGrade1To3Value(grade)) {
+        const previousSubject = subject.value;
         if (window.__originalSubjectOptionsHTML) {
             subject.innerHTML = window.__originalSubjectOptionsHTML;
         }
         wrap.style.display = "none";
         sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>`;
+        // The base options are restored when switching away from Grades 1–3;
+        // re-apply the saved school-defined subjects so they remain available.
+        if (typeof window.__renderRasmCustomSubjects === "function") {
+            window.__renderRasmCustomSubjects(previousSubject);
+        }
         return;
     }
 
@@ -52355,46 +52478,76 @@ const subjects = getMarksDisplaySubjects(
       const previousAvg = Number(data.previousAvg);
       const overallDeviation = data.overallDeviation;
 
+      // Use the saved School Profile name for the WhatsApp report header.
+      // The sidebar title is a display fallback populated from that profile.
+      const schoolProfile = window.currentSchool && typeof window.currentSchool === "object"
+        ? window.currentSchool
+        : {};
+      const displayedSchoolName = String(
+        document.getElementById("schoolNameDisplay")?.textContent || ""
+      ).trim();
+      const schoolName = String(
+        schoolProfile.name || schoolProfile.schoolName ||
+        (!/^loading school\.{0,3}$/i.test(displayedSchoolName) ? displayedSchoolName : "") ||
+        "School Name Not Set"
+      ).trim();
+
+      // The current exam label is the source of truth for academic year and term.
+      const periodInfo = typeof progressPeriodInfo === "function"
+        ? progressPeriodInfo(currentLabel)
+        : {};
+      const yearMatch = currentLabel.match(/\b(20\d{2})\b/);
+      const termMatch = currentLabel.match(/\bterm\s*([1-3])\b/i);
+      const reportYear = Number(periodInfo?.year || yearMatch?.[1] || 0);
+      const reportTerm = Number(periodInfo?.term || termMatch?.[1] || 0);
+      const academicYearTerm = [
+        reportYear ? `Academic Year: ${reportYear}` : "Academic Year: Not specified",
+        reportTerm ? `Term ${reportTerm}` : "Term Not specified"
+      ].join(" | ");
+
       const fmtScore = value =>
         value === null || value === undefined || value === "" || !Number.isFinite(Number(value))
-          ? "—"
+          ? "-"
           : Number(value).toFixed(1);
 
       const fmtDeviation = value => {
-        if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "—";
+        if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "-";
         const n = Number(value);
         return `${n > 0 ? "+" : ""}${n.toFixed(1)}`;
       };
 
-      const statusIcon = status => {
-        const s = String(status || "").toLowerCase();
-        if (s === "improved") return "🟢";
-        if (s === "dropped") return "🔴";
-        if (s === "same") return "🟡";
-        if (s === "new") return "🔵";
-        return "⚪";
+      const statusLabel = status => {
+        const normalized = String(status || "").trim().toLowerCase();
+        if (normalized === "improved") return "IMPROVED";
+        if (normalized === "dropped" || normalized === "declined") return "DECLINED";
+        if (normalized === "same" || normalized === "unchanged") return "NO CHANGE";
+        if (normalized === "new") return "NEW SUBJECT";
+        return String(status || "NOT AVAILABLE").toUpperCase();
       };
 
-      // Build a clean WhatsApp-friendly report.
-      // IMPORTANT: use real newline characters, not the literal characters "\\n".
+      // WhatsApp report: avoid emoji glyphs so sharing stays readable
+      // even where emoji fonts or character handling are unreliable.
+      const divider = "----------------------------------------";
       const lines = [
-        `📊 *RASM 360 — LEARNER PROGRESS REPORT*`,
-        `━━━━━━━━━━━━━━━━━━━━`,
-        `👤 *Learner:* ${learnerName}`,
-        `🎓 *Grade:* ${grade}`,
+        `*${schoolName}*`,
+        `*LEARNER PROGRESS REPORT*`,
+        `*${academicYearTerm}*`,
+        divider,
+        `Learner: *${learnerName}*`,
+        `Grade/Class: *${grade || "-"}*`,
         ``,
-        `📝 *CURRENT ASSESSMENT*`,
+        `*CURRENT ASSESSMENT*`,
         `${currentLabel}`,
-        `📈 Average: *${Number.isFinite(currentAvg) ? currentAvg.toFixed(1) + "%" : "—"}*`,
+        `Average: *${Number.isFinite(currentAvg) ? currentAvg.toFixed(1) + "%" : "-"}*`,
         ``,
-        `📚 *PREVIOUS ASSESSMENT*`,
-        `${previousLabel}`,
-        `📉 Average: *${Number.isFinite(previousAvg) && data.countPrevious ? previousAvg.toFixed(1) + "%" : "—"}*`,
+        `*PREVIOUS ASSESSMENT*`,
+        `${data.countPrevious ? previousLabel : "No previous assessment available"}`,
+        `Average: *${Number.isFinite(previousAvg) && data.countPrevious ? previousAvg.toFixed(1) + "%" : "-"}*`,
         ``,
-        `📌 *OVERALL CHANGE:* ${fmtDeviation(overallDeviation)} marks`,
+        `*OVERALL CHANGE: ${fmtDeviation(overallDeviation)} marks*`,
         ``,
-        `📚 *SUBJECT-BY-SUBJECT PROGRESS*`,
-        `━━━━━━━━━━━━━━━━━━━━`
+        `*SUBJECT PERFORMANCE*`,
+        divider
       ];
 
       (data.subjects || []).forEach(item => {
@@ -52405,38 +52558,43 @@ const subjects = getMarksDisplaySubjects(
 
         lines.push(
           `*${item.subject}*`,
-          `Current: *${current}*   Previous: *${previous}*`,
-          `Change: *${deviation}* marks   ${statusIcon(status)} ${status}`,
+          `Current: *${current}* | Previous: *${previous}*`,
+          `Change: *${deviation} marks* | Status: ${statusLabel(status)}`,
           ``
         );
       });
 
-      if (data.adviceTitle || data.adviceBody) {
+      const attentionItems = Array.isArray(data.drops) ? data.drops.slice(0, 5) : [];
+      if (attentionItems.length) {
         lines.push(
-          `💡 *${data.adviceTitle || "PROGRESS NOTE"}*`,
-          String(data.adviceBody || ""),
+          `*AREAS REQUIRING ATTENTION*`,
+          divider
+        );
+
+        attentionItems.forEach(item => {
+          lines.push(`- *${item.subject}:* ${fmtDeviation(item.deviation)} marks`);
+        });
+        lines.push(``);
+      }
+
+      if (attentionItems.length) {
+        lines.push(
+          `*RECOMMENDATION*`,
+          `Review the subjects listed above, identify the topics where marks were lost, and provide targeted practice before the next assessment.`,
+          ``
+        );
+      } else if (data.adviceTitle || data.adviceBody) {
+        lines.push(
+          `*${String(data.adviceTitle || "PROGRESS NOTE").toUpperCase()}*`,
+          String(data.adviceBody || "Review the learner's progress and maintain support where needed."),
           ``
         );
       }
 
-      if (Array.isArray(data.drops) && data.drops.length) {
-        lines.push(
-          `🔎 *SUBJECTS REQUIRING ATTENTION*`,
-          `━━━━━━━━━━━━━━━━━━━━`
-        );
-
-        data.drops.slice(0, 5).forEach(item => {
-          lines.push(`🔴 *${item.subject}:* ${fmtDeviation(item.deviation)} marks`);
-        });
-
-        lines.push(``);
-      }
-
       lines.push(
-        `📌 *Please review the learner's progress and provide support in the subjects requiring attention.*`,
-        ``,
-        `━━━━━━━━━━━━━━━━━━━━`,
-        `📲 Shared via *RASM 360 School Management*`
+        `Please discuss these results with the learner and agree on practical next steps.`,
+        divider,
+        `Prepared and shared via *RASM 360 School Management System*`
       );
 
       const message = lines.join("\n");
@@ -117902,6 +118060,11 @@ typeof loadUsersTable === "function"
 
       typeof loadAssignments === "function"
         ? loadAssignments()
+        : Promise.resolve(),
+
+      // School-defined subjects must be loaded after the verified school context exists.
+      typeof window.loadCustomSubjects === "function"
+        ? Promise.resolve().then(() => window.loadCustomSubjects())
         : Promise.resolve()
 
     ];
@@ -124283,187 +124446,247 @@ window.toggleSidebar = function(){
 
 };
 
-window.addCustomSubject = async function () {
+window.__rasmCustomSubjectsCache = window.__rasmCustomSubjectsCache || [];
 
-    const { value: form } = await Swal.fire({
+function rasmNormalizeCustomSubjectName(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
 
-        title: "Add New Subject",
+function rasmSubjectDropdownIsGrade1To3() {
+    const grade = document.getElementById("gradeSelect")?.value;
+    return typeof isGrade1To3Value === "function" && isGrade1To3Value(grade);
+}
 
-        html: `
+window.__renderRasmCustomSubjects = function(preferredValue) {
+    const select = document.getElementById("subject");
+    if (!select) return;
 
-<input
-id="subjectName"
-class="swal2-input"
-placeholder="Subject Name">
+    const currentValue = preferredValue !== undefined && preferredValue !== null
+        ? String(preferredValue)
+        : String(select.value || "");
 
-<select
-id="subjectCategory"
-class="swal2-select">
+    let oldGroup = document.getElementById("customSubjectGroup");
+    if (oldGroup) oldGroup.remove();
 
-<option value="Custom">Custom</option>
+    // Grades 1–3 use the five main learning areas only.
+    if (rasmSubjectDropdownIsGrade1To3()) {
+        const allowed = new Set([
+            "english", "kiswahili", "environmental and cre", "mathematics", "creative arts"
+        ]);
+        const currentNormalized = rasmNormalizeCustomSubjectName(currentValue);
+        if (allowed.has(currentNormalized)) select.value = currentValue;
+        return;
+    }
 
-<option value="Languages">Languages</option>
+    const customSubjects = Array.isArray(window.__rasmCustomSubjectsCache)
+        ? window.__rasmCustomSubjectsCache
+        : [];
 
-<option value="Sciences">Sciences</option>
-
-<option value="Mathematics">Mathematics</option>
-
-<option value="Humanities">Humanities</option>
-
-<option value="Technology">Technology</option>
-
-<option value="Creative Arts">Creative Arts</option>
-
-<option value="Sports">Sports</option>
-
-</select>
-
-        `,
-
-        focusConfirm:false,
-
-        showCancelButton:true,
-
-        confirmButtonText:"Save Subject",
-
-        preConfirm:()=>{
-
-            return{
-
-                name:document
-                    .getElementById("subjectName")
-                    .value
-                    .trim(),
-
-                category:document
-                    .getElementById("subjectCategory")
-                    .value
-
-            };
-
+    if (!customSubjects.length) {
+        if (currentValue && Array.from(select.options).some(option => option.value === currentValue)) {
+            select.value = currentValue;
         }
+        return;
+    }
 
+    const existingNames = new Set(Array.from(select.options)
+        .map(option => rasmNormalizeCustomSubjectName(option.value))
+        .filter(Boolean));
+
+    const group = document.createElement("optgroup");
+    group.label = "School Subjects";
+    group.id = "customSubjectGroup";
+
+    customSubjects.forEach(subject => {
+        const name = String(subject?.name || "").trim().replace(/\s+/g, " ");
+        if (!name) return;
+        const normalized = rasmNormalizeCustomSubjectName(name);
+        if (existingNames.has(normalized)) return;
+        existingNames.add(normalized);
+
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        option.dataset.customSubject = "true";
+        group.appendChild(option);
     });
 
-    if(!form) return;
+    if (group.options?.length || group.children.length) select.appendChild(group);
 
-    if(!form.name){
+    if (currentValue && Array.from(select.options).some(option => option.value === currentValue)) {
+        select.value = currentValue;
+    }
+};
 
-        Swal.fire(
-            "Required",
-            "Enter subject name.",
-            "warning"
-        );
+window.addCustomSubject = async function () {
+    const { value: form } = await Swal.fire({
+        title: "Add New Subject",
+        html: `
+            <input id="subjectName" class="swal2-input" placeholder="Subject Name" maxlength="100">
+            <select id="subjectCategory" class="swal2-select">
+                <option value="Custom">Custom</option>
+                <option value="Languages">Languages</option>
+                <option value="Sciences">Sciences</option>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Humanities">Humanities</option>
+                <option value="Technology">Technology</option>
+                <option value="Creative Arts">Creative Arts</option>
+                <option value="Sports">Sports</option>
+            </select>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: "Save Subject",
+        preConfirm: () => ({
+            name: document.getElementById("subjectName")?.value.trim() || "",
+            category: document.getElementById("subjectCategory")?.value || "Custom"
+        })
+    });
 
+    if (!form) return;
+    if (!form.name) {
+        await Swal.fire("Required", "Enter subject name.", "warning");
         return;
-
     }
 
-    try{
+    const select = document.getElementById("subject");
+    if (!select) {
+        await Swal.fire("Subject Form Unavailable", "The marks-form subject dropdown could not be found.", "error");
+        return;
+    }
 
-        rasmBackgroundPush(
+    const normalizedName = rasmNormalizeCustomSubjectName(form.name);
+    const alreadyInDropdown = Array.from(select.options).some(option =>
+        rasmNormalizeCustomSubjectName(option.value) === normalizedName
+    );
+    const alreadySaved = (window.__rasmCustomSubjectsCache || []).some(subject =>
+        rasmNormalizeCustomSubjectName(subject?.name) === normalizedName
+    );
 
-            schoolRef("customSubjects"),
-
-            {
-
-                name:form.name,
-
-                category:form.category,
-
-                createdAt:Date.now()
-
+    if (alreadyInDropdown || alreadySaved) {
+        // Do not create a duplicate subject; select the existing option where applicable.
+        if (!rasmSubjectDropdownIsGrade1To3()) {
+            if (!alreadyInDropdown) {
+                window.__rasmCustomSubjectsCache.push({
+                    name: form.name,
+                    category: form.category,
+                    createdAt: Date.now()
+                });
+                window.__renderRasmCustomSubjects(form.name);
             }
-
-        );
-
-        // Optimistic UI: select the newly added subject immediately.
-        document.getElementById("subject").value=form.name;
-
-        Swal.fire(
-
-            "Success",
-
-            "Subject added successfully.",
-
-            "success"
-
-        );
-
+            select.value = form.name;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        await Swal.fire({
+            icon: "info",
+            title: "Subject Already Exists",
+            text: rasmSubjectDropdownIsGrade1To3()
+                ? "Grades 1–3 use the five main learning areas."
+                : "This subject is already available in the dropdown."
+        });
+        return;
     }
 
-    catch(error){
+    const newSubject = {
+        name: form.name,
+        category: form.category,
+        createdAt: Date.now()
+    };
 
-        console.error(error);
+    // Add to the in-memory list and dropdown immediately; persistence happens next.
+    // The user does not need to refresh the page to use the new subject.
+    window.__rasmCustomSubjectsCache.push(newSubject);
+    window.__renderRasmCustomSubjects(form.name);
 
-        Swal.fire(
-
-            "Error",
-
-            error.message,
-
-            "error"
-
+    if (!rasmSubjectDropdownIsGrade1To3()) {
+        const matchingOption = Array.from(select.options).find(option =>
+            rasmNormalizeCustomSubjectName(option.value) === normalizedName
         );
-
+        if (matchingOption) select.value = matchingOption.value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
+    try {
+        const pushed = window.rasmBackgroundPush(
+            schoolRef("customSubjects"),
+            newSubject
+        );
+        if (pushed?.promise) await pushed.promise;
+
+        await Swal.fire({
+            icon: "success",
+            title: "Subject Added",
+            text: rasmSubjectDropdownIsGrade1To3()
+                ? "Subject saved. It will be available for Grades 4 and above; Grades 1–3 retain their five main learning areas."
+                : `“${form.name}” is now available in the marks-form subject dropdown.`,
+            timer: 1800,
+            showConfirmButton: false
+        });
+    } catch (error) {
+        console.error("Failed to save custom subject:", error);
+        window.__rasmCustomSubjectsCache = (window.__rasmCustomSubjectsCache || []).filter(subject =>
+            rasmNormalizeCustomSubjectName(subject?.name) !== normalizedName
+        );
+        window.__renderRasmCustomSubjects();
+        await Swal.fire({
+            icon: "error",
+            title: "Could Not Save Subject",
+            text: error?.message || "The subject could not be saved. Please check your connection and try again."
+        });
+    }
 };
 
 window.loadCustomSubjects = function(){
+    const select = document.getElementById("subject");
+    if (!select) return;
 
-    const select=document.getElementById("subject");
+    const activeSchoolId = window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId");
+    if (!activeSchoolId) {
+        console.info("Custom subjects will load after school login.");
+        return;
+    }
 
-    if(!select) return;
+    // A reused browser session must never carry one school's custom subjects into another school.
+    if (String(window.__rasmCustomSubjectsSchoolId || "") !== String(activeSchoolId)) {
+        window.__rasmCustomSubjectsCache = [];
+        window.__rasmCustomSubjectsSchoolId = String(activeSchoolId);
+        window.__renderRasmCustomSubjects("");
+    }
 
-    const oldGroup=
-        document.getElementById("customSubjectGroup");
+    // Avoid duplicate realtime listeners if the same page logs in more than once.
+    if (window.__rasmCustomSubjectsUnsubscribe) {
+        try { window.__rasmCustomSubjectsUnsubscribe(); } catch (_) {}
+        window.__rasmCustomSubjectsUnsubscribe = null;
+    }
 
-    if(oldGroup)
-        oldGroup.remove();
-
-    window.fastOnValue(
-
+    window.__rasmCustomSubjectsUnsubscribe = window.fastOnValue(
         schoolRef("customSubjects"),
+        snap => {
+            const loaded = [];
+            if (snap?.exists()) {
+                snap.forEach(child => {
+                    const subject = child.val() || {};
+                    const name = String(subject.name || "").trim().replace(/\s+/g, " ");
+                    if (!name) return;
+                    loaded.push({
+                        key: child.key,
+                        name,
+                        category: subject.category || "Custom",
+                        createdAt: subject.createdAt || 0
+                    });
+                });
+            }
 
-        snap=>{
-
-            const existing=
-                document.getElementById("customSubjectGroup");
-
-            if(existing)
-                existing.remove();
-
-            if(!snap.exists()) return;
-
-            const group=
-                document.createElement("optgroup");
-
-            group.label="⭐ School Subjects";
-
-            group.id="customSubjectGroup";
-
-            snap.forEach(child=>{
-
-                const s=child.val();
-
-                const option=
-                    document.createElement("option");
-
-                option.value=s.name;
-
-                option.textContent=s.name;
-
-                group.appendChild(option);
-
+            // Merge any just-added local subjects while the realtime save catches up.
+            const merged = new Map();
+            [...loaded, ...(window.__rasmCustomSubjectsCache || [])].forEach(subject => {
+                const key = rasmNormalizeCustomSubjectName(subject?.name);
+                if (key && !merged.has(key)) merged.set(key, subject);
             });
-
-            select.appendChild(group);
-
+            window.__rasmCustomSubjectsCache = Array.from(merged.values());
+            window.__renderRasmCustomSubjects(select.value);
         }
-
     );
-
 };
 
 
