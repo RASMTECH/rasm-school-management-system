@@ -15880,6 +15880,8 @@ font-weight:bold;
         "
     />
 
+    <div id="feeBalanceLearnerMatch" role="status" aria-live="polite" style="display:none;margin:-2px 0 14px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.95);color:#065f46;font-weight:700;font-size:14px;line-height:1.45;"></div>
+
     <small style="
         color:#ffffff;
         display:block;
@@ -73341,171 +73343,123 @@ document.addEventListener("keydown", function (e) {
 // =========================================================
 async function generateSubjectRankingReport(selectedGrade, selectedExamPeriod) {
 
-  const container =
-    document.getElementById("subjectRankingReportContent");
-
+  const container = document.getElementById("subjectRankingReportContent");
   if (!container) {
     Swal.fire("Error", "Container not found", "error");
     return;
   }
 
- // ======================================================
-// 📚 DYNAMIC SUBJECT LIST — LOADED MARKS ARE THE SOURCE OF TRUTH
-// CRE / C.R.E / Christian Religious Education / Religious Education
-// all appear as one standard subject.
-// ======================================================
-const subjectOptions = {};
+  // This report uses the current exam and each learner's already-loaded
+  // previousMarks snapshot. No other report or module is modified.
+  const escapeHTML = value => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
-const rankingSourceLearners = (allLoadedLearners || []).filter(learner => {
-    const selectedGradeText = String(selectedGrade ?? "").trim().toLowerCase();
-    const learnerGradeText = String(learner?.grade ?? "").trim().toLowerCase();
-    return !selectedGradeText || selectedGradeText === "all grades" || learnerGradeText === selectedGradeText;
-});
-
-rasmGetAllRecordedReportSubjects(rankingSourceLearners, selectedGrade)
-    .forEach(subject => {
-        subjectOptions[subject.name] = subject.name;
-    });
-
-if (!Object.keys(subjectOptions).length) {
-    (window.schoolSubjects || []).forEach(subject => {
-        const raw = typeof subject === "string" ? subject : subject?.key;
-        if (!raw) return;
-        const canonical = rasmCanonicalRecordedSubject(
-            typeof subject === "string" ? raw : (subject.name || raw),
-            selectedGrade
-        );
-        if (canonical) subjectOptions[canonical] = canonical;
-    });
-}
-
-// SUBJECT PICKER
-// ======================================================
-
-const { value: subjectKey } = await Swal.fire({
-
-    title: "Select Subject",
-
-    html: `
-        <div style="
-            margin-top:4px;
-            padding:10px 14px;
-            border-radius:10px;
-            background:linear-gradient(
-                135deg,
-                #fff7cc,
-                #fef3c7
-            );
-            border:1px solid #f59e0b;
-            color:#7c2d12;
-            font-weight:700;
-            font-size:14px;
-            box-shadow:0 3px 8px rgba(245,158,11,.15);
-        ">
-            📝 <span style="color:#b45309;">
-                Choose a subject to generate learners progress record
-            </span>
-        </div>
-    `,
-
-    input: "select",
-
-    inputOptions: subjectOptions,
-
-    inputPlaceholder: "Select subject",
-
-    showCancelButton: true,
-
-    confirmButtonText: "📊 Generate Report",
-
-    cancelButtonText: "Cancel",
-
-    customClass: {
-
-        title: "subject-picker-title",
-
-        confirmButton: "subject-picker-confirm",
-
-        cancelButton: "subject-picker-cancel"
-
-    }
-
-});
-  if (!subjectKey) return;
-
-const subjectName =
-  subjectOptions[subjectKey] || subjectKey;
-
-  // ======================================================
-  // LOADER
-  // ======================================================
-  showLoader();
-
-  updateProgress(
-    10,
-    "Loading learners..."
-  );
-
-  await new Promise(r => setTimeout(r, 300));
-
-  // ======================================================
-  // FILTER LEARNERS
-  // ======================================================
-  const learners =
-    getFilteredLearners(
-      selectedGrade,
-      selectedExamPeriod
-    );
-
-  if (!learners || !learners.length) {
-
-    hideLoader();
-
-    container.innerHTML = `
-      <div style="
-        text-align:center;
-        color:red;
-        font-weight:bold;
-        padding:20px;
-      ">
-        No data found for selected filters.
-      </div>
-    `;
-
-    return;
-
-  }
-
-  updateProgress(
-    40,
-    "Ranking learners..."
-  );
-
-  await new Promise(r => setTimeout(r, 300));
-const gradeText = String(
-
+  const gradeInput = String(
     selectedGrade ??
     window.reportContext?.grade ??
+    document.getElementById("resultsGradeFilter")?.value ??
     document.getElementById("gradeFilter")?.value ??
     document.getElementById("gradeSelect")?.value ??
+    "ALL GRADES"
+  ).trim();
+  const gradeKey = gradeInput.toUpperCase();
+  const isAllGrades = !gradeKey || gradeKey === "ALL GRADES" || gradeKey === "ALL";
+
+  const currentPeriodRaw = String(
+    selectedExamPeriod ??
+    window.reportContext?.examPeriod ??
+    document.getElementById("resultsExamPeriod")?.value ??
+    document.getElementById("examPeriodSelect")?.value ??
+    document.getElementById("examPeriodFilter")?.value ??
     ""
+  ).trim();
+  const currentPeriodKey = typeof normalizeExamPeriod === "function"
+    ? normalizeExamPeriod(currentPeriodRaw)
+    : currentPeriodRaw.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-).toLowerCase();
+  if (!currentPeriodRaw) {
+    return Swal.fire("Select Current Exam", "Please select the current exam period before generating this report.", "warning");
+  }
 
-const isGrade1To6 =
-    /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(String(gradeText || ""));
+  const allLearners = Array.isArray(window.allLoadedLearners)
+    ? window.allLoadedLearners
+    : (Array.isArray(allLoadedLearners) ? allLoadedLearners : []);
+  const matchesGrade = learner => isAllGrades || String(learner?.grade ?? "").trim().toUpperCase() === gradeKey;
+  const matchesCurrentPeriod = learner => {
+    const learnerPeriod = String(learner?.examPeriod ?? "").trim();
+    if (!learnerPeriod) return true;
+    const normalized = typeof normalizeExamPeriod === "function"
+      ? normalizeExamPeriod(learnerPeriod)
+      : learnerPeriod.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return !currentPeriodKey || normalized === currentPeriodKey;
+  };
 
-function getLevel(score) {
+  let currentLearners = allLearners.filter(learner => matchesGrade(learner) && matchesCurrentPeriod(learner));
+  // Existing loading routines keep the current selected exam in allLoadedLearners.
+  // If its stored label differs only in formatting, keep the selected grade's
+  // loaded rows rather than incorrectly reporting that no learners exist.
+  if (!currentLearners.length) {
+    currentLearners = allLearners.filter(matchesGrade);
+  }
 
+  if (!currentLearners.length) {
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:#b91c1c;font-weight:600">No learner marks are loaded for the selected grade and exam. Load the current exam marks first, then generate this report.</div>';
+    return Swal.fire("No Current Exam Data", "Load marks for the current exam before generating the subject progress record.", "info");
+  }
+
+  const subjectOptions = {};
+  if (typeof rasmGetAllRecordedReportSubjects === "function") {
+    rasmGetAllRecordedReportSubjects(currentLearners, isAllGrades ? "" : gradeInput)
+      .forEach(subject => { subjectOptions[subject.name] = subject.name; });
+  }
+  if (!Object.keys(subjectOptions).length) {
+    (window.schoolSubjects || []).forEach(subject => {
+      const raw = typeof subject === "string" ? subject : (subject?.key || subject?.name);
+      if (!raw) return;
+      const canonical = typeof rasmCanonicalRecordedSubject === "function"
+        ? rasmCanonicalRecordedSubject(raw, gradeInput)
+        : String(raw).trim();
+      if (canonical) subjectOptions[canonical] = canonical;
+    });
+  }
+
+  if (!Object.keys(subjectOptions).length) {
+    return Swal.fire("No Subjects Found", "No recorded subjects were found for the selected exam.", "info");
+  }
+
+  const { value: subjectKey } = await Swal.fire({
+    title: "Select Subject",
+    html: '<div style="margin-top:4px;padding:10px 14px;border-radius:10px;background:#f8fafc;border:1px solid #cbd5e1;color:#334155;font-weight:600;font-size:14px">Choose a subject to compare the current and previous exam results.</div>',
+    input: "select",
+    inputOptions: subjectOptions,
+    inputPlaceholder: "Select subject",
+    showCancelButton: true,
+    confirmButtonText: "Generate Progress Record",
+    cancelButtonText: "Cancel"
+  });
+  if (!subjectKey) return;
+
+  const subjectName = subjectOptions[subjectKey] || subjectKey;
+  showLoader();
+  updateProgress(15, "Preparing current and previous exam marks...");
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  const gradeText = String(gradeInput || "").toLowerCase();
+  const gradeNumber = typeof getGradeNumber === "function" ? getGradeNumber(gradeInput) : 0;
+  const isGrade1To6 = gradeNumber >= 1 && gradeNumber <= 6 || /(?:^|\D)(?:1|2|3|4|5|6)(?:\D|$)/.test(gradeText);
+
+  const getLevel = score => {
     score = Number(score) || 0;
-
     if (isGrade1To6) {
-        if (score >= 75) return 4;
-        if (score >= 50) return 3;
-        if (score >= 30) return 2;
-        return 1;
+      if (score >= 75) return 4;
+      if (score >= 50) return 3;
+      if (score >= 30) return 2;
+      return 1;
     }
-
     if (score >= 90) return 8;
     if (score >= 75) return 7;
     if (score >= 58) return 6;
@@ -73513,251 +73467,150 @@ function getLevel(score) {
     if (score >= 31) return 4;
     if (score >= 21) return 3;
     if (score >= 11) return 2;
-
     return 1;
-}
+  };
+  const getLevelName = score => {
+    const points = getLevel(score);
+    if (isGrade1To6) return ({4:"EE", 3:"ME", 2:"AE", 1:"BE"})[points] || "";
+    return ({8:"EE1", 7:"EE2", 6:"ME1", 5:"ME2", 4:"AE1", 3:"AE2", 2:"BE1", 1:"BE2"})[points] || "";
+  };
+  const getSubjectScore = (learner, marksObject) => {
+    const record = { ...learner, marks: marksObject || {} };
+    return typeof rasmRecordedMarkForSubject === "function"
+      ? rasmRecordedMarkForSubject(record, subjectKey, learner?.grade || gradeInput)
+      : (marksObject?.[subjectKey] != null && Number.isFinite(Number(marksObject[subjectKey])) ? Number(marksObject[subjectKey]) : null);
+  };
 
-function getLevelName(score) {
-
-    const p = getLevel(score);
-
-    if (isGrade1To6) {
-
-        return {
-            4: "EE",
-            3: "ME",
-            2: "AE",
-            1: "BE"
-        }[p] || "";
-
-    }
-
+  const rows = currentLearners.map(learner => {
+    const currentScore = getSubjectScore(learner, learner?.marks || {});
+    const previousScore = getSubjectScore(learner, learner?.previousMarks || {});
+    const previousPeriod = learner?.previousExamPeriod || null;
+    const change = currentScore != null && previousScore != null ? Number(currentScore) - Number(previousScore) : null;
     return {
-        8: "EE1",
-        7: "EE2",
-        6: "ME1",
-        5: "ME2",
-        4: "AE1",
-        3: "AE2",
-        2: "BE1",
-        1: "BE2"
-    }[p] || "";
-}
-  // ======================================================
-  // BUILD RANKING
-  // ======================================================
-  const ranked = learners
+      name: learner?.name || "Unnamed",
+      grade: learner?.grade || "",
+      currentScore: currentScore == null ? null : Number(currentScore),
+      previousScore: previousScore == null ? null : Number(previousScore),
+      change,
+      previousPeriod
+    };
+  }).filter(row => row.currentScore != null || row.previousScore != null);
 
-    .map(l => {
+  if (!rows.length) {
+    hideLoader();
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:#b91c1c">No current or previous marks were found for this subject.</div>';
+    return;
+  }
 
-      const score = rasmRecordedMarkForSubject(
-    l,
-    subjectKey,
-    l.grade || selectedGrade
-);
+  rows.sort((a, b) => {
+    const aScore = a.currentScore == null ? -Infinity : a.currentScore;
+    const bScore = b.currentScore == null ? -Infinity : b.currentScore;
+    if (bScore !== aScore) return bScore - aScore;
+    return a.name.localeCompare(b.name);
+  });
 
-return {
+  const escapePeriodKey = value => typeof normalizeExamPeriod === "function"
+    ? normalizeExamPeriod(value)
+    : String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const periodLabel = value => {
+    if (!value) return "Not available";
+    const target = escapePeriodKey(value);
+    const selectors = ["resultsExamPeriod", "examPeriodSelect", "examPeriodFilter", "resultsExamPeriod"];
+    for (const id of selectors) {
+      const select = document.getElementById(id);
+      if (!select?.options) continue;
+      const match = Array.from(select.options).find(option =>
+        escapePeriodKey(option.value) === target || escapePeriodKey(option.textContent) === target
+      );
+      if (match) return String(match.textContent || match.value).trim();
+    }
+    return String(value).replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  };
 
-    name: l.name || "Unnamed",
+  const previousPeriodRaw = currentLearners.find(learner => learner?.previousExamPeriod)?.previousExamPeriod || null;
+  const currentPeriodDisplay = periodLabel(currentPeriodRaw);
+  const previousPeriodDisplay = previousPeriodRaw ? periodLabel(previousPeriodRaw) : "No earlier exam recorded";
 
-    grade: l.grade || "",
+  updateProgress(65, "Building subject progress record...");
+  await new Promise(resolve => setTimeout(resolve, 100));
 
-    score,
-
-    points: score != null ? getLevel(score) : "",
-
-    level: score != null ? getLevelName(score) : ""
-
-};
-
-    })
-
-    .filter(l => l.score !== null && l.score !== undefined)
-
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.name.localeCompare(b.name);
-    });
-
-  updateProgress(
-    70,
-    "Building report..."
-  );
-
-  await new Promise(r => setTimeout(r, 300));
-
-  // ======================================================
-  // DISPLAY FILTERS
-  // ======================================================
-  const gradeDisplay =
-    (
-      selectedGrade ??
-      window.reportContext?.grade ??
-      document.getElementById("gradeFilter")?.value ??
-      document.getElementById("gradeSelect")?.value ??
-      "All Grades"
-    )
-      .toString()
-      .trim();
-
-  const periodDisplay =
-    (
-      selectedExamPeriod ??
-      window.reportContext?.examPeriod ??
-      document.getElementById("examPeriodSelect")?.value ??
-      "All Periods"
-    )
-      .toString()
-      .trim();
-
-  // ======================================================
-  // BUILD HTML
-  // ======================================================
   let html = `
+    ${window.getSchoolPrintHeader("LEARNERS PROGRESS RECORD — CURRENT & PREVIOUS EXAMS")}
+    <div style="text-align:center;margin:0 auto 18px;line-height:1.7">
+      <h2 style="margin:8px 0">${escapeHTML(subjectName)}</h2>
+      <p><b>Grade:</b> ${escapeHTML(isAllGrades ? "All Grades" : gradeInput)}</p>
+      <p><b>Current Exam:</b> ${escapeHTML(currentPeriodDisplay)}</p>
+      <p><b>Previous Exam:</b> ${escapeHTML(previousPeriodDisplay)}</p>
+      <p><b>Learners with marks:</b> ${rows.length}</p>
+    </div>
+    <div style="overflow-x:auto;width:100%">
+    <table style="width:100%;min-width:1050px;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#111827;color:#fff">
+          <th rowspan="2" style="border:1px solid #000;padding:8px">Rank</th>
+          <th rowspan="2" style="border:1px solid #000;padding:8px">Learner</th>
+          <th rowspan="2" style="border:1px solid #000;padding:8px">Grade</th>
+          <th colspan="3" style="border:1px solid #000;padding:8px">CURRENT EXAM</th>
+          <th colspan="3" style="border:1px solid #000;padding:8px">PREVIOUS EXAM</th>
+          <th rowspan="2" style="border:1px solid #000;padding:8px">Change</th>
+          <th rowspan="2" style="border:1px solid #000;padding:8px">Progress</th>
+        </tr>
+        <tr style="background:#334155;color:#fff">
+          <th style="border:1px solid #000;padding:7px">Marks</th>
+          <th style="border:1px solid #000;padding:7px">${isGrade1To6 ? "Level Points" : "Points"}</th>
+          <th style="border:1px solid #000;padding:7px">Level</th>
+          <th style="border:1px solid #000;padding:7px">Marks</th>
+          <th style="border:1px solid #000;padding:7px">${isGrade1To6 ? "Level Points" : "Points"}</th>
+          <th style="border:1px solid #000;padding:7px">Level</th>
+        </tr>
+      </thead><tbody>`;
 
-${window.getSchoolPrintHeader("LEARNERS PROGRESS RECORD")}
+  let currentRank = 0;
+  let previousCurrentScore = null;
+  rows.forEach((row, index) => {
+    let rank = "—";
+    if (row.currentScore != null) {
+      if (previousCurrentScore == null || row.currentScore !== previousCurrentScore) currentRank++;
+      rank = currentRank;
+      previousCurrentScore = row.currentScore;
+    }
+    const currentMark = row.currentScore == null ? "—" : row.currentScore.toFixed(1);
+    const previousMark = row.previousScore == null ? "—" : row.previousScore.toFixed(1);
+    const currentPoints = row.currentScore == null ? "—" : getLevel(row.currentScore);
+    const previousPoints = row.previousScore == null ? "—" : getLevel(row.previousScore);
+    const currentLevel = row.currentScore == null ? "—" : getLevelName(row.currentScore);
+    const previousLevel = row.previousScore == null ? "—" : getLevelName(row.previousScore);
+    const change = row.change == null ? "—" : `${row.change > 0 ? "+" : ""}${row.change.toFixed(1)}`;
+    const progress = row.change == null ? (row.previousScore == null ? "No previous mark" : "No current mark") : row.change > 0 ? "Improved" : row.change < 0 ? "Declined" : "No change";
+    const progressColor = row.change == null ? "#64748b" : row.change > 0 ? "#15803d" : row.change < 0 ? "#b91c1c" : "#475569";
+    html += `<tr style="${index % 2 ? "background:#f8fafc;" : "background:#fff;"}">
+      <td style="border:1px solid #000;padding:7px;text-align:center">${rank}</td>
+      <td style="border:1px solid #000;padding:7px">${escapeHTML(row.name)}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center">${escapeHTML(row.grade)}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center;font-weight:600">${currentMark}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center">${currentPoints}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center">${currentLevel}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center;font-weight:600">${previousMark}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center">${previousPoints}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center">${previousLevel}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center;font-weight:700;color:${row.change == null ? "#64748b" : row.change > 0 ? "#15803d" : row.change < 0 ? "#b91c1c" : "#475569"}">${change}</td>
+      <td style="border:1px solid #000;padding:7px;text-align:center;font-weight:700;color:${progressColor}">${escapeHTML(progress)}</td>
+    </tr>`;
+  });
 
-<div style="
-text-align:center;
-margin-bottom:20px;
-">
+  html += `</tbody></table></div>
+    <p style="margin-top:10px;font-size:12px;color:#475569">Change is calculated as current-exam marks minus previous-exam marks. A dash means that subject mark is not recorded for that exam.</p>`;
 
-<h2>${subjectName}</h2>
-
-<p><b>Grade:</b> ${gradeDisplay}</p>
-
-<p><b>Exam Period:</b> ${periodDisplay}</p>
-
-<p><b>Total Learners:</b> ${ranked.length}</p>
-
-</div>
-
-<table style="
-width:100%;
-border-collapse:collapse;
-">
-
-<thead>
-
-<tr style="
-background:#000;
-color:#fff;
-">
-
-<th style="border:2px solid #000;padding:8px;">
-Rank
-</th>
-
-<th style="border:2px solid #000;padding:8px;">
-Learner
-</th>
-
-<th style="border:2px solid #000;padding:8px;">
-Grade
-</th>
-
-<th style="border:2px solid #000;padding:8px;">
-Marks
-</th>
-
-<th style="border:2px solid #000;padding:8px;">
-${isGrade1To6 ? "Level Points" : "Points"}
-</th>
-
-<th style="border:2px solid #000;padding:8px;">
-Level
-</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-`;
-
-ranked.forEach((learner, index) => {
-
-html += `
-
-<tr ${index < 3 ? 'style="background:#FFF8DC;font-weight:bold;"' : ""}>
-
-<td style="border:1px solid #000;padding:8px;text-align:center;">
-${index + 1}
-</td>
-
-<td style="border:1px solid #000;padding:8px;text-align:left;">
-${learner.name}
-</td>
-
-<td style="border:1px solid #000;padding:8px;text-align:center;">
-${learner.grade}
-</td>
-
-<td style="border:1px solid #000;padding:8px;text-align:center;">
-${learner.score}
-</td>
-
-<td style="border:1px solid #000;padding:8px;text-align:center;font-weight:bold;">
-${learner.points}
-</td>
-
-<td style="border:1px solid #000;padding:8px;text-align:center;font-weight:bold;">
-${learner.level}
-</td>
-
-</tr>
-
-`;
-
-});
-
-html += `
-</tbody>
-</table>
-`;
-  updateProgress(
-    90,
-    "Finalizing..."
-  );
-
-  await new Promise(r => setTimeout(r, 300));
-
+  updateProgress(90, "Finalizing progress record...");
+  await new Promise(resolve => setTimeout(resolve, 100));
   container.innerHTML = html;
-
-  updateProgress(
-    100,
-    "Complete ✅"
-  );
-
-  await new Promise(r => setTimeout(r, 300));
-
+  updateProgress(100, "Complete");
+  await new Promise(resolve => setTimeout(resolve, 150));
   hideLoader();
-
-  container.scrollIntoView({
-
-    behavior: "smooth",
-
-    block: "start"
-
-  });
-
-  Swal.fire({
-
-    toast: true,
-
-    position: "top-end",
-
-    icon: "success",
-
-    title: `${subjectName} Ranking Generated`,
-
-    timer: 2000,
-
-    showConfirmButton: false
-
-  });
-
+  container.scrollIntoView({ behavior: "smooth", block: "start" });
+  Swal.fire({ toast: true, position: "top-end", icon: "success", title: `${subjectName} current/previous progress record generated`, timer: 2200, showConfirmButton: false });
 }
+
 // ================= ATTENDANCE GLOBAL =================
 let attendanceCache = [];
 let attendanceMap = {};
@@ -79572,6 +79425,17 @@ async function(staffId) {
        DEDUCTION SCREEN
     ===================================================== */
 
+    // Keep a durable copy of the live form values. These are the exact
+    // deduction values later saved to the salary-payment and payroll records.
+    const salaryDeductionValues = {
+      nhif: 0,
+      nssf: 0,
+      paye: 0,
+      salaryAdvance: 0,
+      otherDeductions: 0,
+      otherDeductionDescription: ""
+    };
+
     const deductionPrompt =
       await Swal.fire({
 
@@ -79887,154 +79751,51 @@ async function(staffId) {
 
         didOpen: () => {
 
-          const updatePreview =
-            () => {
+          const salaryPopup = Swal.getPopup();
+          const getSalaryElement = id =>
+            salaryPopup ? salaryPopup.querySelector("#" + id) : null;
 
-              const getAmount =
-                id => {
-
-                  const value =
-                    Number(
-                      document
-                        .getElementById(id)
-                        ?.value || 0
-                    );
-
-                  return Number.isFinite(
-                    value
-                  )
-                    ? value
-                    : 0;
-
-                };
-
-
-              let total = 0;
-
-
-              if (
-                document
-                  .getElementById(
-                    "deductNHIF"
-                  )
-                  ?.checked
-              ) {
-
-                total +=
-                  getAmount(
-                    "nhifAmount"
-                  );
-
-              }
-
-
-              if (
-                document
-                  .getElementById(
-                    "deductNSSF"
-                  )
-                  ?.checked
-              ) {
-
-                total +=
-                  getAmount(
-                    "nssfAmount"
-                  );
-
-              }
-
-
-              if (
-                document
-                  .getElementById(
-                    "deductPAYE"
-                  )
-                  ?.checked
-              ) {
-
-                total +=
-                  getAmount(
-                    "payeAmount"
-                  );
-
-              }
-
-
-              if (
-                document
-                  .getElementById(
-                    "deductAdvance"
-                  )
-                  ?.checked
-              ) {
-
-                total +=
-                  getAmount(
-                    "advanceAmount"
-                  );
-
-              }
-
-
-              if (
-                document
-                  .getElementById(
-                    "deductOther"
-                  )
-                  ?.checked
-              ) {
-
-                total +=
-                  getAmount(
-                    "otherAmount"
-                  );
-
-              }
-
-
-              const net =
-                basicSalary -
-                total;
-
-
-              const deductionEl =
-                document.getElementById(
-                  "previewDeductions"
-                );
-
-
-              const netEl =
-                document.getElementById(
-                  "previewNet"
-                );
-
-
-              if (
-                deductionEl
-              ) {
-
-                deductionEl.textContent =
-                  `KES ${total.toLocaleString()}`;
-
-              }
-
-
-              if (
-                netEl
-              ) {
-
-                netEl.textContent =
-                  `KES ${net.toLocaleString()}`;
-
-                netEl.style.color =
-                  net < 0
-                    ? "#dc2626"
-                    : "#16a34a";
-
-              }
-
+          const updatePreview = () => {
+            const getAmount = id => {
+              const amount = Number(getSalaryElement(id)?.value || 0);
+              return Number.isFinite(amount) && amount > 0 ? amount : 0;
             };
+            const isChecked = id => !!getSalaryElement(id)?.checked;
 
+            salaryDeductionValues.nhif = isChecked("deductNHIF") ? getAmount("nhifAmount") : 0;
+            salaryDeductionValues.nssf = isChecked("deductNSSF") ? getAmount("nssfAmount") : 0;
+            salaryDeductionValues.paye = isChecked("deductPAYE") ? getAmount("payeAmount") : 0;
+            salaryDeductionValues.salaryAdvance = isChecked("deductAdvance") ? getAmount("advanceAmount") : 0;
+            salaryDeductionValues.otherDeductions = isChecked("deductOther") ? getAmount("otherAmount") : 0;
+            salaryDeductionValues.otherDeductionDescription =
+              String(getSalaryElement("otherDescription")?.value || "").trim();
+
+            const total =
+              salaryDeductionValues.nhif +
+              salaryDeductionValues.nssf +
+              salaryDeductionValues.paye +
+              salaryDeductionValues.salaryAdvance +
+              salaryDeductionValues.otherDeductions;
+            const net = basicSalary - total;
+
+            const deductionEl = getSalaryElement("previewDeductions");
+            const netEl = getSalaryElement("previewNet");
+            if (deductionEl) {
+              deductionEl.textContent = `KES ${total.toLocaleString()}`;
+            }
+            if (netEl) {
+              netEl.textContent = `KES ${net.toLocaleString()}`;
+              netEl.style.color = net < 0 ? "#dc2626" : "#16a34a";
+            }
+          };
+
+
+          const amountCheckboxMap = {
+            nhifAmount: "deductNHIF",
+            nssfAmount: "deductNSSF",
+            payeAmount: "deductPAYE",
+            otherAmount: "deductOther"
+          };
 
           [
             "deductNHIF",
@@ -80046,29 +79807,26 @@ async function(staffId) {
             "deductAdvance",
             "advanceAmount",
             "deductOther",
-            "otherAmount"
-          ]
-          .forEach(id => {
-
-            const el =
-              document
-                .getElementById(id);
-
-
+            "otherAmount",
+            "otherDescription"
+          ].forEach(id => {
+            const el = getSalaryElement(id);
             if (!el) return;
 
-
-            el.addEventListener(
-              "input",
-              updatePreview
-            );
-
-
-            el.addEventListener(
-              "change",
-              updatePreview
-            );
-
+            el.addEventListener("input", () => {
+              // Entering a positive amount automatically activates that
+              // deduction, so the preview and final payment stay in sync.
+              const checkboxId = amountCheckboxMap[id];
+              if (checkboxId) {
+                const checkbox = getSalaryElement(checkboxId);
+                if (checkbox && !checkbox.disabled) {
+                  const amount = Number(el.value || 0);
+                  checkbox.checked = Number.isFinite(amount) && amount > 0;
+                }
+              }
+              updatePreview();
+            });
+            el.addEventListener("change", updatePreview);
           });
 
 
@@ -80082,17 +79840,11 @@ async function(staffId) {
 
 
               const check =
-                document
-                  .getElementById(
-                    "deductAdvance"
-                  );
+                getSalaryElement("deductAdvance");
 
 
               const input =
-                document
-                  .getElementById(
-                    "advanceAmount"
-                  );
+                getSalaryElement("advanceAmount");
 
 
               if (
@@ -80126,10 +79878,7 @@ async function(staffId) {
 
 
               const status =
-                document
-                  .getElementById(
-                    "salaryBackgroundStatus"
-                  );
+                getSalaryElement("salaryBackgroundStatus");
 
 
               if (status) {
@@ -80213,72 +79962,16 @@ async function(staffId) {
 
     /* =====================================================
        READ DEDUCTIONS
+       Values were captured live while the deduction form was open.
     ===================================================== */
 
-    const checked =
-      id =>
-        !!document
-          .getElementById(id)
-          ?.checked;
-
-
-    const value =
-      id => {
-
-        const number =
-          Number(
-            document
-              .getElementById(id)
-              ?.value || 0
-          );
-
-
-        return Number.isFinite(
-          number
-        )
-          ? number
-          : 0;
-
-      };
-
-
-    const nhif =
-      checked("deductNHIF")
-        ? value("nhifAmount")
-        : 0;
-
-
-    const nssf =
-      checked("deductNSSF")
-        ? value("nssfAmount")
-        : 0;
-
-
-    const paye =
-      checked("deductPAYE")
-        ? value("payeAmount")
-        : 0;
-
-
-    const salaryAdvance =
-      checked("deductAdvance")
-        ? value("advanceAmount")
-        : 0;
-
-
-    const otherDeductions =
-      checked("deductOther")
-        ? value("otherAmount")
-        : 0;
-
-
+    const nhif = Number(salaryDeductionValues.nhif || 0);
+    const nssf = Number(salaryDeductionValues.nssf || 0);
+    const paye = Number(salaryDeductionValues.paye || 0);
+    const salaryAdvance = Number(salaryDeductionValues.salaryAdvance || 0);
+    const otherDeductions = Number(salaryDeductionValues.otherDeductions || 0);
     const otherDeductionDescription =
-      document
-        .getElementById(
-          "otherDescription"
-        )
-        ?.value ||
-      "";
+      String(salaryDeductionValues.otherDeductionDescription || "").trim();
 
 
     /* =====================================================
@@ -87465,7 +87158,16 @@ window.manageTransportFees = async function (busId) {
           <td class="rtf-money">KES ${r.fee.toLocaleString()}</td>
           <td class="rtf-money paid">KES ${r.paid.toLocaleString()}</td>
           <td><span class="rtf-status ${statusClass}">${r.status === 'Paid'?'✓':r.status === 'Partial'?'◐':'!'} ${r.status}</span></td>
-          <td><button class="rtf-pay-btn" onclick="markTransportFeePaid('${String(busId).replace(/'/g,"\\'")}','${String(r.studentName).replace(/'/g,"\\'")}')">Record Payment</button></td>
+          <td><button class="rtf-pay-btn" onclick="markTransportFeePaid('${String(busId).replace(/'/g,"\\'")}','${String(r.studentName).replace(/'/g,"\\'")}')">Record Payment</button>
+            <button type="button" class="rtf-wa-btn"
+              data-student-name="${esc(r.studentName)}"
+              data-student-id="${esc(r.d.studentId || r.d.learnerId || '')}"
+              data-fee="${r.fee}"
+              data-paid="${r.paid}"
+              data-balance="${r.balance}"
+              data-grade="${esc(r.grade)}"
+              data-year="${esc(r.year)}"
+              title="Prepare a WhatsApp transport-fee balance reminder">Remind Parent</button></td>
         </tr>`;
       }).join('');
     };
@@ -87485,7 +87187,7 @@ window.manageTransportFees = async function (busId) {
       .rtf-stat{background:#fff;border:1px solid #e8edf3;border-radius:13px;padding:12px 13px;box-shadow:0 3px 12px rgba(15,23,42,.04)}
       .rtf-stat span{display:block;color:#7b8798;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.rtf-stat strong{display:block;margin-top:4px;font-size:16px}
       .rtf-table-wrap{border:1px solid #e5eaf0;border-radius:14px;overflow:auto;background:#fff;max-height:490px}
-      .rtf-table{width:100%;min-width:930px;border-collapse:separate;border-spacing:0;font-size:12px}.rtf-table th{position:sticky;top:0;z-index:2;background:#f8fafc;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:12px;border-bottom:1px solid #e5e7eb;white-space:nowrap}.rtf-table td{padding:11px 12px;border-bottom:1px solid #eef2f6;vertical-align:middle;white-space:nowrap}.rtf-table tbody tr:hover{background:#f8fbff}.rtf-table tbody tr:last-child td{border-bottom:0}.rtf-no{color:#94a3b8;width:38px}.rtf-learner{display:flex;align-items:center;gap:9px}.rtf-avatar{width:32px;height:32px;border-radius:10px;background:#eff6ff;color:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-weight:800}.rtf-learner strong{display:block;font-size:12px}.rtf-learner small{display:block;color:#94a3b8;font-size:10px;margin-top:2px}.rtf-grade,.rtf-year{padding:5px 8px;border-radius:7px;background:#f1f5f9;font-weight:700}.rtf-money{font-weight:700}.rtf-money.paid{color:#059669}.rtf-status{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:20px;font-weight:800}.rtf-status.paid{background:#ecfdf5;color:#047857}.rtf-status.partial{background:#fffbeb;color:#b45309}.rtf-status.pending{background:#fef2f2;color:#b91c1c}.rtf-pay-btn{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:7px 10px;font-weight:700;cursor:pointer}.rtf-pay-btn:hover{background:#1d4ed8}.rtf-empty{text-align:center!important;padding:35px!important;color:#94a3b8!important}
+      .rtf-table{width:100%;min-width:930px;border-collapse:separate;border-spacing:0;font-size:12px}.rtf-table th{position:sticky;top:0;z-index:2;background:#f8fafc;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:12px;border-bottom:1px solid #e5e7eb;white-space:nowrap}.rtf-table td{padding:11px 12px;border-bottom:1px solid #eef2f6;vertical-align:middle;white-space:nowrap}.rtf-table tbody tr:hover{background:#f8fbff}.rtf-table tbody tr:last-child td{border-bottom:0}.rtf-no{color:#94a3b8;width:38px}.rtf-learner{display:flex;align-items:center;gap:9px}.rtf-avatar{width:32px;height:32px;border-radius:10px;background:#eff6ff;color:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-weight:800}.rtf-learner strong{display:block;font-size:12px}.rtf-learner small{display:block;color:#94a3b8;font-size:10px;margin-top:2px}.rtf-grade,.rtf-year{padding:5px 8px;border-radius:7px;background:#f1f5f9;font-weight:700}.rtf-money{font-weight:700}.rtf-money.paid{color:#059669}.rtf-status{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:20px;font-weight:800}.rtf-status.paid{background:#ecfdf5;color:#047857}.rtf-status.partial{background:#fffbeb;color:#b45309}.rtf-status.pending{background:#fef2f2;color:#b91c1c}.rtf-pay-btn{border:0;border-radius:8px;background:#2563eb;color:#fff;padding:7px 10px;font-weight:700;cursor:pointer}.rtf-pay-btn:hover{background:#1d4ed8}.rtf-wa-btn{border:0;border-radius:8px;background:#15803d;color:#fff;padding:7px 10px;font-weight:700;cursor:pointer;margin-left:5px}.rtf-wa-btn:hover{background:#166534}.rtf-empty{text-align:center!important;padding:35px!important;color:#94a3b8!important}
       @media(max-width:650px){.rtf-summary{grid-template-columns:repeat(2,1fr)}.rtf-filter{flex:1;min-width:120px}}
     </style>
     <div class="rtf-wrap">
@@ -87521,6 +87223,111 @@ window.manageTransportFees = async function (busId) {
     Swal.fire({title:'Unable to Load Fees',text:error.message || 'Please try again.',icon:'error'});
   }
 };
+/* =========================================================
+   TRANSPORT FEES — PER-LEARNER WHATSAPP BALANCE REMINDER
+   Isolated to the Manage Transport Fees table only.
+   Opens a prefilled message for the admin to review and send.
+========================================================= */
+window.sendTransportFeeWhatsAppReminder = async function (details) {
+  try {
+    const d = details || {};
+    const studentName = String(d.studentName || "Learner").trim();
+    const transportFee = {
+      studentName,
+      name: studentName,
+      studentId: String(d.studentId || "").trim(),
+      learnerId: String(d.studentId || "").trim(),
+      fee: Number(d.fee || 0),
+      paidAmount: Number(d.paid || 0),
+      balance: Number(d.balance || 0),
+      grade: String(d.grade || "").trim(),
+      academicYear: String(d.year || "").trim()
+    };
+
+    const schoolId = window.schoolId || window.currentSchoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId");
+    if (!schoolId) {
+      await Swal.fire("School ID Missing", "Please log in again and retry.", "warning");
+      return;
+    }
+
+    if (transportFee.balance <= 0) {
+      await Swal.fire({
+        icon: "success",
+        title: "No Outstanding Transport Balance",
+        text: `${studentName} has no outstanding transport-fee balance. No reminder is needed.`
+      });
+      return;
+    }
+
+    let rawPhone = "";
+    if (typeof window.rasmResolveFeeLearnerAndPhone === "function") {
+      const resolved = await window.rasmResolveFeeLearnerAndPhone(transportFee, transportFee.studentId || studentName);
+      rawPhone = resolved?.phone || "";
+    } else {
+      const learner = (Array.isArray(window.allStudents) ? window.allStudents : []).find(st => {
+        const ids = [st?.id, st?.studentId, st?.learnerId, st?.admissionNo].filter(Boolean).map(String);
+        return (transportFee.studentId && ids.includes(transportFee.studentId)) ||
+          String(st?.name || st?.studentName || "").trim().toLowerCase() === studentName.toLowerCase();
+      });
+      rawPhone = learner?.parentPhone || learner?.parent_phone || learner?.parentPhoneNumber ||
+        learner?.guardianPhone || learner?.parent?.phone || learner?.guardian?.phone || "";
+    }
+
+    const phone = typeof window.rasmNormalizeKenyaPhone === "function"
+      ? window.rasmNormalizeKenyaPhone(rawPhone)
+      : (() => {
+          let p = String(rawPhone || "").trim().replace(/[\s\-()]/g, "");
+          if (p.startsWith("+")) p = p.slice(1);
+          if (p.startsWith("0")) p = "254" + p.slice(1);
+          return /^254[17]\d{8}$/.test(p) ? p : "";
+        })();
+
+    if (!phone) {
+      await Swal.fire({
+        icon: "warning",
+        title: "Parent Phone Required",
+        text: `No valid Kenyan parent/guardian phone number was found for ${studentName}. Please update the learner's registered contact details and try again.`
+      });
+      return;
+    }
+
+    const school = window.currentSchool || {};
+    const schoolName = String(school.name || window.schoolName || document.getElementById("schoolNameDisplay")?.textContent || "School Office").trim();
+    const yearText = transportFee.academicYear ? ` for ${transportFee.academicYear}` : "";
+    const gradeText = transportFee.grade ? ` (${transportFee.grade})` : "";
+    const message = `Dear Parent/Guardian,\n\nThis is a transport fee reminder from ${schoolName}. Our records show that ${studentName}${gradeText} has an outstanding transport fee balance of KES ${transportFee.balance.toLocaleString()}${yearText}. Kindly arrange to clear the outstanding balance at your earliest convenience. If you have already paid, please share the payment details with the school office so our records can be updated.\n\nThank you for your cooperation.\n${schoolName}`;
+    const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(message);
+    const opened = window.open(url, "_blank");
+    if (opened) opened.opener = null;
+    if (!opened) {
+      await Swal.fire({
+        icon: "info",
+        title: "WhatsApp Ready",
+        text: "Your browser may have blocked the WhatsApp window. Allow pop-ups for RASM 360 and try again."
+      });
+    }
+  } catch (error) {
+    console.error("Transport fee WhatsApp reminder error:", error);
+    await Swal.fire("Unable to Prepare Reminder", error?.message || "Please check the parent contact and try again.", "error");
+  }
+};
+
+// Delegated click listener remains active when the transport table is filtered/re-rendered.
+document.addEventListener("click", function (event) {
+  const button = event.target?.closest?.("#rtfBody .rtf-wa-btn");
+  if (!button) return;
+  event.preventDefault();
+  window.sendTransportFeeWhatsAppReminder({
+    studentName: button.dataset.studentName,
+    studentId: button.dataset.studentId,
+    fee: button.dataset.fee,
+    paid: button.dataset.paid,
+    balance: button.dataset.balance,
+    grade: button.dataset.grade,
+    year: button.dataset.year
+  });
+});
+
 window.toggleActionPanel = function (id) {
 
   const panel = document.getElementById(`panel-${id}`);
@@ -138495,31 +138302,15 @@ return `
 
   function loCourtOfArmsLogo() {
 
-    const school =
-      window.currentSchool || {};
-
-    const logo =
-      window.courtOfArmsLogo ||
-      window.kenyaCourtOfArms ||
-      window.coatOfArmsLogo ||
-      window.coatOfArms ||
-      school.courtOfArms ||
-      school.courtOfArmsLogo ||
-      school.coatOfArms ||
-      school.coatOfArmsLogo ||
-      school.kenyaCourtOfArms ||
-      school.kenyaCourtOfArmsLogo ||
-      "";
-
-    if (!logo) {
-      return "";
-    }
+    // Use the explicitly requested Kenya Court of Arms image.
+    const logo = "https://i.imgur.com/EcFdlAL.png";
 
     return `
       <img
         src="${loEsc(logo)}"
         alt="Kenya Court of Arms"
         class="lo-court-arms"
+        loading="eager"
       >
     `;
   }
@@ -138624,18 +138415,7 @@ return `
 
         <div class="lo-header-centre">
 
-          ${
-            schoolLogo
-              ? `
-                <img
-                  src="${loEsc(schoolLogo)}"
-                  alt="School Logo"
-                  class="lo-school-logo"
-                >
-              `
-              : ""
-          }
-
+          <!-- The school logo is displayed only on the right side. -->
           <div class="lo-school-name">
             ${loEsc(schoolName)}
           </div>
@@ -149810,6 +149590,33 @@ ${headerHtml}
     else if (p.startsWith('254')) p = '0' + p.slice(3);
     return p;
   };
+  // Fee Balance Checker only: read phone numbers from all commonly used learner fields.
+  const feePhoneDigits = value => {
+    let p = String(value || '').replace(/\D/g, '');
+    if (p.startsWith('00254')) p = '0' + p.slice(5);
+    else if (p.startsWith('254')) p = '0' + p.slice(3);
+    return p;
+  };
+  const feeLearnerPhones = student => {
+    const values = [
+      student?.parentPhone, student?.parent_phone, student?.parentPhoneNumber,
+      student?.parentContact, student?.parent_contact, student?.guardianPhone,
+      student?.guardianPhoneNumber, student?.guardian_phone, student?.phone,
+      student?.parent?.phone, student?.parent?.phoneNumber, student?.guardian?.phone,
+      student?.contacts?.parentPhone, student?.contacts?.guardianPhone
+    ];
+    return [...new Set(values.map(feePhoneDigits).filter(Boolean))];
+  };
+  const feeLearnerMatchesPhone = (student, enteredPhone) => {
+    const needle = feePhoneDigits(enteredPhone);
+    return !!needle && feeLearnerPhones(student).includes(needle);
+  };
+  const feeLearnerName = student => String(
+    student?.name || student?.fullName || student?.studentName || student?.learnerName || 'Learner'
+  );
+  const feeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
   const getRole = () => String(window.currentUserRole || '').toLowerCase();
   const currentSchoolRef = path => {
     if (typeof schoolRef === 'function') return schoolRef(path || '');
@@ -149883,6 +149690,7 @@ ${headerHtml}
   }
   window.loadFeeBalanceStudents = async function(){
     const yearSelect=byId('feeBalanceYear'), gradeSelect=byId('feeBalanceGrade'), studentSelect=byId('feeBalanceStudent');
+    const phoneInput=byId('feeParentPhone'), matchBox=byId('feeBalanceLearnerMatch');
     if (!yearSelect || !gradeSelect || !studentSelect) return;
     const currentYear=new Date().getFullYear(), oldYear=yearSelect.value;
     yearSelect.innerHTML=Array.from({length:7},(_,i)=>currentYear+1-i).map(y=>`<option value="${y}">${y}</option>`).join('');
@@ -149896,12 +149704,75 @@ ${headerHtml}
       const render=()=>{
         const grade=gradeSelect.value;
         const filtered=grade?learners.filter(s=>String(s.grade||'')===grade):learners;
-        studentSelect.innerHTML='<option value="">Select Learner</option>'+filtered.map(s=>`<option value="${s.id}">${s.name||s.fullName||s.studentName||s.id} (${s.grade||''})</option>`).join('');
+        studentSelect.innerHTML='<option value="">Select Learner</option>'+filtered.map(s=>`<option value="${feeHtml(s.id)}">${feeHtml(feeLearnerName(s))} (${feeHtml(s.grade||'')})</option>`).join('');
       };
-      render(); gradeSelect.onchange=render;
+      render();
+      gradeSelect.onchange=()=>{ render(); updateLearnerNameFromPhone(); };
+
+      // As the parent phone is typed, show the matching learner immediately.
+      // Auto-select only after an exact full-number match to avoid choosing the wrong learner.
+      const updateLearnerNameFromPhone=()=>{
+        if (!phoneInput || !matchBox) return;
+        const raw=String(phoneInput.value||'').trim();
+        const typedDigits=raw.replace(/\D/g,'');
+        const entered=feePhoneDigits(raw);
+        if (!typedDigits) {
+          matchBox.style.display='none'; matchBox.textContent='';
+          return;
+        }
+        if (typedDigits.length < 4) {
+          matchBox.style.display='block';
+          matchBox.style.color='#475569';
+          matchBox.textContent='Keep typing the registered parent phone number…';
+          return;
+        }
+        const exact=learners.filter(student=>feeLearnerMatchesPhone(student, raw));
+        if (exact.length===1) {
+          const learner=exact[0];
+          const learnerGrade=String(learner.grade||'');
+          if (learnerGrade && grades.includes(learnerGrade) && gradeSelect.value!==learnerGrade) {
+            gradeSelect.value=learnerGrade;
+            render();
+          }
+          studentSelect.value=String(learner.id);
+          matchBox.style.display='block';
+          matchBox.style.color='#065f46';
+          matchBox.textContent=`Learner found: ${feeLearnerName(learner)}${learnerGrade ? ' · Grade '+learnerGrade : ''}`;
+          return;
+        }
+        if (exact.length>1) {
+          matchBox.style.display='block';
+          matchBox.style.color='#92400e';
+          matchBox.textContent='This phone number is linked to: '+exact.map(st=>`${feeLearnerName(st)}${st.grade ? ' ('+st.grade+')' : ''}`).join(', ')+'. Select the correct learner from the learner list.';
+          return;
+        }
+        // Give live feedback while the last digits are still being typed.
+        const possible=learners.filter(student=>feeLearnerPhones(student).some(saved=>saved.startsWith(entered)));
+        matchBox.style.display='block';
+        if (possible.length===1) {
+          matchBox.style.color='#475569';
+          matchBox.textContent=`Possible learner: ${feeLearnerName(possible[0])}${possible[0].grade ? ' · Grade '+possible[0].grade : ''}. Finish entering the number to confirm.`;
+        } else if (possible.length>1) {
+          matchBox.style.color='#475569';
+          matchBox.textContent='Possible matches: '+possible.slice(0,4).map(st=>feeLearnerName(st)).join(', ')+(possible.length>4?'…':'')+'. Continue typing to narrow the search.';
+        } else if (typedDigits.length>=9) {
+          matchBox.style.color='#b91c1c';
+          matchBox.textContent='No learner was found with this registered phone number. Check the number or update the learner contact details.';
+        } else {
+          matchBox.style.color='#475569';
+          matchBox.textContent='No match yet. Continue entering the registered phone number.';
+        }
+      };
+      phoneInput?.removeEventListener('input',window.__rasmFeePhoneListener || (()=>{}));
+      window.__rasmFeePhoneListener=updateLearnerNameFromPhone;
+      phoneInput?.addEventListener('input',updateLearnerNameFromPhone);
+      updateLearnerNameFromPhone();
       const role=getRole();
       if(role==='parent') setFieldVisibility();
-    } catch(e) { console.error('Fee balance learner/grade load failed:',e); if(gradeSelect) gradeSelect.innerHTML='<option value="">Could not load grades</option>'; }
+    } catch(e) {
+      console.error('Fee balance learner/grade load failed:',e);
+      if(gradeSelect) gradeSelect.innerHTML='<option value="">Could not load grades</option>';
+    }
     setFieldVisibility();
   };
   window.checkFeeBalance = async function(){
@@ -149915,7 +149786,7 @@ ${headerHtml}
       Swal.fire({title:'Checking fee balance…',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
       const learners=await getLearners(false);
       let matched;
-      if(getRole()==='parent' || phone) matched=learners.filter(s=>normPhone(s.parentPhone||s.parentPhoneNumber||s.guardianPhone)===phone);
+      if(getRole()==='parent' || phone) matched=learners.filter(s=>feeLearnerMatchesPhone(s, phone));
       else { const id=byId('feeBalanceStudent')?.value; matched=learners.filter(s=>String(s.id)===String(id)); }
       if(!matched.length){Swal.close(); if(result)result.innerHTML=''; return Swal.fire('No Learner Found','No learner is linked to that registered phone number. Check the number and try again.','error');}
       const snap=await freshGet(`fees/${year}`), feeRoot=(snap&&typeof snap.val==='function'?snap.val():snap)||{};
