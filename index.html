@@ -103012,19 +103012,50 @@ window.startAssignment = async function(id){
     // FIND ASSIGNMENT
     // =========================================
 
-    const assignment =
-      assignments.find(
-        a => a.id === id
-      );
+    // Always resolve against the latest shared assignment list.
+    // The learner view uses window.assignments, while older code may
+    // still hold a stale lexical `assignments` array.
+    const requestedAssignmentId = String(id == null ? "" : id).trim();
 
-    if(!assignment){
+    const assignmentList = Array.isArray(window.assignments)
+      ? window.assignments
+      : (typeof assignments !== "undefined" && Array.isArray(assignments)
+          ? assignments
+          : []);
+
+    let assignment = assignmentList.find(function (item) {
+      if (!item) return false;
+
+      const logicalId = String(item.id == null ? "" : item.id).trim();
+      const firebaseId = String(item.firebaseId == null ? "" : item.firebaseId).trim();
+
+      return logicalId === requestedAssignmentId ||
+             firebaseId === requestedAssignmentId;
+    });
+
+    // Keep legacy scripts that refer to the lexical array in sync.
+    if (Array.isArray(window.assignments)) {
+      try { assignments = window.assignments; } catch (_) {}
+    }
+
+    if (!assignment) {
+      console.warn("ASSIGNMENT_NOT_FOUND_DEBUG", {
+        requestedId: requestedAssignmentId,
+        loadedCount: assignmentList.length,
+        loadedIds: assignmentList.slice(0, 20).map(function (item) {
+          return {
+            id: item && item.id,
+            firebaseId: item && item.firebaseId,
+            title: item && item.title
+          };
+        })
+      });
 
       return Swal.fire(
         "Error",
-        "Assignment not found.",
+        "Assignment not found in the latest loaded list. Please refresh the assignments once and try again. If the problem continues, the assignment may not have finished loading.",
         "error"
       );
-
     }
 
 
@@ -103104,8 +103135,7 @@ window.startAssignment = async function(id){
     // =========================================
     // 🔐 CHECK DATABASE USING LEARNER ID
     //
-    // This happens BEFORE asking for the name
-    // when a stable learner ID exists.
+    // Identity is resolved automatically from the signed-in account.
     // =========================================
 
     if(currentLearnerId){
@@ -103247,169 +103277,36 @@ window.startAssignment = async function(id){
 
 
     // =========================================
-    // LEARNER NAME
-    //
-    // ONLY ONE NAME PROMPT
+    // LEARNER NAME — DYNAMIC FROM AUTH EMAIL
+    // Prefer the authenticated email's first two name parts;
+    // fall back to the linked learner profile/display name.
+    // No manual name-entry prompt is shown.
     // =========================================
+    const authUser = window.currentUser || (window.auth && window.auth.currentUser) || {};
+    const email = String(authUser.email || window.currentUserEmail || localStorage.getItem("userEmail") || localStorage.getItem("email") || "").trim();
+    const emailLocalPart = (email.split("@")[0] || "")
+      .replace(/[0-9]+/g, " ")
+      .replace(/[._-]+/g, " ")
+      .replace(/[^\p{L}\s']/gu, " ")
+      .replace(/\s+/g, " ").trim();
+    const emailNameParts = emailLocalPart.split(" ").filter(Boolean);
+    const emailDerivedName = emailNameParts.slice(0, 2)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(" ").trim();
+    const profileName = String(
+      currentIdentity?.learnerName || authUser.fullName || authUser.name ||
+      window.currentUserName || authUser.displayName || ""
+    ).replace(/\s+/g, " ").trim();
+    const cleanLearner = String(emailDerivedName || profileName || "").replace(/\s+/g, " ").trim();
 
-    const savedName =
-      String(
-        localStorage.getItem(
-          "lastLearnerName"
-        ) || ""
-      )
-      .replace(/\s+/g," ")
-      .trim();
-
-
-    const escapedSavedName =
-      savedName
-        .replace(/&/g,"&amp;")
-        .replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;")
-        .replace(/"/g,"&quot;")
-        .replace(/'/g,"&#039;");
-
-
-    const result =
-      await Swal.fire({
-
-        title:
-          "👨‍🎓 Start Assignment",
-
-        html: `
-
-          <div style="
-            text-align:left;
-            font-size:14px;
-            color:#475569;
-            margin-bottom:10px;
-          ">
-
-            Enter your full learner name
-            to begin this assignment.
-
-          </div>
-
-
-          <input
-            id="startLearnerName"
-
-            class="swal2-input"
-
-            placeholder="Learner name"
-
-            autocomplete="name"
-
-            value="${escapedSavedName}"
-          >
-
-        `,
-
-        confirmButtonText:
-          "▶ Start Assignment",
-
-        cancelButtonText:
-          "Cancel",
-
-        showCancelButton:
-          true,
-
-        confirmButtonColor:
-          "#2563eb",
-
-        cancelButtonColor:
-          "#64748b",
-
-        focusConfirm:
-          false,
-
-        preConfirm: () => {
-
-          const input =
-            document.getElementById(
-              "startLearnerName"
-            );
-
-
-          const value =
-            input?.value
-              ?.replace(/\s+/g," ")
-              .trim() || "";
-
-
-          if(!value){
-
-            Swal.showValidationMessage(
-              "Learner name is required"
-            );
-
-            return false;
-
-          }
-
-
-          return value;
-
-        }
-
+    if (!cleanLearner) {
+      return Swal.fire({
+        icon: "warning",
+        title: "Learner Identity Not Found",
+        text: "Your account email/name could not be read. Please sign out and sign in again, or ask your school administrator to check your learner account."
       });
-
-
-    // =========================================
-    // CANCELLED
-    // =========================================
-
-    if(
-      !result ||
-      !result.isConfirmed ||
-      !result.value
-    ){
-
-      return;
-
     }
 
-
-    const learner =
-      result.value;
-
-
-    // =========================================
-    // CLEAN LEARNER NAME
-    // =========================================
-
-    const cleanLearner =
-      String(
-        learner
-      )
-      .replace(/\s+/g," ")
-      .trim();
-
-
-    if(!cleanLearner){
-
-      return Swal.fire(
-        "Learner Required",
-        "Please enter the learner name.",
-        "warning"
-      );
-
-    }
-
-
-    // =========================================
-    // SAVE LEARNER NAME
-    //
-    // This is the name submitAssignment()
-    // will use later.
-    // =========================================
-
-    localStorage.setItem(
-      "lastLearnerName",
-      cleanLearner
-    );
-
+    localStorage.setItem("lastLearnerName", cleanLearner);
 
     // =========================================
     // NORMALIZED NAME
@@ -104323,12 +104220,43 @@ window.startAssignmentTimer = function(
       }
 
       // ---------------------------------------
-      // TIME UP
+      // ONE-MINUTE WARNING (ONCE PER SESSION)
       // ---------------------------------------
+      if (Math.max(0, Number(remaining) || 0) <= 60 && remaining > 0 && !session.oneMinuteWarned) {
+        session.oneMinuteWarned = true;
+        Swal.fire({
+          icon: "warning",
+          title: "⏳ One Minute Remaining!",
+          text: "You have one minute left. Finish your answers; the assignment will be submitted automatically when time runs out.",
+          timer: 5000,
+          showConfirmButton: true,
+          confirmButtonText: "Continue",
+          confirmButtonColor: "#b91c1c"
+        });
+      }
 
+      // ---------------------------------------
+      // TIME UP — AUTO-SUBMIT SAVED ANSWERS
+      // ---------------------------------------
       if(remaining <= 0){
-
+        if (session.autoSubmitting || session.submitted) {
+          clearInterval(timerId);
+          return;
+        }
+        session.autoSubmitting = true;
         clearInterval(timerId);
+        Swal.fire({
+          icon: "warning",
+          title: "⏰ Time Is Up",
+          text: "Your time has ended. RASM 360 is submitting the answers you have completed now.",
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+          timer: 1600
+        }).then(function(){
+          window.submitAssignment(assignment.id, { autoSubmit: true });
+        });
+        return;
 
         // -----------------------------------
         // REMOVE TIMER REFERENCE
@@ -105024,11 +104952,19 @@ window.publishAssignment = async function () {
 
 
         // =====================================
-        // ASSIGNMENT ID
+        // DUPLICATE POST PROTECTION
+        // Same title + grade updates the existing assignment
+        // instead of creating another copy. Existing submissions
+        // and original creation time are preserved.
         // =====================================
-
-        const assignmentId =
-            "ASS-" + Date.now();
+        const normalizedTitle = String(title || "").replace(/\s+/g, " ").trim().toLowerCase();
+        const normalizedGrade = String(grade || "").replace(/\s+/g, " ").trim().toLowerCase();
+        const existingAssignment = (Array.isArray(window.assignments) ? window.assignments : (Array.isArray(assignments) ? assignments : []))
+          .find(a => a && String(a.title || "").replace(/\s+/g, " ").trim().toLowerCase() === normalizedTitle
+            && String(a.grade || "").replace(/\s+/g, " ").trim().toLowerCase() === normalizedGrade);
+        const assignmentId = existingAssignment
+          ? String(existingAssignment.firebaseId || existingAssignment.id)
+          : "ASS-" + Date.now();
 
 
         // =====================================
@@ -105062,6 +104998,9 @@ window.publishAssignment = async function () {
                 writtenCount,
 
             createdAt:
+                existingAssignment?.createdAt || Date.now(),
+
+            updatedAt:
                 Date.now(),
 
             schoolId,
@@ -105085,7 +105024,7 @@ window.publishAssignment = async function () {
                     "Teacher"
                 ).replace(/\s+/g, " ").trim(),
 
-            submissions: []
+            submissions: Array.isArray(existingAssignment?.submissions) ? existingAssignment.submissions : []
 
         };
 
@@ -105108,10 +105047,12 @@ window.publishAssignment = async function () {
             assignmentData
         );
 
-        if (!Array.isArray(window.assignments)) {
-            window.assignments = [];
-        }
-        window.assignments.push(assignmentData);
+        if (!Array.isArray(window.assignments)) window.assignments = [];
+        const localIndex = window.assignments.findIndex(a => a && (
+          String(a.id || "") === String(assignmentId) || String(a.firebaseId || "") === String(assignmentId)
+        ));
+        if (localIndex >= 0) window.assignments[localIndex] = { ...window.assignments[localIndex], ...assignmentData, id: window.assignments[localIndex].id || assignmentId, firebaseId: assignmentId };
+        else window.assignments.push({ ...assignmentData, firebaseId: assignmentId });
         try { assignments = window.assignments; } catch (_) {}
 
         if (typeof window.renderAssignments === "function") {
@@ -105176,7 +105117,7 @@ window.publishAssignment = async function () {
             icon: "success",
 
             title:
-                "Assignment Published",
+                existingAssignment ? "Assignment Updated" : "Assignment Published",
 
             html: `
                 <div style="
@@ -105187,7 +105128,7 @@ window.publishAssignment = async function () {
                     <strong>
                         ${questions.length}
                     </strong>
-                    question(s) published.
+                    question(s) ${existingAssignment ? "saved in the updated assignment" : "published successfully"}.
 
                     <br>
 
@@ -109481,7 +109422,9 @@ window.finishAssignment = function (
 // ✅ Multiple-choice questions
 // =========================================
 
-window.submitAssignment = async function(id){
+window.submitAssignment = async function(id, options){
+
+const autoSubmit = !!(options && options.autoSubmit);
 
 try{
 
@@ -109489,10 +109432,12 @@ try{
 // FIND ASSIGNMENT
 // =========================================
 
-const assignment =
-  assignments.find(
-    a => a.id === id
-  );
+const requestedId = String(id == null ? "" : id).trim();
+const assignmentList = Array.isArray(window.assignments) ? window.assignments : (Array.isArray(assignments) ? assignments : []);
+const assignment = assignmentList.find(a => a && (
+  String(a.id == null ? "" : a.id).trim() === requestedId ||
+  String(a.firebaseId == null ? "" : a.firebaseId).trim() === requestedId
+));
 
 if(!assignment){
 
@@ -109527,15 +109472,14 @@ if(!schoolId){
 // FROM EXISTING ASSIGNMENT SESSION
 // =========================================
 
-const learner =
-  String(
-    localStorage.getItem(
-      "lastLearnerName"
-    ) ||
-    window.currentUserName ||
-    window.currentUser?.displayName ||
-    ""
-  ).trim();
+const preliminaryIdentity = typeof window.getCurrentLearnerIdentity === "function" ? window.getCurrentLearnerIdentity() : {};
+const activeSessionForAssignment = Object.values(activeSessions || {}).find(session =>
+  session && String(session.assignmentId || "") === String(assignment.id) && !session.submitted
+);
+const learner = String(
+  activeSessionForAssignment?.learner || localStorage.getItem("lastLearnerName") ||
+  preliminaryIdentity.learnerName || window.currentUserName || window.currentUser?.displayName || ""
+).replace(/\s+/g, " ").trim();
 
 
 // =========================================
@@ -109624,7 +109568,7 @@ const remaining =
   elapsed;
 
 
-if(remaining <= 0){
+if(remaining <= 0 && !autoSubmit){
 
   // Stop timer
   if(activeSession.timerId){
@@ -109928,7 +109872,7 @@ const unanswered =
   ).length;
 
 
-if(unanswered > 0){
+if(unanswered > 0 && !autoSubmit){
 
   return Swal.fire(
     "Incomplete Assignment",
@@ -110035,7 +109979,13 @@ const submissionData = {
     0,
 
   feedback:
-    "Pending Marking",
+    autoSubmit ? "Automatically submitted when the time limit ended. Your teacher will review your answers." : "Submitted successfully. Your teacher will review your answers and provide feedback.",
+
+  autoSubmitted:
+    autoSubmit,
+
+  submissionMode:
+    autoSubmit ? "time-expired-auto-submit" : "learner-submit",
 
   status:
     "Submitted",
@@ -110271,10 +110221,12 @@ await Swal.fire({
     "success",
 
   title:
-    "Assignment Submitted",
+    autoSubmit ? "⏰ Assignment Auto-Submitted" : "Assignment Submitted",
 
   text:
-    "Your assignment has been submitted successfully.",
+    autoSubmit
+      ? "Time was up, so RASM 360 automatically submitted the answers you had completed. You can no longer edit this attempt."
+      : "Your assignment has been submitted successfully.",
 
   confirmButtonText:
     "OK",
@@ -110315,6 +110267,19 @@ Swal.fire(
 
 }
 
+};
+
+// =========================================================
+// PERFORMANCE-BASED FEEDBACK FALLBACK
+// Used only when no teacher-written feedback is present.
+// =========================================================
+window.getAssignmentPerformanceFeedback = function(submission){
+  const pct = Number(submission?.percentage || 0);
+  if (pct >= 90) return "Outstanding work! You demonstrated excellent understanding. Keep challenging yourself with deeper questions.";
+  if (pct >= 75) return "Very good work! You understand most of the key ideas. Review the few areas you missed to improve further.";
+  if (pct >= 60) return "Good effort. You have a developing understanding; revise the questions you missed and practise similar examples.";
+  if (pct >= 40) return "You are making progress. Review the lesson notes and ask your teacher for help with the topics that were difficult.";
+  return "Keep practising. Revisit the lesson notes, attempt practice questions, and ask your teacher to guide you through the difficult parts.";
 };
 
 // =========================================================
@@ -114487,12 +114452,19 @@ async function(
         // FIND ASSIGNMENT
         // =========================================
 
-        const assignment =
-            assignments.find(
-                a =>
-                    String(a.id) ===
-                    String(assignmentId)
-            );
+        // Resolve from the newest shared list first. The legacy lexical
+        // `assignments` array can be stale after Firebase refreshes.
+        const requestedAssignmentId = String(assignmentId == null ? "" : assignmentId).trim();
+        const assignmentList = Array.isArray(window.assignments)
+            ? window.assignments
+            : (Array.isArray(assignments) ? assignments : []);
+        const assignment = assignmentList.find(function (item) {
+            if (!item) return false;
+            return String(item.id == null ? "" : item.id).trim() === requestedAssignmentId ||
+                   String(item.firebaseId == null ? "" : item.firebaseId).trim() === requestedAssignmentId;
+        });
+        // Keep old functions that still use the lexical variable synchronized.
+        try { assignments = assignmentList; } catch (_) {}
 
 
         if(!assignment){
@@ -115149,12 +115121,19 @@ window.markSubmission = async function(
         // FIND ASSIGNMENT
         // =========================================
 
-        const assignment =
-            assignments.find(
-                a =>
-                    String(a.id) ===
-                    String(assignmentId)
-            );
+        // Resolve from the newest shared list first. The legacy lexical
+        // `assignments` array can be stale after Firebase refreshes.
+        const requestedAssignmentId = String(assignmentId == null ? "" : assignmentId).trim();
+        const assignmentList = Array.isArray(window.assignments)
+            ? window.assignments
+            : (Array.isArray(assignments) ? assignments : []);
+        const assignment = assignmentList.find(function (item) {
+            if (!item) return false;
+            return String(item.id == null ? "" : item.id).trim() === requestedAssignmentId ||
+                   String(item.firebaseId == null ? "" : item.firebaseId).trim() === requestedAssignmentId;
+        });
+        // Keep old functions that still use the lexical variable synchronized.
+        try { assignments = assignmentList; } catch (_) {}
 
 
         if(!assignment){
@@ -115525,9 +115504,9 @@ window.markSubmission = async function(
             );
 
 
-        const feedback =
+        let feedback =
             feedbackInput?.value.trim() ||
-            "No feedback provided";
+            "";
 
 
         // =========================================
@@ -115544,6 +115523,14 @@ window.markSubmission = async function(
                 )
                 : 0;
 
+        // Automatically provide meaningful performance feedback when the
+        // teacher leaves the feedback field empty; preserve teacher-written text.
+        if (!feedback) {
+            feedback = typeof window.getAssignmentPerformanceFeedback === "function"
+                ? window.getAssignmentPerformanceFeedback({ percentage, total, maxMarks: questionCount })
+                : (percentage >= 80 ? "Very good work. Keep it up!" : percentage >= 50 ? "Good effort. Review the questions you missed and keep practising." : "Keep practising. Review the lesson notes and ask your teacher for help with difficult areas.");
+            if (feedbackInput) feedbackInput.value = feedback;
+        }
 
         // =========================================
         // MARKING DATE
@@ -117918,6 +117905,41 @@ window.unlockNextQuestion = function (
 
 
         // =========================================
+        // CONFIRM ANSWERED QUESTION WITH A TICK
+        // =========================================
+        let answeredBadge = currentBlock.querySelector(".rasm-question-answered-badge");
+        if (!answeredBadge) {
+            answeredBadge = document.createElement("span");
+            answeredBadge.className = "rasm-question-answered-badge";
+            answeredBadge.style.cssText = "display:inline-flex;align-items:center;gap:6px;margin:8px 0;padding:6px 11px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:800;font-size:12px;border:1px solid #86efac;";
+            const header = currentBlock.querySelector("div[style*='background:#f8fafc']") || currentBlock.firstElementChild;
+            if (header) header.appendChild(answeredBadge);
+            else currentBlock.insertBefore(answeredBadge, currentBlock.firstChild);
+        }
+        answeredBadge.textContent = "✓ Answer saved — ready for the next question!";
+        answeredBadge.setAttribute("role", "status");
+        if (progress) {
+            progress.innerHTML = `🎉 ${answered}/${totalQuestions} answered — great work!`;
+        }
+        try {
+            if (window.Swal && typeof Swal.mixin === "function") {
+                Swal.mixin({toast:true,position:"top-end",showConfirmButton:false,timer:1500,timerProgressBar:true}).fire({icon:"success",title:"✓ Answer saved! Keep going 👏"});
+            }
+        } catch (_) {}
+
+        // Put a visible confirmation on the next question as well,
+        // so the learner sees that the previous answer was accepted.
+        let nextBadge = nextBlock.querySelector(".rasm-next-question-ready-badge");
+        if (!nextBadge) {
+            nextBadge = document.createElement("div");
+            nextBadge.className = "rasm-next-question-ready-badge";
+            nextBadge.style.cssText = "display:inline-flex;align-items:center;gap:6px;margin:0 0 10px;padding:7px 11px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:800;font-size:12px;border:1px solid #86efac;";
+            nextBlock.insertBefore(nextBadge, nextBlock.firstChild);
+        }
+        nextBadge.textContent = "✓ Previous answer saved — ready for this question! 👏";
+        nextBadge.setAttribute("role", "status");
+
+        // =========================================
         // HIDE CURRENT QUESTION
         // =========================================
 
@@ -117981,9 +118003,7 @@ window.unlockNextQuestion = function (
         if (progress) {
 
             progress.innerHTML = `
-                📘 Progress:
-                ${answered}/${totalQuestions}
-                Questions Answered
+                ✓ ${answered}/${totalQuestions} questions answered — great work! 👏
             `;
 
         }
