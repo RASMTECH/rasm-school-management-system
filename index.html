@@ -8367,7 +8367,11 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
       placeholder="School Motto">
 
     <input id="schoolAddress"
-      placeholder="School Address">
+      placeholder="School Address / Postal Address">
+
+    <input id="schoolPhone"
+      type="tel"
+      placeholder="School Contact Phone Number">
 
     <input id="schoolLogo"
       placeholder="School Logo URL">
@@ -9982,6 +9986,17 @@ function toggleStudentRegistrationForm(){
     </button>
 
 
+    <!-- STATIONERY LIST: immediately after Class List -->
+    <button
+      type="button"
+      onclick="generateStationeryList()"
+      class="primary"
+      style="padding:9px 13px;border-radius:8px;font-size:13px;background:#15803d;"
+    >
+      ✏️ Generate Stationery List
+    </button>
+
+
     <!-- ================= LEARNER NAME SEARCH ================= -->
     <input
       type="text"
@@ -10889,6 +10904,9 @@ font-weight:bold;
 ">
     📊 FINANCE DASHBOARD
 </h2>
+<div style="display:inline-block;margin:0 0 18px 10px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-weight:700;font-size:13px;">
+  Recorded Fee Year: <span id="financeDashboardYear">Loading...</span>
+</div>
 <!-- ================= OVERALL SUMMARY ================= -->
 
 <div style="
@@ -14564,6 +14582,18 @@ margin-bottom:15px;
 
 
 <!-- ================= TRANSPORT MODULE ================= -->
+<style id="rasmTransportProfessionalStyles">
+#transport .rt-pro-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 5px 18px rgba(15,23,42,.06)}
+#transport .rt-pro-input{width:100%;min-width:0;padding:11px 12px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#0f172a;box-sizing:border-box;outline:none}
+#transport .rt-pro-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+#transport .rt-pro-label{display:block;font-size:12px;font-weight:700;color:#475569;margin:0 0 6px}
+#transport .rt-pro-btn{border:0;border-radius:9px;padding:10px 13px;font-weight:700;cursor:pointer;transition:transform .15s,filter .15s}
+#transport .rt-pro-btn:hover{filter:brightness(.96);transform:translateY(-1px)}
+#transport .rt-pro-muted{color:#64748b;font-size:12px}
+#transport #transportList table{min-width:1050px}
+#transport #transportList th{white-space:nowrap}
+@media(max-width:700px){#transport{padding:12px!important}#transport h2{font-size:22px!important}#transport .rt-pro-tools{grid-template-columns:1fr!important}}
+</style>
 <div id="transport" style="display:none;padding:20px;">
 
 <h2 style="
@@ -14617,14 +14647,16 @@ margin-bottom:15px;
 
     <input
       id="route"
-      placeholder="Route"
-      style="
-        padding:12px;
-        border:1px solid #cbd5e1;
-        border-radius:10px;
-        outline:none;
-      "
+      placeholder="Route / Pick-up Zone"
+      class="rt-pro-input"
     >
+
+    <input id="capacity" type="number" min="1" placeholder="Maximum Learner Capacity" class="rt-pro-input">
+    <input id="driverPhone" type="tel" placeholder="Driver Phone Number (optional)" class="rt-pro-input">
+    <input id="vehicleType" placeholder="Vehicle Type (e.g. School Bus)" class="rt-pro-input">
+    <input id="registrationNumber" placeholder="Registration Number (optional)" class="rt-pro-input">
+    <input id="insuranceExpiry" type="date" title="Insurance Expiry Date" class="rt-pro-input">
+    <input id="nextServiceDate" type="date" title="Next Service Date" class="rt-pro-input">
 
     <input
       id="fuelLog"
@@ -14760,6 +14792,21 @@ margin-bottom:15px;
   </button>
 
 </div>
+
+  <!-- ================= FLEET CONTROL CENTRE ================= -->
+  <div class="rt-pro-card" style="padding:18px;margin:0 0 18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      <div><div style="font-size:18px;font-weight:800;color:#0f172a;">Fleet Control Centre</div><div class="rt-pro-muted">Search vehicles, review availability and track service or insurance deadlines.</div></div>
+      <button type="button" class="rt-pro-btn" style="background:#0f172a;color:#fff;" onclick="openTransportMaintenanceOverview()">🛠 Maintenance Overview</button>
+    </div>
+    <div class="rt-pro-tools" style="display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(150px,1fr)) auto;gap:10px;align-items:end;">
+      <div><label class="rt-pro-label" for="transportFleetSearch">Search Fleet</label><input id="transportFleetSearch" class="rt-pro-input" placeholder="Bus, plate, driver or route…" oninput="filterTransportFleet()"></div>
+      <div><label class="rt-pro-label" for="transportStatusFilter">Vehicle Status</label><select id="transportStatusFilter" class="rt-pro-input" onchange="filterTransportFleet()"><option value="">All statuses</option><option>Active</option><option>Maintenance</option><option>Offline</option></select></div>
+      <div><label class="rt-pro-label" for="transportServiceFilter">Service Alerts</label><select id="transportServiceFilter" class="rt-pro-input" onchange="filterTransportFleet()"><option value="">All vehicles</option><option value="due">Service due / overdue</option><option value="insurance">Insurance expiring</option></select></div>
+      <button type="button" class="rt-pro-btn" style="background:#e2e8f0;color:#0f172a;" onclick="resetTransportFleetFilters()">↺ Reset</button>
+    </div>
+    <div id="transportFleetAlertSummary" class="rt-pro-muted" style="margin-top:12px;">Fleet alerts will appear here when records are loaded.</div>
+  </div>
 
   <!-- ================= TRANSPORT LIST ================= -->
 
@@ -38471,6 +38518,10 @@ window.loadFinanceSummary = async function () {
         window.__financeSummary =
             summary;
 
+        // Reflect the same selected year used to read Recorded Fee Records.
+        const financeYearLabel = document.getElementById("financeDashboardYear");
+        if (financeYearLabel) financeYearLabel.textContent = selectedYear;
+
 
 
         /* ====================================================
@@ -58356,7 +58407,7 @@ function rasmCanonicalSubjectName(value, gradeValue = ""){
     agricultureandnutrition:isGrade46?'Agric & Nutr':'Agriculture & Nutrition', agricandnutr:'Agric & Nutr',
     scien:isGrade46?'Science & Technology':'Integrated Science', scie:isGrade46?'Science & Technology':'Integrated Science',
     sci:isGrade46?'Science & Technology':'Integrated Science', science:isGrade46?'Science & Technology':'Integrated Science',
-    integratedscience:isGrade46?'Science & Technology':'Integrated Science', scienceandtechnology:'Science & Technology',
+    integratedscience:isGrade46?'Science & Technology':'Integrated Science', scienceandtechnology:isGrade46?'Science & Technology':'Integrated Science',
     social:'Social Studies', socialstudies:'Social Studies', sst:'Social Studies',
     cre:'Christian Religious Education', christianreligiouseducation:'Christian Religious Education',
     religiouseducation:'Christian Religious Education', christianreligion:'Christian Religious Education',
@@ -61814,11 +61865,34 @@ window.showLearnerDetails = function(studentId) {
                         parentName
                     )}
 
-                    ${learnerDetailCard(
-                        "📱",
-                        "Parent Phone",
-                        parentPhone
-                    )}
+                    <div style="
+                        padding:13px;
+                        background:#f8fafc;
+                        border:1px solid #93c5fd;
+                        border-radius:10px;
+                        min-width:0;
+                    ">
+                        <label for="learnerDetailsParentPhone" style="
+                            display:block;
+                            font-size:11px;
+                            color:#64748b;
+                            font-weight:700;
+                            text-transform:uppercase;
+                            margin-bottom:7px;
+                        ">📱 Parent Phone</label>
+                        <input
+                            id="learnerDetailsParentPhone"
+                            type="tel"
+                            inputmode="tel"
+                            autocomplete="tel"
+                            value="${escapeHTML(learner.parentPhone || "")}"
+                            placeholder="Enter parent / guardian phone"
+                            onchange="saveLearnerPhoneFromDetails('${escapeHTML(String(learner.id))}', this)"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                            style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#111827;font-size:14px;"
+                        >
+                        <small id="learnerDetailsPhoneStatus" style="display:block;margin-top:6px;color:#64748b;font-size:11px;">Edit the number; it saves when you finish editing.</small>
+                    </div>
 
                     ${learnerDetailCard(
                         "🪪",
@@ -61835,6 +61909,66 @@ window.showLearnerDetails = function(studentId) {
 
 };
 
+
+// Save the parent/guardian phone directly from the Learner Details modal.
+window.saveLearnerPhoneFromDetails = async function (studentId, input) {
+    const students = Array.isArray(window.allStudents) ? window.allStudents : [];
+    const learner = students.find(student => String(student.id) === String(studentId));
+    const status = document.getElementById("learnerDetailsPhoneStatus");
+    if (!learner || !input) return;
+
+    const phone = String(input.value || "").trim();
+    if (phone && !/^[+()\d\s.-]{5,25}$/.test(phone)) {
+        if (status) {
+            status.textContent = "Please enter a valid phone number.";
+            status.style.color = "#dc2626";
+        }
+        input.focus();
+        return;
+    }
+
+    if (String(learner.parentPhone || "") === phone) {
+        if (status) {
+            status.textContent = "No changes to save.";
+            status.style.color = "#64748b";
+        }
+        return;
+    }
+
+    input.disabled = true;
+    if (status) {
+        status.textContent = "Saving phone number…";
+        status.style.color = "#2563eb";
+    }
+
+    try {
+        if (typeof window.rasmBackgroundUpdate === "function" && typeof window.schoolRef === "function") {
+            await window.rasmBackgroundUpdate(window.schoolRef(`students/${studentId}`), {
+                parentPhone: phone,
+                updatedAt: Date.now()
+            });
+        } else if (typeof window.updateStudentField === "function") {
+            await window.updateStudentField(studentId, "parentPhone", phone);
+        } else {
+            throw new Error("Learner save function is unavailable.");
+        }
+
+        learner.parentPhone = phone;
+        input.value = phone;
+        if (status) {
+            status.textContent = "✓ Phone number saved successfully.";
+            status.style.color = "#15803d";
+        }
+    } catch (err) {
+        console.error("Unable to save learner parent phone:", err);
+        if (status) {
+            status.textContent = "Save failed. Please check your connection and try again.";
+            status.style.color = "#dc2626";
+        }
+    } finally {
+        input.disabled = false;
+    }
+};
 
 // ======================================================
 // 🧾 DETAIL CARD
@@ -71093,6 +71227,159 @@ window.generateParentList = async function () {
     }
 };
 
+
+// ============================================================
+// WHOLE-GRADE STATIONERY ISSUE LIST
+// Uses the same grade selector and school students source as Class List.
+// ============================================================
+window.generateStationeryList = async function () {
+    const gradeElement = document.getElementById("filterGrade");
+    const selectedGrade = String(gradeElement?.value || "").trim();
+
+    if (!selectedGrade) {
+        await Swal.fire({
+            icon: "warning",
+            title: "Select Grade",
+            text: "Please choose a grade first."
+        });
+        return;
+    }
+
+    try {
+        Swal.fire({
+            title: "Preparing Stationery List...",
+            text: "Loading learners for the selected grade.",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const snapshot = await fastGet(schoolRef("students"));
+        if (!snapshot || !snapshot.exists()) {
+            throw new Error("No learner records were found.");
+        }
+
+        const learners = [];
+        snapshot.forEach(child => {
+            const learner = child.val() || {};
+            const grade = String(learner.grade || "").trim();
+            const name = String(learner.name || "").trim();
+            if (name && grade.toLowerCase() === selectedGrade.toLowerCase()) {
+                learners.push(name);
+            }
+        });
+
+        learners.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+        if (!learners.length) {
+            Swal.close();
+            await Swal.fire({
+                icon: "info",
+                title: "No Learners Found",
+                text: `There are no learners listed in Grade ${selectedGrade}.`
+            });
+            return;
+        }
+
+        const escape = value => String(value ?? "")
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+
+        const school = window.currentSchool || {};
+        const schoolName = String(
+            school.name ||
+            document.getElementById("profileSchoolName")?.value ||
+            "School Name"
+        ).trim();
+
+        const rows = learners.map((name, index) => `
+            <tr>
+                <td class="number">${index + 1}</td>
+                <td class="learner-name">${escape(name)}</td>
+                <td></td><td></td><td></td><td></td>
+            </tr>
+        `).join("");
+
+        const printWindow = window.open("", "_blank", "width=1100,height=850");
+        if (!printWindow) {
+            Swal.close();
+            await Swal.fire({
+                icon: "warning",
+                title: "Print Window Blocked",
+                text: "Please allow pop-ups for RASM 360, then generate the stationery list again."
+            });
+            return;
+        }
+
+        printWindow.document.open();
+        printWindow.document.write(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escape(schoolName)} - Grade ${escape(selectedGrade)} Stationery List</title>
+<style>
+  @page { size: A4 portrait; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; }
+  .school-header { text-align: center; margin-bottom: 16px; }
+  .school-header h1 { font-size: 20px; margin: 0 0 8px; text-transform: uppercase; }
+  .school-header h2 { font-size: 16px; margin: 0 0 8px; }
+  .meta { font-size: 13px; margin: 8px 0 14px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1.5px solid #000; padding: 9px 6px; height: 34px; }
+  th { background: #f1f1f1; font-size: 12px; text-align: center; }
+  td { font-size: 12px; }
+  .number { width: 8%; text-align: center; }
+  .learner-name { width: 38%; text-align: left; font-weight: 600; }
+  th:nth-child(3), td:nth-child(3),
+  th:nth-child(4), td:nth-child(4),
+  th:nth-child(5), td:nth-child(5) { width: 12%; }
+  th:nth-child(6), td:nth-child(6) { width: 18%; }
+  tbody tr:nth-child(even) { background: #fafafa; }
+  .print-actions { margin: 12px 0; text-align: center; }
+  .print-actions button { padding: 9px 18px; cursor: pointer; }
+  @media print { .print-actions { display: none; } }
+</style>
+</head>
+<body>
+  <header class="school-header">
+    <h1>${escape(schoolName)}</h1>
+    <h2>STATIONERY ISSUE LIST</h2>
+    <div class="meta"><strong>Grade:</strong> ${escape(selectedGrade)}
+      &nbsp;&nbsp; | &nbsp;&nbsp; <strong>Year:</strong> ${new Date().getFullYear()}
+      &nbsp;&nbsp; | &nbsp;&nbsp; <strong>Learners:</strong> ${learners.length}</div>
+  </header>
+  <div class="print-actions"><button onclick="window.print()">🖨️ Print Stationery List</button></div>
+  <table>
+    <thead><tr>
+      <th>No.</th><th>Learner Name</th><th>Exercise Book</th>
+      <th>Pencil</th><th>Rubber</th><th>Sign</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <script>window.onload = () => setTimeout(() => window.print(), 350);<\/script>
+</body>
+</html>`);
+        printWindow.document.close();
+        Swal.close();
+        await Swal.fire({
+            icon: "success",
+            title: "Stationery List Ready",
+            text: `Grade ${selectedGrade}: ${learners.length} learners loaded.`,
+            timer: 1400,
+            showConfirmButton: false
+        });
+    } catch (error) {
+        console.error("Stationery list generation error:", error);
+        Swal.close();
+        await Swal.fire({
+            icon: "error",
+            title: "Could Not Generate List",
+            text: error?.message || "Please try again."
+        });
+    }
+};
 
 // ============================================================
 // SAFE HTML ESCAPE FOR PARENT LIST
@@ -85295,6 +85582,11 @@ window.saveSchoolProfile = async function () {
         "schoolAddress"
       )?.value.trim() || "",
 
+    phone:
+      document.getElementById(
+        "schoolPhone"
+      )?.value.trim() || "",
+
     logo:
       document.getElementById(
         "schoolLogo"
@@ -85409,7 +85701,11 @@ window.openSchoolProfileForm = async function () {
 
     document.getElementById(
       "schoolAddress"
-    ).value = data.address || "";
+    ).value = data.address || data.postalAddress || "";
+
+    document.getElementById(
+      "schoolPhone"
+    ).value = data.phone || data.contactNumber || data.telephone || "";
 
     document.getElementById(
       "schoolLogo"
@@ -86371,11 +86667,15 @@ window.addTransport = async function () {
 
     const data = {
 
-      busName: busName.value,
-      driverName: driverName.value,
-      route: route.value,
-
-      capacity: Number(capacity.value || 0),
+      busName: busName.value.trim(),
+      driverName: driverName.value.trim(),
+      route: route.value.trim(),
+      driverPhone: (document.getElementById("driverPhone")?.value || "").trim(),
+      vehicleType: (document.getElementById("vehicleType")?.value || "").trim(),
+      registrationNumber: (document.getElementById("registrationNumber")?.value || "").trim(),
+      insuranceExpiry: document.getElementById("insuranceExpiry")?.value || "",
+      nextServiceDate: document.getElementById("nextServiceDate")?.value || "",
+      capacity: Number(document.getElementById("capacity")?.value || 0),
       fuelPerTrip: Number(fuelLog.value || 0),
 
       status: "Active",
@@ -86407,7 +86707,8 @@ window.addTransport = async function () {
     driverName.value = "";
     route.value = "";
     fuelLog.value = "";
-    capacity.value = "";
+    const capacityInput = document.getElementById("capacity"); if (capacityInput) capacityInput.value = "";
+    ["driverPhone","vehicleType","registrationNumber","insuranceExpiry","nextServiceDate"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
 
   } catch (error) {
 
@@ -86736,17 +87037,24 @@ if (transportArray.length === 0) {
       const d = child.val();
       const key = child.key;
 
+      const assignedLearners = Array.isArray(d.students) ? d.students.length : (d.students && typeof d.students === "object" ? Object.keys(d.students).length : 0);
+      const serviceDue = d.nextServiceDate && d.nextServiceDate <= new Date().toISOString().slice(0,10);
+      const insuranceDue = d.insuranceExpiry && d.insuranceExpiry <= new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+      const fleetSearchText = [d.busName,d.registrationNumber,d.driverName,d.driverPhone,d.route,d.vehicleType].join(" ").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
       html += `
-        <tr>
+        <tr data-transport-search="${fleetSearchText}" data-transport-status="${d.status || "Active"}" data-service-due="${serviceDue ? "yes":"no"}" data-insurance-due="${insuranceDue ? "yes":"no"}">
 
           <td style="border:1px solid #000;padding:10px;">${i++}</td>
 
           <td style="border:1px solid #000;padding:10px;font-weight:600;">
-            🚌 ${d.busName || "-"}
+            🚌 ${d.busName || "-"}<div style="font-size:11px;color:#64748b;font-weight:400;">${d.registrationNumber || d.vehicleType || "Vehicle details not set"}</div>
+            ${serviceDue ? '<div style="font-size:10px;color:#b91c1c;font-weight:800;margin-top:4px;">⚠ SERVICE DUE</div>' : ''}
+            ${insuranceDue ? '<div style="font-size:10px;color:#b45309;font-weight:800;margin-top:4px;">⚠ INSURANCE DUE</div>' : ''}
           </td>
 
           <td style="border:1px solid #000;padding:10px;">
             👨‍✈️ ${d.driverName || "-"}
+            ${d.driverPhone ? `<div style="font-size:11px;color:#64748b;">${d.driverPhone}</div>` : ""}
           </td>
 
           <td style="border:1px solid #000;padding:10px;">
@@ -86794,7 +87102,7 @@ if (transportArray.length === 0) {
         onclick="viewBusStudents('${key}')">
 
         👨‍🎓
-        <span>${(d.students || []).length}</span>
+        <span>${assignedLearners}</span>
 
         </button>
 
@@ -86847,6 +87155,9 @@ if (transportArray.length === 0) {
         <button onclick="manageTransportFees('${key}')">
             💰 Manage Fees
         </button>
+        <button onclick="editTransportVehicle('${key}')">📝 Edit Vehicle Details</button>
+        <button onclick="logTransportMaintenance('${key}')">🛠 Log Maintenance</button>
+        <button onclick="viewTripSummary('${key}')">📊 Trip Summary</button>
 
         <hr>
 
@@ -86876,6 +87187,7 @@ if (transportArray.length === 0) {
     // =====================================================
 
     transportList.innerHTML = html;
+    if (typeof window.filterTransportFleet === "function") window.filterTransportFleet();
 
     // =====================================================
     // PRINT REPORT
@@ -87755,13 +88067,107 @@ window.deleteAllTransport = async function () {
   }
 
 };
+/* =========================================================
+   TRANSPORT PROFESSIONAL FLEET TOOLS — TRANSPORT SECTION ONLY
+========================================================= */
+window.filterTransportFleet = function () {
+  const search = (document.getElementById("transportFleetSearch")?.value || "").trim().toLowerCase();
+  const status = document.getElementById("transportStatusFilter")?.value || "";
+  const alertFilter = document.getElementById("transportServiceFilter")?.value || "";
+  const rows = Array.from(document.querySelectorAll("#transportList tbody tr[data-transport-search]"));
+  let shown = 0;
+  rows.forEach(row => {
+    const text = (row.dataset.transportSearch || "").toLowerCase();
+    const statusOk = !status || row.dataset.transportStatus === status;
+    const alertOk = !alertFilter || (alertFilter === "due" ? row.dataset.serviceDue === "yes" : row.dataset.insuranceDue === "yes");
+    const show = text.includes(search) && statusOk && alertOk;
+    row.style.display = show ? "" : "none";
+    if (show) shown++;
+  });
+  const summary = document.getElementById("transportFleetAlertSummary");
+  if (summary) summary.textContent = `${shown} vehicle(s) shown • ${rows.filter(r=>r.dataset.serviceDue==="yes").length} service alert(s) • ${rows.filter(r=>r.dataset.insuranceDue==="yes").length} insurance alert(s).`;
+};
+window.resetTransportFleetFilters = function () {
+  ["transportFleetSearch","transportStatusFilter","transportServiceFilter"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+  window.filterTransportFleet();
+};
+window.editTransportVehicle = async function (busId) {
+  try {
+    const snap = await fastGet(schoolRef(`transport/${busId}`));
+    if (!snap.exists()) { Swal.fire("Vehicle Not Found","This vehicle record may have been removed.","warning"); return; }
+    const d = snap.val() || {};
+    const esc = v => String(v ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const result = await Swal.fire({
+      title:"Edit Vehicle Details", width:650, showCancelButton:true, confirmButtonText:"Save Vehicle", confirmButtonColor:"#1d4ed8", focusConfirm:false,
+      html:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left;">
+        <label>Vehicle / Bus Name<input id="rtEditBusName" class="swal2-input" style="width:100%;margin:5px 0;" value="${esc(d.busName)}"></label>
+        <label>Registration Number<input id="rtEditReg" class="swal2-input" style="width:100%;margin:5px 0;" value="${esc(d.registrationNumber)}"></label>
+        <label>Driver Name<input id="rtEditDriver" class="swal2-input" style="width:100%;margin:5px 0;" value="${esc(d.driverName)}"></label>
+        <label>Driver Phone<input id="rtEditPhone" class="swal2-input" style="width:100%;margin:5px 0;" value="${esc(d.driverPhone)}"></label>
+        <label>Route / Zone<input id="rtEditRoute" class="swal2-input" style="width:100%;margin:5px 0;" value="${esc(d.route)}"></label>
+        <label>Vehicle Type<input id="rtEditType" class="swal2-input" style="width:100%;margin:5px 0;" value="${esc(d.vehicleType)}"></label>
+        <label>Capacity<input id="rtEditCapacity" type="number" min="1" class="swal2-input" style="width:100%;margin:5px 0;" value="${Number(d.capacity||0)||""}"></label>
+        <label>Fuel per Trip (L)<input id="rtEditFuel" type="number" min="0" step="0.1" class="swal2-input" style="width:100%;margin:5px 0;" value="${Number(d.fuelPerTrip||0)}"></label>
+        <label>Insurance Expiry<input id="rtEditInsurance" type="date" class="swal2-input" style="width:100%;margin:5px 0;" value="${esc(d.insuranceExpiry)}"></label>
+        <label>Next Service Date<input id="rtEditService" type="date" class="swal2-input" style="width:100%;margin:5px 0;" value="${esc(d.nextServiceDate)}"></label>
+      </div>`,
+      preConfirm:()=>{
+        const name=document.getElementById("rtEditBusName").value.trim();
+        const cap=Number(document.getElementById("rtEditCapacity").value||0);
+        const fuel=Number(document.getElementById("rtEditFuel").value||0);
+        if(!name){Swal.showValidationMessage("Vehicle name is required.");return false;}
+        if(cap<0||fuel<0){Swal.showValidationMessage("Capacity and fuel values cannot be negative.");return false;}
+        return {busName:name,registrationNumber:document.getElementById("rtEditReg").value.trim(),driverName:document.getElementById("rtEditDriver").value.trim(),driverPhone:document.getElementById("rtEditPhone").value.trim(),route:document.getElementById("rtEditRoute").value.trim(),vehicleType:document.getElementById("rtEditType").value.trim(),capacity:cap,fuelPerTrip:fuel,insuranceExpiry:document.getElementById("rtEditInsurance").value,nextServiceDate:document.getElementById("rtEditService").value,lastUpdated:Date.now()};
+      }
+    });
+    if(!result.isConfirmed) return;
+    await rasmBackgroundUpdate(schoolRef(`transport/${busId}`), result.value);
+    Swal.fire({icon:"success",title:"Vehicle Updated",text:"Fleet details have been saved.",timer:1500,showConfirmButton:false});
+  } catch(err){console.error("Vehicle update failed",err);Swal.fire("Save Failed",err.message||"Could not update vehicle details.","error");}
+};
+window.logTransportMaintenance = async function (busId) {
+  try {
+    const snap=await fastGet(schoolRef(`transport/${busId}`));
+    if(!snap.exists()){Swal.fire("Vehicle Not Found","Unable to locate this vehicle.","warning");return;}
+    const d=snap.val()||{};
+    const {value:v}=await Swal.fire({title:"Log Vehicle Maintenance",width:560,showCancelButton:true,confirmButtonText:"Save Maintenance Log",confirmButtonColor:"#1d4ed8",focusConfirm:false,
+      html:`<div style="text-align:left"><p><b>${String(d.busName||"Vehicle").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}</b></p>
+      <label>Service Date</label><input id="rtMaintDate" type="date" class="swal2-input" value="${new Date().toISOString().slice(0,10)}">
+      <label>Maintenance Type</label><select id="rtMaintType" class="swal2-select"><option>Routine Service</option><option>Repair</option><option>Tyres</option><option>Brakes</option><option>Engine</option><option>Inspection</option><option>Other</option></select>
+      <label>Cost (KES)</label><input id="rtMaintCost" type="number" min="0" class="swal2-input" placeholder="0">
+      <label>Garage / Technician</label><input id="rtMaintGarage" class="swal2-input" placeholder="Garage or technician">
+      <label>Notes</label><textarea id="rtMaintNotes" class="swal2-textarea" placeholder="Work done, parts replaced, recommendations"></textarea>
+      <label>Next Service Date</label><input id="rtMaintNext" type="date" class="swal2-input" value="${d.nextServiceDate||""}"></div>`,
+      preConfirm:()=>{const date=document.getElementById("rtMaintDate").value;const cost=Number(document.getElementById("rtMaintCost").value||0);if(!date){Swal.showValidationMessage("Choose the service date.");return false;}if(cost<0){Swal.showValidationMessage("Cost cannot be negative.");return false;}return {date,type:document.getElementById("rtMaintType").value,cost,garage:document.getElementById("rtMaintGarage").value.trim(),notes:document.getElementById("rtMaintNotes").value.trim(),nextServiceDate:document.getElementById("rtMaintNext").value,loggedAt:Date.now()};}
+    });
+    if(!v)return;
+    const hist=d.maintenanceLog&&typeof d.maintenanceLog==="object"?d.maintenanceLog:{};
+    const recordId=`m_${Date.now()}`;hist[recordId]=v;
+    const update={maintenanceLog:hist,lastMaintenanceDate:v.date,lastUpdated:Date.now()};
+    if(v.nextServiceDate)update.nextServiceDate=v.nextServiceDate;
+    await rasmBackgroundUpdate(schoolRef(`transport/${busId}`),update);
+    Swal.fire({icon:"success",title:"Maintenance Saved",text:"Maintenance history and service date updated.",timer:1600,showConfirmButton:false});
+  }catch(err){console.error("Maintenance log failed",err);Swal.fire("Error",err.message||"Could not save maintenance record.","error");}
+};
+window.openTransportMaintenanceOverview = async function () {
+  try {
+    const snap=await fastGet(schoolRef("transport"));
+    const data=snap.val()||{};const today=new Date().toISOString().slice(0,10);const limit=new Date(Date.now()+30*86400000).toISOString().slice(0,10);let rows=[];
+    Object.entries(data).forEach(([id,d])=>{d=d||{};if(d.nextServiceDate&&d.nextServiceDate<=today)rows.push({id,d,type:"Service overdue",date:d.nextServiceDate});if(d.insuranceExpiry&&d.insuranceExpiry<=limit)rows.push({id,d,type:"Insurance expiry",date:d.insuranceExpiry});});
+    const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const body=rows.length?rows.sort((a,b)=>a.date.localeCompare(b.date)).map(r=>`<tr><td style="padding:9px;border-bottom:1px solid #e2e8f0">${esc(r.d.busName||r.id)}</td><td style="padding:9px;border-bottom:1px solid #e2e8f0">${esc(r.d.registrationNumber||"—")}</td><td style="padding:9px;border-bottom:1px solid #e2e8f0">${esc(r.type)}</td><td style="padding:9px;border-bottom:1px solid #e2e8f0">${esc(r.date)}</td><td style="padding:9px;border-bottom:1px solid #e2e8f0"><button class="rt-pro-btn" style="background:#dbeafe;color:#1d4ed8" onclick="Swal.close();logTransportMaintenance('${r.id}')">Log Service</button></td></tr>`).join(""):`<tr><td colspan="5" style="padding:22px;text-align:center;color:#64748b">No service or insurance alerts found in the current fleet records.</td></tr>`;
+    await Swal.fire({title:"Fleet Maintenance & Compliance",width:850,confirmButtonText:"Close",html:`<div style="max-height:55vh;overflow:auto;text-align:left"><p style="color:#64748b;font-size:13px">Service overdue and insurance expiring within 30 days.</p><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f1f5f9"><th style="padding:9px;text-align:left">Vehicle</th><th style="padding:9px;text-align:left">Registration</th><th style="padding:9px;text-align:left">Alert</th><th style="padding:9px;text-align:left">Date</th><th style="padding:9px;text-align:left">Action</th></tr></thead><tbody>${body}</tbody></table></div>`});
+  }catch(err){console.error(err);Swal.fire("Unable to Load",err.message||"Could not load fleet alerts.","error");}
+};
+
 /* ================= STATUS UPDATE ================= */
 
 window.updateTransportStatus = async function (id, status) {
 
   const schoolId = window.schoolId;
+  if (!schoolId) { Swal.fire("Session Required", "Please sign in again before updating vehicle status.", "warning"); return; }
 
-  rasmBackgroundUpdate(ref(db, `transport/${schoolId}/${id}`), {
+  rasmBackgroundUpdate(schoolRef(`transport/${id}`), {
     status,
     lastUpdated: Date.now()
   });
@@ -127659,6 +128065,26 @@ ${reportClone.innerHTML}
         );
 
 };
+// Close the Exams Management picker fully before navigating to analysis.
+window.handleExamAnalysisMenuClick = function () {
+    try {
+        if (window.Swal && typeof window.Swal.close === "function") {
+            window.Swal.close();
+        }
+    } catch (err) {
+        console.warn("Could not close Exams Management modal:", err);
+    }
+
+    // Let SweetAlert finish its close transition before the analysis opens.
+    setTimeout(function () {
+        if (typeof window.openRasmDynamicExamAnalysis === "function") {
+            window.openRasmDynamicExamAnalysis();
+        } else {
+            console.error("Exam analysis function is not available.");
+        }
+    }, 120);
+};
+
 window.openExamsMenu = function () {
 
     Swal.fire({
@@ -127749,7 +128175,7 @@ onclick="show('marksStatus');Swal.close();">
     type="button"
     id="modalExamAnalysisButton"
     class="swal2-confirm swal2-styled rasm-modal-analysis-btn"
-    onclick="window.openRasmDynamicExamAnalysis();">
+    onclick="handleExamAnalysisMenuClick();">
     🧠 Exam Analysis — Current + Previous 2 Exams
   </button>
 
@@ -127932,6 +128358,13 @@ onclick="show('inventory');Swal.close();">
 📦 Inventory
 </button>
 
+<button
+class="swal2-confirm swal2-styled"
+style="width:100%;margin:0;background:#166534;"
+onclick="openPaymentVoucherGenerator();">
+🧾 Generate Payment Voucher
+</button>
+
 </div>
 
 `
@@ -127939,6 +128372,128 @@ onclick="show('inventory');Swal.close();">
     });
 
 };
+
+// =====================================
+// PAYMENT VOUCHER GENERATOR / PRINTING
+// =====================================
+window.openPaymentVoucherGenerator = async function () {
+  Swal.close();
+  let school = window.currentSchool || {};
+  try {
+    const sid = window.schoolId || localStorage.getItem('schoolId') || localStorage.getItem('currentSchoolId');
+    if ((!school.name || !school.address) && sid && typeof db !== 'undefined' && typeof ref === 'function' && typeof fastGet === 'function') {
+      const snap = await fastGet(ref(db, `schools/${sid}`));
+      if (snap && snap.exists()) {
+        school = { ...school, ...snap.val() };
+        window.currentSchool = school;
+      }
+    }
+  } catch (e) { console.warn('Could not refresh school profile for voucher:', e); }
+
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const today = new Date().toISOString().slice(0,10);
+  const voucherNo = 'PV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-6);
+  Swal.fire({
+    title: '🧾 Generate Payment Voucher',
+    width: 850,
+    showConfirmButton: false,
+    showCloseButton: true,
+    html: `
+      <div id="rasmVoucherForm" style="text-align:left;max-height:68vh;overflow:auto;padding:4px;">
+        <div style="display:grid;grid-template-columns:72px minmax(0,1fr) 72px;align-items:center;gap:8px;text-align:center;border-bottom:2px solid #222;padding:0 0 10px;margin-bottom:12px;">
+          <div style="width:68px;height:68px;display:flex;align-items:center;justify-content:flex-start;">${school.logo ? `<img src="${esc(school.logo)}" alt="School logo" style="max-width:66px;max-height:66px;object-fit:contain;">` : ''}</div>
+          <div><div style="font-size:20px;font-weight:800;">${esc(school.name || 'SCHOOL NAME')}</div><div><b>School Motto:</b> ${esc(school.motto || 'School Motto')}</div><div><b>Address:</b> ${esc(school.address || school.postalAddress || 'Postal Address')} | <b>Phone:</b> ${esc(school.phone || school.contactNumber || school.telephone || 'Contact Number')}</div></div>
+          <div style="width:68px;height:68px;display:flex;align-items:center;justify-content:flex-end;"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Kenya.svg" alt="Government of Kenya coat of arms" style="max-width:66px;max-height:66px;object-fit:contain;" onerror="this.style.display='none'"></div>
+        </div>
+        <h2 style="text-align:center;margin:8px 0 14px;">PAYMENT VOUCHER</h2>
+        <div class="rasm-voucher-grid">
+          <label>Voucher No.<input id="pvNo" value="${esc(voucherNo)}"></label>
+          <label>Date<input id="pvDate" type="date" value="${today}"></label>
+          <label style="grid-column:1/-1;">Payment Period<input id="pvPeriod" placeholder="e.g. October 2026"></label>
+        </div>
+        <h3>PAYMENT DETAILS</h3>
+        <div class="rasm-voucher-grid">
+          <label>Payee / Paid To<input id="pvPayee" placeholder="Full name / supplier"></label>
+          <label>Purpose of Payment<input id="pvPurpose" placeholder="Purpose of payment"></label>
+          <label>Department<input id="pvDepartment" placeholder="Department"></label>
+          <label>Account / Expense Category<input id="pvCategory" placeholder="Expense category"></label>
+          <label style="grid-column:1/-1;">Invoice / Receipt Reference<input id="pvInvoice" placeholder="Invoice or receipt number"></label>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin:10px 0;">
+          <thead><tr><th style="border:1px solid #222;padding:7px;text-align:left;">Description</th><th style="border:1px solid #222;padding:7px;width:170px;">Amount (KES)</th></tr></thead>
+          <tbody>
+            ${[1,2,3].map(i=>`<tr><td style="border:1px solid #222;padding:5px;"><input id="pvDesc${i}" placeholder="Description ${i}" style="width:100%;border:0;padding:6px;"></td><td style="border:1px solid #222;padding:5px;"><input id="pvAmt${i}" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;border:0;padding:6px;" oninput="window.updatePaymentVoucherTotal?.()"></td></tr>`).join('')}
+            <tr><th style="border:1px solid #222;padding:7px;text-align:right;">Total Amount</th><th id="pvTotal" style="border:1px solid #222;padding:7px;text-align:right;">KES 0.00</th></tr>
+          </tbody>
+        </table>
+        <p><b>Amount in Words:</b> <span id="pvWordsLine">____________________________________________________________</span></p>
+        <div class="rasm-voucher-grid">
+          <label>Payment Method<select id="pvMethod"><option>Cash</option><option>M-Pesa</option><option>Bank Transfer</option><option>Cheque</option></select></label>
+          <label>Transaction / Reference Number<input id="pvTransaction" placeholder="Transaction/reference number"></label>
+        </div>
+        <h3>APPROVAL AND ACKNOWLEDGEMENT</h3>
+        <div class="rasm-voucher-grid">
+          <label>Received By<input id="pvReceived" placeholder="Name"></label>
+          <label>Received By Signature<input id="pvReceivedSig" placeholder="Signature"></label>
+          <label>Date Received<input id="pvDateReceived" type="date"></label>
+          <label>Supporting Documents Attached<select id="pvAttachments"><option>Yes</option><option>No</option></select></label>
+        </div>
+        <p style="font-size:12px;color:#555;margin-top:12px;"><i>Official school financial record. Attach the relevant invoice, receipt or other supporting document.</i></p>
+      </div>
+      <style>
+        .rasm-voucher-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:10px 0 14px}
+        .rasm-voucher-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700}
+        .rasm-voucher-grid input,.rasm-voucher-grid select{box-sizing:border-box;width:100%;min-width:0;padding:9px;border:1px solid #bbb;border-radius:5px;font-size:13px}
+        #rasmVoucherForm h3{margin:16px 0 7px;font-size:15px}
+        @media(max-width:560px){.rasm-voucher-grid{grid-template-columns:1fr}#rasmVoucherForm{font-size:13px}}
+      </style>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
+        <button type="button" class="swal2-confirm swal2-styled" onclick="printPaymentVoucher()">🖨️ Print Voucher</button>
+        <button type="button" class="swal2-cancel swal2-styled" onclick="Swal.close()">Close</button>
+      </div>
+    `,
+    didOpen: () => window.updatePaymentVoucherTotal()
+  });
+};
+
+window.updatePaymentVoucherTotal = function () {
+  const total = [1,2,3].reduce((sum,i)=>sum+(Number(document.getElementById('pvAmt'+i)?.value)||0),0);
+  const el = document.getElementById('pvTotal');
+  if (el) el.textContent = 'KES ' + total.toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2});
+};
+
+window.printPaymentVoucher = function () {
+  const get = id => document.getElementById(id)?.value?.trim() || '';
+  const checked = id => get(id) || '________________________';
+  const school = window.currentSchool || {};
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const total = [1,2,3].reduce((sum,i)=>sum+(Number(get('pvAmt'+i))||0),0);
+  const fmt = n => Number(n||0).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const rows = [1,2,3].map(i=>`<tr><td>${esc(checked('pvDesc'+i))}</td><td class="money">${esc(get('pvAmt'+i)?fmt(get('pvAmt'+i)):'________________')}</td></tr>`).join('');
+  const methods = ['Cash','M-Pesa','Bank Transfer','Cheque'].map(m=>`${get('pvMethod')===m?'☒':'☐'} ${m}`).join('&nbsp;&nbsp;');
+  const w = window.open('', '_blank');
+  if (!w) {
+    Swal.fire({icon:'warning',title:'Print window blocked',text:'Please allow pop-ups for RASM 360, then click Print Voucher again.'});
+    return;
+  }
+  w.document.open();
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Payment Voucher - ${esc(get('pvNo'))}</title><style>
+    @page{size:A4;margin:14mm}*{box-sizing:border-box}body{font:12px Arial,sans-serif;color:#111;margin:0}.header{text-align:center;border-bottom:2px solid #111;padding-bottom:10px}.school{font-size:20px;font-weight:bold}.title{text-align:center;font-size:19px;margin:15px 0}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:7px 0}.line{display:inline-block;border-bottom:1px solid #222;min-width:140px;min-height:17px}.wide{grid-column:1/-1}h3{font-size:13px;margin:14px 0 6px;border-bottom:1px solid #555;padding-bottom:4px}table{border-collapse:collapse;width:100%;margin:9px 0}th,td{border:1px solid #222;padding:8px;text-align:left;height:30px}.money{text-align:right;width:28%}.total td{font-weight:bold}.words{min-height:30px;border-bottom:1px solid #222}.signs{display:grid;grid-template-columns:1fr 1fr;gap:14px 22px;margin-top:8px}.sign{padding-top:5px}.sigline{display:inline-block;border-bottom:1px solid #222;min-width:95px;height:18px}.note{font-size:10px;margin-top:18px;color:#333}@media print{button{display:none}}
+    </style></head><body>
+    <div class="header" style="display:grid;grid-template-columns:72px minmax(0,1fr) 72px;align-items:center;gap:8px;text-align:center"><div style="width:68px;text-align:left">${school.logo?`<img src="${esc(school.logo)}" alt="School logo" style="max-width:66px;max-height:66px;object-fit:contain">`:''}</div><div><div class="school">${esc(school.name||'SCHOOL NAME')}</div><div><b>School Motto:</b> ${esc(school.motto||'School Motto')}</div><div><b>Address:</b> ${esc(school.address||school.postalAddress||'Postal Address')} | <b>Phone:</b> ${esc(school.phone||school.contactNumber||school.telephone||'Contact Number')}</div></div><div style="width:68px;text-align:right"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Coat_of_arms_of_Kenya.svg" alt="Government of Kenya coat of arms" style="max-width:66px;max-height:66px;object-fit:contain" onerror="this.style.display='none'"></div></div>
+    <div class="title"><b>PAYMENT VOUCHER</b></div>
+    <div class="row"><div><b>Voucher No.:</b> ${esc(checked('pvNo'))}</div><div><b>Date:</b> ${esc(checked('pvDate'))}</div><div class="wide"><b>Payment Period:</b> ${esc(checked('pvPeriod'))}</div></div>
+    <h3>PAYMENT DETAILS</h3><div class="row"><div><b>Payee / Paid To:</b> ${esc(checked('pvPayee'))}</div><div><b>Purpose of Payment:</b> ${esc(checked('pvPurpose'))}</div><div><b>Department:</b> ${esc(checked('pvDepartment'))}</div><div><b>Account / Expense Category:</b> ${esc(checked('pvCategory'))}</div><div class="wide"><b>Invoice / Receipt Reference:</b> ${esc(checked('pvInvoice'))}</div></div>
+    <table><thead><tr><th>Description</th><th class="money">Amount (KES)</th></tr></thead><tbody>${rows}<tr class="total"><td style="text-align:right">Total Amount</td><td class="money">KES ${fmt(total)}</td></tr></tbody></table>
+    <p><b>Amount in Words:</b></p><div class="words">&nbsp;</div>
+    <p><b>Payment Method:</b> ${methods}</p><p><b>Transaction / Reference Number:</b> ${esc(checked('pvTransaction'))}</p>
+    <h3>APPROVAL AND ACKNOWLEDGEMENT</h3><div class="signs"><div class="sign"><b>Received By:</b> ${esc(checked('pvReceived'))}<br>Signature: <span class="sigline">${esc(get('pvReceivedSig'))}</span></div></div>
+    <p><b>Date Received:</b> ${esc(checked('pvDateReceived'))}</p><p><b>Supporting Documents Attached:</b> ${get('pvAttachments')==='Yes'?'☒ Yes &nbsp; ☐ No':'☐ Yes &nbsp; ☒ No'}</p><p class="note"><i>Official school financial record. Attach the relevant invoice, receipt or other supporting document.</i></p>
+    <div style="margin:24px auto 0;width:270px;text-align:center;border:3px solid #0056b3;color:#0056b3;padding:12px;font-weight:bold;line-height:1.6;font-size:12px;background:white;break-inside:avoid;">${esc(school.name||'School Name')}<br>${esc(school.address||'')}<br>ICT DEPARTMENT<br>Date: ${esc(get('pvDate')||new Date().toISOString().slice(0,10))}</div>
+    <script>window.onload=function(){window.focus();window.print();};<\/script></body></html>`);
+  w.document.close();
+};
+
 async function assignSelectedToNewGrade() {
 
     const selectedIds = getSelectedStudents();
@@ -135193,7 +135748,7 @@ function getCBCGradeResult(score, grade) {
     const raw=String(subject||"").trim();
     const parts=raw.split(/\s*(?:—|–|-|:)\s*/);
     const candidate=parts[parts.length-1].trim().toLowerCase();
-    return ["listening","reading","writing","grammar","kusikiliza","kusoma","kuandika","sarufi","environmental","cre"].includes(candidate);
+    return ["listening","reading","writing","grammar","kusikiliza","kusoma","kuandika","sarufi","environmental"].includes(candidate);
   }
   function isMainSubject(subject,grade){
     if(isG13(grade)){
@@ -135652,8 +136207,8 @@ window.rasmCanonicalSubjectName = function(value, gradeValue = ""){
     eng:'English', english:'English',
     math:'Mathematics', maths:'Mathematics', mathematics:'Mathematics',
     kiswa:'Kiswahili', kisw:'Kiswahili', kiswahili:'Kiswahili',
-    agric:isGrade46?'Agric & Nutr':'Agriculture', agriculture:isGrade46?'Agric & Nutr':'Agriculture', agricultureandnutrition:isGrade46?'Agric & Nutr':'Agriculture', agricandnutr:'Agric & Nutr',
-    scien:isGrade46?'Science & Technology':'Integrated Science', scie:isGrade46?'Science & Technology':'Integrated Science', sci:isGrade46?'Science & Technology':'Integrated Science', science:isGrade46?'Science & Technology':'Integrated Science', integratedscience:isGrade46?'Science & Technology':'Integrated Science', scienceandtechnology:'Science & Technology',
+    agric:isGrade46?'Agric & Nutr':'Agriculture', agriculture:isGrade46?'Agric & Nutr':'Agriculture', agricultureandnutrition:isGrade46?'Agric & Nutr':'Agriculture', agricandnutr:isGrade46?'Agric & Nutr':'Agriculture',
+    scien:isGrade46?'Science & Technology':'Integrated Science', scie:isGrade46?'Science & Technology':'Integrated Science', sci:isGrade46?'Science & Technology':'Integrated Science', science:isGrade46?'Science & Technology':'Integrated Science', integratedscience:isGrade46?'Science & Technology':'Integrated Science', scienceandtechnology:isGrade46?'Science & Technology':'Integrated Science',
     social:'Social Studies', socialstudies:'Social Studies', sst:'Social Studies',
     cre:'Christian Religious Education', christianreligiouseducation:'Christian Religious Education', christianreligioused:'Christian Religious Education', religiouseducation:'Christian Religious Education', religioused:'Christian Religious Education', christianreligion:'Christian Religious Education',
     pretech:'Pre-Technical Studies', pretechnical:'Pre-Technical Studies', pretechnicalstudies:'Pre-Technical Studies', technical:'Pre-Technical Studies',
@@ -135702,7 +136257,7 @@ function rasmCanonicalSubjectName(value, gradeValue = ""){
     const raw=String(subject||"").trim();
     const parts=raw.split(/\s*(?:—|–|-|:)\s*/);
     const candidate=parts[parts.length-1].trim().toLowerCase();
-    return ["listening","reading","writing","grammar","kusikiliza","kusoma","kuandika","sarufi","environmental","cre"].includes(candidate);
+    return ["listening","reading","writing","grammar","kusikiliza","kusoma","kuandika","sarufi","environmental"].includes(candidate);
   }
   function isMainSubjectX(subject, grade){
     if(isG13X(grade)){
@@ -135841,20 +136396,25 @@ function rasmCanonicalSubjectName(value, gradeValue = ""){
       Object.keys(marks).forEach(p=>periods.add(p));
       students.push({id:ch.key,name:data.name||"Unknown",grade:data.grade||"",marks});
     });
-    const groups={};
-    periods.forEach(p=>{const k=termKeyX(p); if(k)(groups[k] ||= []).push(p);});
-    const keys=Object.keys(groups).sort((a,b)=>Number(a.replace(/\D/g,""))-Number(b.replace(/\D/g,"")));
+    // Compare the latest TWO individual examination periods, not merely one
+    // examination per term. Opener, Midterm and End-Term are all eligible.
+    const orderedPeriods=[...periods].sort((a,b)=>examOrderX(a)-examOrderX(b) || String(a).localeCompare(String(b)));
     const normalized=String(selected).trim();
-    let targetPeriod=[...periods].find(p=>String(p).trim()===normalized) ||
-      [...periods].find(p=>String(p).replace(/[\s,\-]+/g,"").toUpperCase()===normalized.replace(/[\s,\-]+/g,"").toUpperCase());
-    let targetKey=targetPeriod?termKeyX(targetPeriod):"";
-    if(!targetKey && keys.length){targetKey=keys[keys.length-1];targetPeriod=chooseExamX(groups[targetKey]);}
-    if(!targetKey) throw new Error("No examination was found. Please load an examination first.");
-    const ti=keys.indexOf(targetKey), selectedKeys=keys.slice(Math.max(0,ti-2),ti+1);
-    const termData=selectedKeys.map(k=>({key:k,label:termLabelX(k),period:k===targetKey&&targetPeriod?targetPeriod:chooseExamX(groups[k])}));
+    let targetPeriod=orderedPeriods.find(p=>String(p).trim()===normalized) ||
+      orderedPeriods.find(p=>String(p).replace(/[\s,\-]+/g,"").toUpperCase()===normalized.replace(/[\s,\-]+/g,"").toUpperCase());
+    if(!targetPeriod) targetPeriod=orderedPeriods[orderedPeriods.length-1];
+    if(!targetPeriod) throw new Error("No examination was found. Please load an examination first.");
+    const targetOrder=examOrderX(targetPeriod);
+    const eligible=orderedPeriods.filter(p=>examOrderX(p)<=targetOrder);
+    const selectedPeriods=eligible.slice(-2);
+    const termData=selectedPeriods.map(p=>({
+      key:termKeyX(p)||p,
+      label:String(p),
+      period:p
+    }));
     termData.forEach(t=>t.stats=overallX(students,t.period));
     const current=termData[termData.length-1], previous=termData.length>1?termData[termData.length-2]:null;
-    return {students,termData,current,previous,old:termData.length>2?termData[termData.length-3]:null};
+    return {students,termData,current,previous,old:null};
   }
 
   function buildSeparateAnalysisX(data){
