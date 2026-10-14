@@ -50591,16 +50591,58 @@ async function saveMarksToFirebase(
     schoolId,
     learnerKey,
     examPeriod,
-    data
+    data,
+    options = {}
 ) {
+    // Each device writes only the individual subject field it is recording.
+    // This prevents simultaneous saves for different subjects from replacing
+    // one another's marks on the shared exam record.
+    const path = schoolId
+        ? `schools/${schoolId}/students/${learnerKey}/marks/${examPeriod}`
+        : `students/${learnerKey}/marks/${examPeriod}`;
 
-    const path =
-        schoolId
-            ? `schools/${schoolId}/students/${learnerKey}/marks/${examPeriod}`
-            : `students/${learnerKey}/marks/${examPeriod}`;
+    const metadataKeys = new Set(["schoolId", "name", "grade", "updatedAt"]);
+    const subjectEntries = Object.entries(data || {}).filter(([key]) => !metadataKeys.has(key));
 
-    await update(ref(db, path), data);
+    if (!subjectEntries.length) {
+        throw new Error("No subject mark was supplied to save.");
+    }
 
+    for (const [subjectKey, markValue] of subjectEntries) {
+        const subjectRef = ref(db, `${path}/${subjectKey}`);
+
+        if (options.preventOverwrite === true) {
+            // Atomic create-only write: if another device has already saved
+            // this learner + exam + subject, do not silently overwrite it.
+            const result = await runTransaction(subjectRef, currentValue => {
+                if (currentValue === null || currentValue === undefined) {
+                    return markValue;
+                }
+                return undefined; // Abort if the subject already has a mark.
+            });
+
+            if (!result.committed) {
+                const conflict = new Error(
+                    "This subject mark was already saved from another device. The existing mark was protected; refresh the learner list before continuing."
+                );
+                conflict.code = "MARK_ALREADY_RECORDED";
+                throw conflict;
+            }
+        } else {
+            // Correction/edit workflow: intentionally update only this subject.
+            await set(subjectRef, markValue);
+        }
+    }
+
+    // Keep shared learner metadata separate from subject writes so concurrent
+    // devices recording different subjects cannot replace each other's marks.
+    const metadata = {};
+    for (const key of metadataKeys) {
+        if (Object.prototype.hasOwnProperty.call(data || {}, key)) metadata[key] = data[key];
+    }
+    if (Object.keys(metadata).length) {
+        await update(ref(db, path), metadata);
+    }
 }
 
 // =========================================================
@@ -50859,7 +50901,8 @@ document.getElementById("saveMarksButton")
             schoolId,
             learner.key,
             examPeriod,
-            data
+            data,
+            { preventOverwrite: true }
         );
 
         /*
@@ -51039,12 +51082,12 @@ document.getElementById("saveMarksButton")
         );
 
         await Swal.fire({
-            icon: "error",
-            title: "Marks Not Saved",
+            icon: error?.code === "MARK_ALREADY_RECORDED" ? "warning" : "error",
+            title: error?.code === "MARK_ALREADY_RECORDED" ? "Mark Already Saved" : "Marks Not Saved",
             text:
                 error?.message ||
                 "The mark could not be saved. Please try again.",
-            confirmButtonColor: "#dc2626"
+            confirmButtonColor: error?.code === "MARK_ALREADY_RECORDED" ? "#b45309" : "#dc2626"
         });
 
     } finally {
