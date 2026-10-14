@@ -50641,7 +50641,11 @@ async function saveMarksToFirebase(
         if (Object.prototype.hasOwnProperty.call(data || {}, key)) metadata[key] = data[key];
     }
     if (Object.keys(metadata).length) {
-        await update(ref(db, path), metadata);
+        // The subject mark is the critical write. Do not block the marks form
+        // on a second Firebase round-trip for ancillary learner metadata.
+        update(ref(db, path), metadata).catch(error => {
+            console.warn("Subject mark saved; learner metadata update failed:", error);
+        });
     }
 }
 
@@ -50905,6 +50909,27 @@ document.getElementById("saveMarksButton")
             { preventOverwrite: true }
         );
 
+        // The mark is confirmed in Firebase. Clear the entry and move to the
+        // next learner before refreshing any large on-screen results tables.
+        markLearnerAsRecorded(learner.key);
+        window.__currentLearnerIndex++;
+        autoSelectNextLearner();
+        const immediateMarkField = document.getElementById("subjectMark");
+        if (immediateMarkField) {
+            immediateMarkField.value = "";
+            immediateMarkField.style.border = "";
+            immediateMarkField.focus({ preventScroll: true });
+        }
+        // Let the browser paint the cleared field / next learner before any
+        // heavier local table refresh work begins.
+        await new Promise(resolve => {
+            if (typeof requestAnimationFrame === "function") {
+                requestAnimationFrame(() => setTimeout(resolve, 0));
+            } else {
+                setTimeout(resolve, 0);
+            }
+        });
+
         /*
          * Keep every in-memory marks collection synchronized immediately.
          * This makes the Loaded Marks table update without requiring a full
@@ -51035,44 +51060,6 @@ document.getElementById("saveMarksButton")
             }
         }
 
-        /*
-         * Only mark the learner as recorded AFTER Firebase confirms success.
-         */
-        markLearnerAsRecorded(learner.key);
-
-        window.__currentLearnerIndex++;
-
-        autoSelectNextLearner();
-
-        rasmNextPaint(() => {
-
-            const scoreField =
-                document.getElementById("subjectMark");
-
-            if (scoreField) {
-
-                scoreField.focus({
-                    preventScroll: true
-                });
-
-                try {
-                    scoreField.select();
-                } catch (_) {}
-
-            }
-
-        });
-
-        const mark =
-            document.getElementById("subjectMark");
-
-        if (mark) {
-
-            mark.value = "";
-            mark.style.border = "";
-            mark.focus();
-
-        }
 
     } catch (error) {
 
