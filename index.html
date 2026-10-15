@@ -12501,53 +12501,135 @@ document.addEventListener(
 <!-- ===================== -->
 <div id="recordMarksSection" class="section" style="display:none;">
 
-  <div style="max-width: 400px; margin: auto; background-color: #8BC34A; padding: 15px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    background-image: url('https://i.imgur.com/D8RXDZi.jpeg'), url('https://i.imgur.com/D8RXDZi.jpeg');
-    background-size: cover, cover;
-    background-position: center, bottom right;
-    height: auto;">
+<div id="rasmExcelMarksEntry" class="rasm-excel-marks-card">
+  <div class="rasm-excel-marks-heading">
+    <div>
+      <div class="rasm-excel-kicker">RASM 360 · SMART MARKS ENTRY</div>
+      <h2>📊 Excel-Style Bulk Marks Entry</h2>
+      <p>Select the subjects you are recording, enter scores down each subject tab, then save the entire class in one workflow.</p>
+    </div>
+    <div class="rasm-excel-heading-badge">CLASS MARKS WORKSPACE</div>
+  </div>
 
- 
 
-
-    <form id="marksForm" style="font-size: 0.9rem;">
-
-      <label><strong>Grade:</strong></label>
+  <div class="rasm-excel-class-controls" aria-label="Class and examination selection">
+    <div class="rasm-excel-field"><label><strong>Grade:</strong></label>
       <select id="gradeSelect" required style="width:100%; padding:6px; margin:6px 0; background:#fff8c6;">
         <option value="">Select Grade</option>
-      </select>
-
-  <label><strong>Exam Period</strong></label>
+      </select></div>
+    <div class="rasm-excel-field"><label><strong>Exam Period</strong></label>
 <select id="examPeriod" required style="width:50%; padding:6px; margin:6px 0; background:#fff8c6;">
   <option value="">-- Select Period --</option>
-</select>
-
-      <label><strong>Learner:</strong></label>
-      <select id="learnerSelect" required style="width:100%; padding:6px; margin:6px 0; background:#fff8c6;">
-        <option value="">Select Learner</option>
-      </select>
-
- 
-<!-- SUBJECT + MARK (SENIOR SCHOOL) -->
-<div id="marksInputs">
-
-  <!-- Subject Selection -->
-  <label style="
+</select></div>
+    <div class="rasm-excel-field rasm-excel-paper-field"><label style="
     display:block;
     font-weight:600;
     margin-bottom:6px;
     color:#333;
   ">
-    Subject
+    Paper Out Of
   </label>
-<div style="
-display:flex;
-align-items:center;
-gap:8px;
-width:100%;
-">
 
-    <select
+  <select
+      id="marksPaperOutOf"
+      title="Select the maximum mark for this paper"
+      style="
+        width:100%;
+        padding:10px;
+        border:1px solid #ccc;
+        border-radius:8px;
+        font-size:16px;
+        background:#fff;
+        margin-bottom:10px;
+      ">
+      <option value="100">100</option>
+      <option value="20">20</option>
+      <option value="30">30</option>
+      <option value="40">40</option>
+      <option value="50">50</option>
+      <option value="60">60</option>
+      <option value="70">70</option>
+      <option value="80">80</option>
+      <option value="90">90</option>
+      <option value="120">120</option>
+      <option value="150">150</option>
+      <option value="200">200</option>
+      <option value="custom">Custom</option>
+  </select>
+
+  <input
+      type="number"
+      id="marksCustomOutOf"
+      min="1"
+      step="1"
+      placeholder="Enter custom paper maximum"
+      inputmode="numeric"
+      style="
+        display:none;
+        width:100%;
+        padding:10px;
+        border:1px solid #93c5fd;
+        border-radius:8px;
+        font-size:16px;
+        margin-bottom:10px;
+        background:#f8fbff;
+      "></div>
+  </div>
+
+  <div class="rasm-excel-step-grid">
+    <div class="rasm-excel-step"><span>1</span><div><b>Choose class & exam</b><small>Choose the grade, exam period and paper maximum here.</small></div></div>
+    <div class="rasm-excel-step"><span>2</span><div><b>Select subjects</b><small>Choose only the subjects you want to record now.</small></div></div>
+    <div class="rasm-excel-step"><span>3</span><div><b>Enter and save</b><small>Move through learners with Tab / Enter, then save all entered scores.</small></div></div>
+  </div>
+
+  <div class="rasm-excel-toolbar">
+    <div class="rasm-excel-context" id="rasmBulkContext">Choose a Grade and Exam Period above, then load your class.</div>
+    <div class="rasm-excel-toolbar-actions">
+      <button type="button" id="rasmBulkLoadBtn" class="rasm-excel-btn rasm-excel-btn-primary">↻ Load Class</button>
+      <button type="button" id="rasmBulkClearBtn" class="rasm-excel-btn rasm-excel-btn-light">Clear Entry Grid</button>
+    </div>
+  </div>
+
+  <div class="rasm-excel-subject-picker">
+    <div class="rasm-excel-picker-head">
+      <div><h3>Choose subjects to record</h3><p>Selected subjects become individual tabs. Existing saved marks are shown for reference; blank score cells will not change existing marks.</p></div>
+      <div class="rasm-excel-picker-actions">
+        <input type="search" id="rasmBulkSubjectSearch" placeholder="Search subjects…" aria-label="Search subjects">
+        <button type="button" id="rasmBulkAddSubjectBtn" class="rasm-excel-btn rasm-excel-btn-primary">＋ Add New Subject</button>
+        <button type="button" id="rasmBulkSelectAll" class="rasm-excel-btn rasm-excel-btn-light">Select visible</button>
+        <button type="button" id="rasmBulkDeselectAll" class="rasm-excel-btn rasm-excel-btn-light">Clear selection</button>
+      </div>
+    </div>
+    <div id="rasmBulkSubjectChoices" class="rasm-excel-subject-choices"><div class="rasm-excel-empty">Load a class to see the available subjects.</div></div>
+  </div>
+
+  <div id="rasmBulkWorkspace" class="rasm-excel-workspace" style="display:none;">
+    <div class="rasm-excel-stats" id="rasmBulkStats"></div>
+    <div class="rasm-excel-tabbar" id="rasmBulkTabs" role="tablist" aria-label="Subject entry tabs"></div>
+    <div id="rasmBulkTabPanels"></div>
+    <div class="rasm-excel-savebar">
+      <div><b id="rasmBulkSaveStatus">Ready to enter marks</b><small id="rasmBulkSaveHint">Only non-empty scores are saved. Existing marks change only where you enter a new score.</small></div>
+      <button type="button" id="rasmBulkSaveBtn" class="rasm-excel-btn rasm-excel-btn-save">💾 Save All Entered Marks</button>
+    </div>
+    <div class="rasm-excel-progress-wrap" id="rasmBulkProgressWrap" style="display:none;"><div id="rasmBulkProgressBar"></div></div>
+  </div>
+  <div class="rasm-excel-footer-note"><span>🔒</span><span>Marks are written to the existing RASM 360 Firebase marks records for the selected exam. Scores are converted to percentages using the selected paper maximum, matching the standard marks form.</span></div>
+</div>
+<style>
+#rasmExcelMarksEntry{--rx-navy:#12233f;--rx-blue:#2563eb;--rx-line:#dbe3ee;--rx-muted:#64748b;background:#f8fafc;border:1px solid #dbe3ee;border-radius:16px;padding:clamp(14px,2vw,24px);margin:0 auto 22px;max-width:1500px;color:#172033;box-shadow:0 12px 30px rgba(15,23,42,.08);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#rasmExcelMarksEntry *{box-sizing:border-box}#rasmExcelMarksEntry .rasm-excel-class-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px;background:#fff;border:1px solid var(--rx-line);border-radius:12px;margin:0 0 16px}#rasmExcelMarksEntry .rasm-excel-field{min-width:0}#rasmExcelMarksEntry .rasm-excel-field>label{display:block;font-size:12px;font-weight:850;color:#334155;margin:0 0 6px}#rasmExcelMarksEntry .rasm-excel-field select,#rasmExcelMarksEntry .rasm-excel-field input{width:100%!important;max-width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172033;font-size:13px;box-sizing:border-box}#rasmExcelMarksEntry .rasm-excel-paper-field input#marksCustomOutOf{margin-top:7px}#rasmExcelMarksEntry .rasm-excel-field select#gradeSelect,#rasmExcelMarksEntry .rasm-excel-field select#examPeriod{background:#fff!important}#rasmExcelMarksEntry .rasm-excel-marks-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid var(--rx-line);padding-bottom:17px;margin-bottom:17px}#rasmExcelMarksEntry .rasm-excel-kicker{font-size:11px;font-weight:900;letter-spacing:1.5px;color:#2563eb;margin-bottom:5px}#rasmExcelMarksEntry h2{font-size:clamp(20px,2.4vw,29px);margin:0;color:var(--rx-navy);font-weight:850}#rasmExcelMarksEntry .rasm-excel-marks-heading p{margin:7px 0 0;color:#64748b;line-height:1.5;font-size:13px;max-width:780px}#rasmExcelMarksEntry .rasm-excel-heading-badge{white-space:nowrap;font-size:10px;font-weight:900;letter-spacing:.7px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;padding:8px 10px;border-radius:8px}#rasmExcelMarksEntry .rasm-excel-step-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px}#rasmExcelMarksEntry .rasm-excel-step{display:flex;align-items:center;gap:10px;padding:12px;background:#fff;border:1px solid var(--rx-line);border-radius:10px}#rasmExcelMarksEntry .rasm-excel-step>span{display:grid;place-items:center;width:29px;height:29px;border-radius:8px;background:#e0eaff;color:#1d4ed8;font-weight:900;flex-shrink:0}#rasmExcelMarksEntry .rasm-excel-step b,#rasmExcelMarksEntry .rasm-excel-step small{display:block}#rasmExcelMarksEntry .rasm-excel-step b{font-size:12px}#rasmExcelMarksEntry .rasm-excel-step small{font-size:11px;color:#64748b;margin-top:3px;line-height:1.35}#rasmExcelMarksEntry .rasm-excel-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#edf3fb;border:1px solid #d5e2f2;border-radius:11px;margin-bottom:16px}#rasmExcelMarksEntry .rasm-excel-context{font-weight:750;font-size:13px;color:#334155}#rasmExcelMarksEntry .rasm-excel-toolbar-actions,#rasmExcelMarksEntry .rasm-excel-picker-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}#rasmExcelMarksEntry .rasm-excel-btn{border:1px solid transparent;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;transition:filter .15s,transform .15s}#rasmExcelMarksEntry .rasm-excel-btn:hover{filter:brightness(.97);transform:translateY(-1px)}#rasmExcelMarksEntry .rasm-excel-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}#rasmExcelMarksEntry .rasm-excel-btn-primary{background:#1d4ed8;color:#fff}#rasmExcelMarksEntry .rasm-excel-btn-light{background:#fff;border-color:#cbd5e1;color:#334155}#rasmExcelMarksEntry .rasm-excel-btn-save{background:#15803d;color:#fff;padding:12px 17px;white-space:nowrap}#rasmExcelMarksEntry .rasm-excel-subject-picker{background:#fff;border:1px solid var(--rx-line);border-radius:12px;padding:14px;margin-bottom:16px}#rasmExcelMarksEntry .rasm-excel-picker-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}#rasmExcelMarksEntry h3{font-size:15px;margin:0;color:#172033}#rasmExcelMarksEntry .rasm-excel-picker-head p{font-size:12px;color:#64748b;margin:5px 0 0;line-height:1.5;max-width:650px}#rasmExcelMarksEntry input[type=search]{padding:9px 10px;border:1px solid #cbd5e1;border-radius:8px;min-width:170px;max-width:100%;font-size:12px}#rasmExcelMarksEntry .rasm-excel-subject-choices{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}#rasmExcelMarksEntry .rasm-excel-subject-option{display:flex;gap:9px;align-items:center;border:1px solid #e2e8f0;border-radius:8px;padding:9px 10px;background:#fbfdff;font-size:12px;font-weight:700;min-width:0}#rasmExcelMarksEntry .rasm-excel-subject-option:has(input:checked){background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}#rasmExcelMarksEntry .rasm-excel-subject-option input{width:16px;height:16px;accent-color:#2563eb;flex-shrink:0}#rasmExcelMarksEntry .rasm-excel-empty{color:#64748b;font-size:12px;padding:10px}#rasmExcelMarksEntry .rasm-excel-workspace{background:#fff;border:1px solid var(--rx-line);border-radius:12px;overflow:hidden}#rasmExcelMarksEntry .rasm-excel-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px;background:#f8fafc;border-bottom:1px solid var(--rx-line)}#rasmExcelMarksEntry .rasm-excel-stat{padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}#rasmExcelMarksEntry .rasm-excel-stat span{display:block;font-size:10px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.5px}#rasmExcelMarksEntry .rasm-excel-stat b{display:block;font-size:22px;color:#12233f;margin-top:3px}#rasmExcelMarksEntry .rasm-excel-tabbar{display:flex;gap:5px;overflow-x:auto;padding:10px;background:#eef2f7;border-bottom:1px solid #dbe3ee}#rasmExcelMarksEntry .rasm-excel-tab{border:1px solid #cbd5e1;background:#fff;color:#334155;padding:10px 13px;border-radius:8px 8px 0 0;font-weight:800;font-size:12px;white-space:nowrap;cursor:pointer}#rasmExcelMarksEntry .rasm-excel-tab.active{background:#1d4ed8;border-color:#1d4ed8;color:#fff}#rasmExcelMarksEntry .rasm-excel-tab .rasm-tab-count{display:inline-block;margin-left:5px;border-radius:20px;padding:2px 6px;background:#e2e8f0;color:#334155;font-size:10px}#rasmExcelMarksEntry .rasm-excel-tab.active .rasm-tab-count{background:#fff;color:#1d4ed8}#rasmExcelMarksEntry .rasm-excel-table-scroll{overflow:auto;max-height:58vh}#rasmExcelMarksEntry .rasm-excel-entry-table{border-collapse:collapse;width:100%;min-width:650px;font-size:12px}#rasmExcelMarksEntry .rasm-excel-entry-table th{position:sticky;top:0;z-index:2;background:#eaf0f8;color:#1e293b;font-weight:900;text-align:left;padding:11px 10px;border:1px solid #cbd5e1;white-space:nowrap}#rasmExcelMarksEntry .rasm-excel-entry-table td{padding:7px 9px;border:1px solid #e2e8f0;background:#fff}#rasmExcelMarksEntry .rasm-excel-entry-table tbody tr:nth-child(even) td{background:#f8fafc}#rasmExcelMarksEntry .rasm-excel-entry-table tbody tr:focus-within td{background:#eff6ff}#rasmExcelMarksEntry .rasm-excel-entry-table .rasm-score-input{width:110px;max-width:100%;padding:9px 10px;border:1px solid #cbd5e1;border-radius:6px;font-weight:800;font-size:14px;text-align:center;background:#fff;outline:none}#rasmExcelMarksEntry .rasm-excel-entry-table .rasm-score-input:focus{border:2px solid #2563eb;box-shadow:0 0 0 3px #dbeafe}#rasmExcelMarksEntry .rasm-excel-entry-table .rasm-score-input.invalid{border:2px solid #dc2626;background:#fef2f2}#rasmExcelMarksEntry .rasm-current-mark{font-weight:800;color:#0f766e}#rasmExcelMarksEntry .rasm-current-empty{color:#94a3b8}#rasmExcelMarksEntry .rasm-excel-savebar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px;border-top:1px solid var(--rx-line);background:#f8fafc}#rasmExcelMarksEntry .rasm-excel-savebar b,#rasmExcelMarksEntry .rasm-excel-savebar small{display:block}#rasmExcelMarksEntry .rasm-excel-savebar b{font-size:13px;color:#172033}#rasmExcelMarksEntry .rasm-excel-savebar small{font-size:11px;color:#64748b;margin-top:4px;line-height:1.5}#rasmExcelMarksEntry .rasm-excel-progress-wrap{height:7px;background:#e2e8f0}#rasmExcelMarksEntry #rasmBulkProgressBar{height:100%;width:0;background:#16a34a;transition:width .15s}#rasmExcelMarksEntry .rasm-excel-footer-note{display:flex;gap:8px;color:#64748b;font-size:11px;line-height:1.5;margin-top:14px}#rasmExcelMarksEntry .rasm-excel-footer-note span:first-child{font-size:15px}#rasmExcelMarksEntry .rasm-excel-tab-panel[hidden]{display:none!important}
+@media(max-width:760px){#rasmExcelMarksEntry .rasm-excel-class-controls{grid-template-columns:1fr}#rasmExcelMarksEntry .rasm-excel-marks-heading{display:block}#rasmExcelMarksEntry .rasm-excel-heading-badge{display:inline-block;margin-top:12px}#rasmExcelMarksEntry .rasm-excel-step-grid{grid-template-columns:1fr}#rasmExcelMarksEntry .rasm-excel-stats{grid-template-columns:repeat(2,minmax(0,1fr))}#rasmExcelMarksEntry .rasm-excel-picker-actions{width:100%}#rasmExcelMarksEntry input[type=search]{flex:1;min-width:120px}#rasmExcelMarksEntry .rasm-excel-btn-save{width:100%}}
+</style>
+
+
+
+  <!-- Legacy single-learner controls retained invisibly for compatibility with existing RASM 360 listeners and utilities. The only visible entry interface is the Excel-style workspace above. -->
+<!-- Legacy compatibility fields only; all marks are entered through the single Excel-style workspace. -->
+<div id="marksLegacyCompatibility" style="display:none!important" aria-hidden="true">
+  <form id="marksForm" novalidate autocomplete="off">
+    <select id="learnerSelect"><option value="">Select Learner</option></select>
+    <div id="marksInputs">
+      <select
         id="subject"
         style="
             flex:1;
@@ -12675,30 +12757,7 @@ width:100%;
 </optgroup>
 
     </select>
-
-    <button
-        type="button"
-        onclick="addCustomSubject()"
-        title="Add New Subject"
-        style="
-            width:44px;
-            height:44px;
-            flex-shrink:0;
-            border:none;
-            border-radius:8px;
-            background:#2563eb;
-            color:#fff;
-            font-size:22px;
-            font-weight:bold;
-            cursor:pointer;
-        ">
-        +
-    </button>
-
-</div>
-
-  <!-- GRADE 1–3 SUB-LEARNING AREA -->
-  <div id="subLearningAreaWrap" style="display:none;margin-top:10px;">
+      <div id="subLearningAreaWrap" style="display:none;margin-top:10px;">
     <label style="display:block;font-weight:600;margin-bottom:6px;color:#333;">
       Sub-learning Area
     </label>
@@ -12706,136 +12765,15 @@ width:100%;
       <option value="">-- Select Sub-learning Area --</option>
     </select>
   </div>
-
-  <!-- =====================================================
-       MARKS ENTRY — RAW MARK -> PERCENTAGE UPGRADE
-       Existing subjectMark field is preserved.
-       The selected paper maximum controls conversion.
-       ===================================================== -->
-  <label style="
-    display:block;
-    font-weight:600;
-    margin-bottom:6px;
-    color:#333;
-  ">
-    Paper Out Of
-  </label>
-
-  <select
-      id="marksPaperOutOf"
-      title="Select the maximum mark for this paper"
-      style="
-        width:100%;
-        padding:10px;
-        border:1px solid #ccc;
-        border-radius:8px;
-        font-size:16px;
-        background:#fff;
-        margin-bottom:10px;
-      ">
-      <option value="100">100</option>
-      <option value="20">20</option>
-      <option value="30">30</option>
-      <option value="40">40</option>
-      <option value="50">50</option>
-      <option value="60">60</option>
-      <option value="70">70</option>
-      <option value="80">80</option>
-      <option value="90">90</option>
-      <option value="120">120</option>
-      <option value="150">150</option>
-      <option value="200">200</option>
-      <option value="custom">Custom</option>
-  </select>
-
-  <input
-      type="number"
-      id="marksCustomOutOf"
-      min="1"
-      step="1"
-      placeholder="Enter custom paper maximum"
-      inputmode="numeric"
-      style="
-        display:none;
-        width:100%;
-        padding:10px;
-        border:1px solid #93c5fd;
-        border-radius:8px;
-        font-size:16px;
-        margin-bottom:10px;
-        background:#f8fbff;
-      ">
-
-  <label style="
-    display:block;
-    font-weight:600;
-    margin-bottom:6px;
-    color:#333;
-  ">
-    Raw Marks Scored
-  </label>
-
-  <input
-      type="number"
-      id="subjectMark"
-      min="0"
-      max="100"
-      step="1"
-      placeholder="Enter Mark"
-      inputmode="numeric"
-      style="
-        width:100%;
-        padding:10px;
-        border:1px solid #ccc;
-        border-radius:8px;
-        font-size:16px;
-      ">
-
-  <div
-      id="marksPercentagePreview"
-      style="
-        margin-top:8px;
-        padding:10px 12px;
-        border-radius:8px;
-        background:#eff6ff;
-        border:1px solid #bfdbfe;
-        color:#1e40af;
-        font-size:14px;
-        font-weight:700;
-        display:none;
-      ">
-  </div>
-
+      <input type="number" id="subjectMark" min="0" max="100" step="1" value="">
+      <div id="marksPercentagePreview" style="display:none"></div>
+    </div>
+    <button type="button" id="saveMarksButton">Legacy single-learner save disabled</button>
+    <div id="marksCountBadge"></div>
+  </form>
+</div>
 </div>
 
-<div style="text-align:center; margin-top:15px;">
-
-  <button
-      type="button"
-      id="saveMarksButton"
-      style="
-        background:#16a34a;
-        color:#fff;
-        border:none;
-        padding:12px 30px;
-        border-radius:10px;
-        font-size:16px;
-        cursor:pointer;
-        font-weight:bold;
-      ">
-      💾 Save Subject Marks
-  </button>
-
-  <div id="marksCountBadge" style="margin-top:10px;"></div>
-
-</div>
-
-    </form>
-
-  </div>
-</div>
-
-<!-- ===================== -->
 <!-- EXAM RESULTS -->
 <!-- ===================== -->
 <div id="examResults" class="section" style="display:none; padding:20px;">
@@ -17885,8 +17823,8 @@ import {
   get,
   set as firebaseSet,
   push as firebasePush,
-  onValue as firebaseOnValue,
-  get as firebaseGet,
+  onValue as firebaseSdkOnValue,
+  get as firebaseSdkGet,
 runTransaction,
   remove as firebaseRemove,
   update as firebaseUpdate
@@ -17923,6 +17861,58 @@ window.uploadBytes = uploadBytes;
 window.getDownloadURL = getDownloadURL;
 const auth = getAuth(app);
 const db = getDatabase(app);
+
+/* ============================================================
+   LOGIN-FIRST FIREBASE READ GATE
+   This lives inside the Firebase module (not a later classic
+   script), so it is installed before any module startup reads.
+   Pre-login reads/listeners wait locally and do not touch Firebase.
+============================================================ */
+window.__RASM_LOGIN_COMPLETE = false;
+window.__RASM_LOGIN_IN_PROGRESS = false;
+window.__RASM_NATIVE_PENDING_READS = window.__RASM_NATIVE_PENDING_READS || [];
+window.__RASM_NATIVE_PENDING_LISTENERS = window.__RASM_NATIVE_PENDING_LISTENERS || [];
+
+let firebaseGet = function(firebaseRef) {
+  if (window.__RASM_LOGIN_COMPLETE === true || window.__RASM_LOGIN_IN_PROGRESS === true) {
+    return firebaseSdkGet(firebaseRef);
+  }
+  return new Promise((resolve, reject) => {
+    const entry = { active: true, ref: firebaseRef, resolve, reject };
+    window.__RASM_NATIVE_PENDING_READS.push(entry);
+  });
+};
+
+let firebaseOnValue = function(firebaseRef, callback, ...rest) {
+  if (window.__RASM_LOGIN_COMPLETE === true) {
+    return firebaseSdkOnValue(firebaseRef, callback, ...rest);
+  }
+  const entry = { active: true, ref: firebaseRef, callback, rest, unsubscribe: null };
+  window.__RASM_NATIVE_PENDING_LISTENERS.push(entry);
+  return function() {
+    entry.active = false;
+    if (typeof entry.unsubscribe === 'function') entry.unsubscribe();
+  };
+};
+
+window.__RASM_RELEASE_NATIVE_BOOT_QUEUE = function() {
+  if (window.__RASM_LOGIN_COMPLETE !== true) return;
+  const reads = window.__RASM_NATIVE_PENDING_READS.splice(0);
+  reads.forEach(entry => {
+    if (!entry || !entry.active) return;
+    Promise.resolve().then(() => firebaseSdkGet(entry.ref)).then(entry.resolve, entry.reject);
+  });
+  const listeners = window.__RASM_NATIVE_PENDING_LISTENERS.splice(0);
+  listeners.forEach(entry => {
+    if (!entry || !entry.active) return;
+    try {
+      entry.unsubscribe = firebaseSdkOnValue(entry.ref, entry.callback, ...entry.rest);
+      if (!entry.active && typeof entry.unsubscribe === 'function') entry.unsubscribe();
+    } catch (error) {
+      console.error('Deferred Firebase listener failed:', error);
+    }
+  });
+};
 
 window.db = db;
 window.rasmRef = function(path) { return ref(db, path); };
@@ -18217,6 +18207,13 @@ window.rasmGet = firebaseGet;
   window.rasmFreshGet = function(firebaseRef){ return firebaseGet(firebaseRef); };
 
   window.fastGet = async function(firebaseRef){
+    // Gate BEFORE cache lookup: even cached school data must not be rendered pre-login.
+    if (window.__RASM_LOGIN_COMPLETE !== true && window.__RASM_LOGIN_IN_PROGRESS !== true) {
+      return new Promise((resolve, reject) => {
+        const entry = { active: true, ref: firebaseRef, resolve, reject };
+        (window.__RASM_NATIVE_PENDING_READS || (window.__RASM_NATIVE_PENDING_READS = [])).push(entry);
+      });
+    }
     /* ============================================================
        RECYCLE BIN MUST ALWAYS READ LIVE FIREBASE DATA.
        Parent-node cache can otherwise hide newly moved records.
@@ -18246,6 +18243,11 @@ window.rasmGet = firebaseGet;
   };
 
   window.fastOnValue = function(firebaseRef, callback, ...rest){
+    if (window.__RASM_LOGIN_COMPLETE !== true) {
+      const entry = { active: true, ref: firebaseRef, callback, rest, unsubscribe: null };
+      (window.__RASM_NATIVE_PENDING_LISTENERS || (window.__RASM_NATIVE_PENDING_LISTENERS = [])).push(entry);
+      return function(){ entry.active = false; if (typeof entry.unsubscribe === 'function') entry.unsubscribe(); };
+    }
     const cached = readCache(firebaseRef);
     if (cached) {
       setTimeout(() => {
@@ -20316,7 +20318,7 @@ async function checkRasmLearnerRegistrationLimit(
 ============================================================ */
 
 window.checkSubscriptionAccess =
-async function () {
+async function (verifiedSchoolData) {
 
     /* ========================================================
        GET ACTIVE SCHOOL
@@ -20333,6 +20335,20 @@ async function () {
         );
 
     }
+
+
+    /*
+     * LOGIN FAST PATH:
+     * Login has already authenticated the user and freshly verified
+     * schools/{schoolId}. Reuse that exact record instead of issuing
+     * a second Firebase read for the same school.
+     */
+    const suppliedSchool =
+        verifiedSchoolData &&
+        typeof verifiedSchoolData === "object" &&
+        !Array.isArray(verifiedSchoolData)
+            ? verifiedSchoolData
+            : null;
 
 
     /* ========================================================
@@ -20353,6 +20369,8 @@ async function () {
 
 
     if (
+
+        !suppliedSchool &&
 
         cached &&
 
@@ -20386,7 +20404,8 @@ async function () {
     ======================================================== */
 
     if (
-        navigator.onLine === false
+        navigator.onLine === false &&
+        !suppliedSchool
     ) {
 
         if (
@@ -20451,36 +20470,43 @@ async function () {
                    LOAD SCHOOL
                 ============================================== */
 
-                const schoolRef =
-                    ref(
-                        db,
-                        `schools/${schoolId}`
-                    );
+                let school = suppliedSchool;
 
 
-                const snapshot =
-                    await fastGet(
-                        schoolRef
-                    );
+                if (!school) {
+
+                    const schoolRef =
+                        ref(
+                            db,
+                            `schools/${schoolId}`
+                        );
 
 
-                /* ==============================================
-                   SCHOOL DOES NOT EXIST
-                ============================================== */
+                    const snapshot =
+                        await fastGet(
+                            schoolRef
+                        );
 
-                if (
-                    !snapshot.exists()
-                ) {
 
-                    throw new Error(
-                        "SCHOOL_NOT_FOUND"
-                    );
+                    /* ==========================================
+                       SCHOOL DOES NOT EXIST
+                    ========================================== */
+
+                    if (
+                        !snapshot.exists()
+                    ) {
+
+                        throw new Error(
+                            "SCHOOL_NOT_FOUND"
+                        );
+
+                    }
+
+
+                    school =
+                        snapshot.val() || {};
 
                 }
-
-
-                const school =
-                    snapshot.val() || {};
 
 
                 /* ==============================================
@@ -26740,6 +26766,11 @@ async function fetchSubscriptionData(
 
 function startSubscriptionWatcher() {
 
+  if (window.__RASM_LOGIN_COMPLETE !== true) {
+    console.info("🔒 Subscription watcher deferred until login.");
+    return;
+  }
+
   if (
     trialTimer
   ) {
@@ -27878,6 +27909,11 @@ async function updateSubscriptionUI(
 
 function startSubscriptionUI() {
 
+  if (window.__RASM_LOGIN_COMPLETE !== true) {
+    console.info("🔒 Subscription UI refresh deferred until login.");
+    return;
+  }
+
   stopSubscriptionUI();
 
 
@@ -28205,6 +28241,15 @@ function resetRasmSubscriptionCache() {
 
 }
 
+
+/* ================================================================
+   🚀 LOGIN-GATED SUBSCRIPTION STARTUP
+================================================================ */
+
+// These functions live in a module script, so explicitly expose them for the
+// login engine. Their own guards prevent any pre-login work.
+window.startSubscriptionWatcher = startSubscriptionWatcher;
+window.startSubscriptionUI = startSubscriptionUI;
 
 /* ================================================================
    🚀 AUTO START
@@ -29025,9 +29070,9 @@ window.login = async function () {
        LOCK
     -------------------------------------------------------- */
 
-    window.__loggingIn =
-        true;
-
+    window.__loggingIn = true;
+    // Only explicit sign-in may perform the user/school reads needed to authenticate.
+    window.__RASM_LOGIN_IN_PROGRESS = true;
 
     window.setLoginLoading(
         true,
@@ -29319,10 +29364,19 @@ window.login = async function () {
                 "function"
             ) {
 
+                /* The verifier performs two bounded reads for transient network
+                   failures. Allow the full retry window here so the outer timeout
+                   does not cancel the retry sequence prematurely. */
                 schoolData =
-                    await window.rasmVerifySchoolFast(
-                        schoolId,
-                        uid
+                    await window.withTimeout(
+                        Promise.resolve().then(() =>
+                            window.rasmVerifySchoolFast(
+                                schoolId,
+                                uid
+                            )
+                        ),
+                        16000,
+                        "School verification timed out after automatic retries. Please check the Firebase connection and try again."
                     );
 
             } else {
@@ -29361,7 +29415,9 @@ window.login = async function () {
                 message === "SCHOOL_NOT_FOUND" ||
                 message === "SCHOOL_DELETED" ||
                 message === "SCHOOL_LOCKED" ||
-                message === "SCHOOL_INACTIVE"
+                message === "SCHOOL_INACTIVE" ||
+                message === "SCHOOL_PERMISSION_DENIED" ||
+                message === "SCHOOL_CONNECTION_FAILED"
             ) {
                 throw error;
             }
@@ -29427,86 +29483,6 @@ window.login = async function () {
         }
 
 
-        const schoolName =
-            schoolData.name ||
-            schoolData.schoolName ||
-            userData.schoolName ||
-            "My School";
-
-
-        window.schoolName =
-            schoolName;
-
-
-        /* ====================================================
-           💾 SESSION
-        ==================================================== */
-
-        try {
-
-            localStorage.setItem(
-                "schoolId",
-                schoolId
-            );
-
-            localStorage.setItem(
-                "schoolName",
-                schoolName
-            );
-
-            sessionStorage.setItem(
-                "schoolId",
-                schoolId
-            );
-
-            sessionStorage.setItem(
-                "userUid",
-                uid
-            );
-
-            sessionStorage.setItem(
-                "schoolEmail",
-                userEmail
-            );
-
-        }
-
-        catch (error) {
-
-            console.warn(
-                "⚠️ Storage unavailable:",
-                error
-            );
-
-        }
-
-
-        /* ====================================================
-           🕒 LAST LOGIN
-        ==================================================== */
-
-        update(
-
-            ref(
-                db,
-                `users/${uid}`
-            ),
-
-            {
-                lastLogin:
-                    Date.now()
-            }
-
-        ).catch(error => {
-
-            console.warn(
-                "Last login update skipped:",
-                error
-            );
-
-        });
-
-
         /* ====================================================
            💳 SUBSCRIPTION
         ==================================================== */
@@ -29549,7 +29525,7 @@ window.login = async function () {
                         await window.withTimeout(
 
                             Promise.resolve(
-                                window.checkSubscriptionAccess()
+                                window.checkSubscriptionAccess(schoolData)
                             ),
 
                             12000,
@@ -29639,6 +29615,86 @@ window.login = async function () {
             }
 
         }
+
+
+        const schoolName =
+            schoolData.name ||
+            schoolData.schoolName ||
+            userData.schoolName ||
+            "My School";
+
+
+        window.schoolName =
+            schoolName;
+
+
+        /* ====================================================
+           💾 SESSION
+        ==================================================== */
+
+        try {
+
+            localStorage.setItem(
+                "schoolId",
+                schoolId
+            );
+
+            localStorage.setItem(
+                "schoolName",
+                schoolName
+            );
+
+            sessionStorage.setItem(
+                "schoolId",
+                schoolId
+            );
+
+            sessionStorage.setItem(
+                "userUid",
+                uid
+            );
+
+            sessionStorage.setItem(
+                "schoolEmail",
+                userEmail
+            );
+
+        }
+
+        catch (error) {
+
+            console.warn(
+                "⚠️ Storage unavailable:",
+                error
+            );
+
+        }
+
+
+        /* ====================================================
+           🕒 LAST LOGIN
+        ==================================================== */
+
+        update(
+
+            ref(
+                db,
+                `users/${uid}`
+            ),
+
+            {
+                lastLogin:
+                    Date.now()
+            }
+
+        ).catch(error => {
+
+            console.warn(
+                "Last login update skipped:",
+                error
+            );
+
+        });
 
 
         /* ====================================================
@@ -29744,6 +29800,25 @@ window.login = async function () {
 
         }
 
+
+        // Mark the authenticated app session before starting any school modules.
+        // Startup listeners are gated until this point so the login screen stays light.
+        window.__RASM_LOGIN_COMPLETE = true;
+        window.__RASM_AUTH_BOOT_READY = true;
+        window.__RASM_LOGIN_IN_PROGRESS = false;
+
+        // Release school-module Firebase work only after authentication,
+        // school verification, and subscription checks have all succeeded.
+        if (typeof window.__RASM_RELEASE_BOOT_QUEUE === "function") {
+            window.__RASM_RELEASE_BOOT_QUEUE();
+        }
+
+        // Start the live subscription watcher only after the authenticated
+        // school session has passed all checks.
+        if (typeof window.startSubscriptionWatcher === "function") {
+            try { window.startSubscriptionWatcher(); }
+            catch (error) { console.warn("Subscription watcher start failed:", error); }
+        }
 
         if (
             typeof window.startSubscriptionUI ===
@@ -30041,10 +30116,27 @@ window.login = async function () {
                 "Connection Problem";
 
             message =
-                "Your account was authenticated, but school verification is taking longer than usual. RASM 360 will keep retrying automatically. Please keep your internet connection active.";
+                "Your account was authenticated, but RASM 360 could not read the linked school record after two automatic attempts. Check your internet connection and try again. If this repeats, the Firebase Realtime Database rules or school ID may need checking.";
 
             icon =
                 "warning";
+
+        }
+
+
+        else if (
+            errorMessage ===
+            "SCHOOL_PERMISSION_DENIED"
+        ) {
+
+            title =
+                "School Database Access Denied";
+
+            message =
+                "Your account was authenticated, but Firebase denied access to the linked school record. Please check the Realtime Database rules for schools/" + String(window.schoolId || "[schoolId]") + " and confirm the signed-in user is allowed to read it.";
+
+            icon =
+                "error";
 
         }
 
@@ -30237,6 +30329,8 @@ window.login = async function () {
 
 
     finally {
+
+        window.__RASM_LOGIN_IN_PROGRESS = false;
 
         window.setLoginLoading(
             false
@@ -48007,6 +48101,9 @@ Printed on ${generated}
 
 </body>
 
+
+
+
 </html>
 
 `);
@@ -50986,79 +51083,87 @@ document.getElementById("saveMarksButton")
          * Refresh the visible Loaded Marks table locally when the currently
          * loaded exam is the same exam being recorded.
          */
-        const loadedExam =
-            normalizeExamPeriod(
-                window.reportContext?.examPeriod ||
-                document.getElementById("resultsExamPeriod")?.value ||
-                ""
-            );
-
-        if (
-            loadedExam &&
-            loadedExam === examPeriod &&
-            typeof renderMarksTable === "function"
-        ) {
-
-            const base =
-                Array.isArray(window.__loadedResultsBaseLearners)
-                    ? window.__loadedResultsBaseLearners
-                    : (
-                        Array.isArray(window.allLoadedLearners)
-                            ? window.allLoadedLearners
-                            : []
-                    );
-
-            const activeGrade =
-                String(
-                    document.getElementById("resultsGradeFilter")?.value ||
-                    window.reportContext?.grade ||
+        // Do not make the next learner wait for a full Loaded Marks table rebuild.
+        // The saved score is already confirmed and local collections are updated.
+        setTimeout(() => {
+            try {
+            const loadedExam =
+                normalizeExamPeriod(
+                    window.reportContext?.examPeriod ||
+                    document.getElementById("resultsExamPeriod")?.value ||
                     ""
-                ).trim();
+                );
 
-            const visible =
-                activeGrade &&
-                activeGrade.toUpperCase() !== "ALL GRADES"
-                    ? base.filter(item =>
-                        String(item?.grade || "").trim().toUpperCase() ===
-                        activeGrade.toUpperCase()
-                    )
-                    : base.slice();
+            if (
+                loadedExam &&
+                loadedExam === examPeriod &&
+                typeof renderMarksTable === "function"
+            ) {
 
-            window.currentFilteredLearners = visible;
+                const base =
+                    Array.isArray(window.__loadedResultsBaseLearners)
+                        ? window.__loadedResultsBaseLearners
+                        : (
+                            Array.isArray(window.allLoadedLearners)
+                                ? window.allLoadedLearners
+                                : []
+                        );
 
-            if (typeof buildMarksHeader === "function") {
-                buildMarksHeader(activeGrade, visible);
+                const activeGrade =
+                    String(
+                        document.getElementById("resultsGradeFilter")?.value ||
+                        window.reportContext?.grade ||
+                        ""
+                    ).trim();
+
+                const visible =
+                    activeGrade &&
+                    activeGrade.toUpperCase() !== "ALL GRADES"
+                        ? base.filter(item =>
+                            String(item?.grade || "").trim().toUpperCase() ===
+                            activeGrade.toUpperCase()
+                        )
+                        : base.slice();
+
+                window.currentFilteredLearners = visible;
+
+                if (typeof buildMarksHeader === "function") {
+                    buildMarksHeader(activeGrade, visible);
+                }
+
+                if (typeof clearMarksTable === "function") {
+                    clearMarksTable();
+                }
+
+                if (typeof renderNextMarksBatch === "function") {
+                    window.__marksPagination = window.__marksPagination || {
+                        page: 0,
+                        limit: 40,
+                        loading: false,
+                        finished: false
+                    };
+
+                    window.__marksPagination.page = 0;
+                    window.__marksPagination.loading = false;
+                    window.__marksPagination.finished = false;
+
+                    renderNextMarksBatch();
+                } else {
+                    renderMarksTable(visible);
+                }
+
+                if (typeof renderTotals === "function") {
+                    renderTotals(visible);
+                }
+
+                if (typeof renderAverages === "function") {
+                    renderAverages(visible);
+                }
             }
-
-            if (typeof clearMarksTable === "function") {
-                clearMarksTable();
+            } catch (refreshError) {
+                console.warn("Deferred Loaded Marks refresh failed; the score is already saved:", refreshError);
             }
-
-            if (typeof renderNextMarksBatch === "function") {
-                window.__marksPagination = window.__marksPagination || {
-                    page: 0,
-                    limit: 40,
-                    loading: false,
-                    finished: false
-                };
-
-                window.__marksPagination.page = 0;
-                window.__marksPagination.loading = false;
-                window.__marksPagination.finished = false;
-
-                renderNextMarksBatch();
-            } else {
-                renderMarksTable(visible);
-            }
-
-            if (typeof renderTotals === "function") {
-                renderTotals(visible);
-            }
-
-            if (typeof renderAverages === "function") {
-                renderAverages(visible);
-            }
-        }
+        }, 0);
 
 
     } catch (error) {
@@ -51084,6 +51189,18 @@ document.getElementById("saveMarksButton")
     }
 
 });
+
+// Fast marks-entry shortcut: pressing Enter in the score field submits the
+// current learner immediately. Keep the explicit Save button as a fallback.
+document.getElementById("subjectMark")?.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" || event.isComposing || event.repeat) return;
+    event.preventDefault();
+    const saveButton = document.getElementById("saveMarksButton");
+    if (saveButton && !saveButton.disabled && !window.__savingMarks) {
+        saveButton.click();
+    }
+});
+
 function showCurrentLearnerNotice(name) {
 
   let box =
@@ -51308,7 +51425,9 @@ async function loadMarksUnifiedClean() {
 
     }
 
+    // The actual grade dropdown in the Marks Table is #gradeFilter.
     const gradeFilterEl =
+        document.getElementById("gradeFilter") ||
         document.getElementById("resultsGradeFilter");
 
     const selectedGrade =
@@ -51378,6 +51497,23 @@ async function loadMarksUnifiedClean() {
     }
 
     // ===========================================
+    // EXAM-PERIOD LOOKUP (supports old and normalized Firebase keys)
+    // ===========================================
+    function getMarksForNormalizedPeriod(studentData, requestedPeriod) {
+        const marksByPeriod = studentData && studentData.marks;
+        if (!marksByPeriod || typeof marksByPeriod !== "object") return null;
+        if (marksByPeriod[requestedPeriod] && typeof marksByPeriod[requestedPeriod] === "object") {
+            return marksByPeriod[requestedPeriod];
+        }
+        const requested = normalizeExamPeriod(requestedPeriod).toLowerCase();
+        const matchedKey = Object.keys(marksByPeriod).find(period =>
+            normalizeExamPeriod(period).toLowerCase() === requested
+        );
+        const matched = matchedKey ? marksByPeriod[matchedKey] : null;
+        return matched && typeof matched === "object" ? matched : null;
+    }
+
+    // ===========================================
     // FIND PREVIOUS EXAM
     // ===========================================
     let previousExamPeriod = null;
@@ -51434,8 +51570,9 @@ async function loadMarksUnifiedClean() {
         (a,b)=>examOrder(a)-examOrder(b)
     );
 
-    const currentIndex =
-        allExamPeriods.indexOf(examPeriod);
+    const currentIndex = allExamPeriods.findIndex(period =>
+        normalizeExamPeriod(period).toLowerCase() === normalizeExamPeriod(examPeriod).toLowerCase()
+    );
 
     if(currentIndex>0){
 
@@ -51485,14 +51622,13 @@ async function loadMarksUnifiedClean() {
 
             // Do not log every learner while loading. Large classes can make
             // the browser appear frozen at "Processing learners...".
-            const marks = data?.marks?.[examPeriod];
+            const marks = getMarksForNormalizedPeriod(data, examPeriod);
 
             if(!marks) return;
 
-            const previousMarks =
-                previousExamPeriod
-                    ? data?.marks?.[previousExamPeriod] || {}
-                    : {};
+            const previousMarks = previousExamPeriod
+                ? (getMarksForNormalizedPeriod(data, previousExamPeriod) || {})
+                : {};
 
             const ignoredFields = [
 
@@ -51795,7 +51931,9 @@ console.log(
   "Loaded learners:",
   filteredLearners.length,
   "Exam Period:",
-  examPeriod
+  examPeriod,
+  "Grade filter:", selectedGrade,
+  "Learners with saved marks found before grade filtering:", learners.length
 );
 
 Swal.fire({
@@ -53243,12 +53381,21 @@ window.openLoadedMarksEditor = async function () {
     }
 
     // STEP 3: SUBJECT — ONLY REAL SUBJECT KEYS WITH RECORDED NUMERIC MARKS
-    const subjects = getCleanRecordedSubjects(
-        Object.keys(learner?.marks || {})
-    ).filter(subject => {
-        const value = getNumericRecordedValue(learner?.marks?.[subject]);
-        return value !== null;
-    });
+    // Keep every real recorded numeric mark editable, including Grade 1–3
+    // sub-learning keys such as "English — Listening", "Kiswahili — Kusoma",
+    // "Environmental and CRE — CRE", and legacy bare sub-area keys.
+    // Do not pass these through the report/calculation subject filter: the
+    // edit wizard must expose recorded learning areas even when reports omit them.
+    const marksObject = learner?.marks && typeof learner.marks === "object"
+        ? learner.marks
+        : {};
+    const subjects = getCleanRecordedSubjects(Object.keys(marksObject))
+        .filter(subject => {
+            const raw = marksObject[subject];
+            const value = getNumericRecordedValue(raw);
+            return value !== null && Number.isFinite(Number(value));
+        })
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 
     if (!subjects.length) {
         return Swal.fire(
@@ -53260,10 +53407,12 @@ window.openLoadedMarksEditor = async function () {
 
     const subjectOptions = {};
     subjects.forEach(subject => {
-        subjectOptions[subject] = subject
-            .replace(/([A-Z])/g, " $1")
-            .replace(/[_-]/g, " ")
-            .replace(/^./, char => char.toUpperCase());
+        const readable = subject
+            .replace(/\s*[—–-]\s*/g, " — ")
+            .replace(/_/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        subjectOptions[subject] = readable;
     });
 
     const subjectResult = await Swal.fire({
@@ -53706,16 +53855,23 @@ window.deleteSelectedLearnersMarks = deleteSelectedLearnersMarks;
 function populateGradeSelectors(gradeSet) {
 
   const filter = document.getElementById("gradeFilter");
-
   if (!filter) return;
 
+  // Preserve the user's active grade instead of silently resetting to All Grades
+  // after the marks table has been filtered and rendered.
+  const previousValue = String(filter.value || "").trim();
+  const grades = [...gradeSet].map(g => String(g || "").trim()).filter(Boolean).sort();
   filter.innerHTML = `<option value="">All Grades</option>`;
 
-  [...gradeSet]
-    .sort()
-    .forEach(g => {
-      filter.innerHTML += `<option value="${g}">${g}</option>`;
-    });
+  grades.forEach(g => {
+    const option = document.createElement("option");
+    option.value = g;
+    option.textContent = g;
+    filter.appendChild(option);
+  });
+
+  const matching = grades.find(g => g.toUpperCase() === previousValue.toUpperCase());
+  filter.value = matching || "";
 }
 
 
@@ -60220,7 +60376,7 @@ const REPORT_GRADE13_MAIN_SUBJECTS = [
 const REPORT_GRADE13_SUB_LEARNING_AREAS = new Set([
     "Listening", "Reading", "Writing", "Grammar",
     "Kusikiliza", "Kusoma", "Kuandika", "Sarufi",
-    "Environmental"
+    "Environmental", "CRE", "Christian Religious Education"
 ]);
 
 function getGradeNumber(value) {
@@ -63739,18 +63895,10 @@ window.generateMarksRecordingSummary = async function (
         // ==================================================
 
         const gradeFromUI = (
-
-            window.reportContext?.grade ??
-
-            document.getElementById(
-                "gradeFilter"
-            )?.value ??
-
+            document.getElementById("gradeFilter")?.value ||
+            window.reportContext?.grade ||
             "All Grades"
-
-        )
-        .toString()
-        .trim();
+        ).toString().trim();
 
 
         // ==================================================
@@ -63790,24 +63938,10 @@ window.generateMarksRecordingSummary = async function (
         );
 
 
-        const subjects =
-            (window.schoolSubjects || [])
-                .filter(Boolean);
-
-
-        if (!subjects.length) {
-
-            hideLoader();
-
-            Swal.fire(
-                "No Subjects Found",
-                "No recorded subjects were detected for this exam period.",
-                "warning"
-            );
-
-            return;
-
-        }
+        // This report must use LOADED MARKS for each grade, not the global
+        // schoolSubjects list (which mixes curricula from different levels).
+        // A grade-specific subject list is built inside the grade loop below.
+        const subjects = [];
 
 
         // ==================================================
@@ -63825,34 +63959,25 @@ window.generateMarksRecordingSummary = async function (
         );
 
 
-        const filteredStudents =
-            (allStudents || []).filter(
-                student => {
-
-                    const studentGrade =
-                        (student.grade || "")
-                            .toString()
-                            .trim();
-
-
-                    return (
-
-                        gradeFromUI ===
-                        "All Grades"
-
-                        ||
-
-                        !gradeFromUI
-
-                        ||
-
-                        studentGrade ===
-                        gradeFromUI
-
-                    );
-
-                }
-            );
+        // A selected class determines the curriculum level to report.
+        // 1A/2RED/3 => Grades 1-3; 4-6 => Grades 4-6; 7-9 => Grades 7-9; 10-12 => Grades 10-12.
+        const selectedGradeNumber = typeof getGradeNumber === "function"
+            ? getGradeNumber(gradeFromUI)
+            : (String(gradeFromUI).match(/\d+/) ? Number(String(gradeFromUI).match(/\d+/)[0]) : null);
+        const selectedLevelRange = selectedGradeNumber >= 1 && selectedGradeNumber <= 3 ? [1, 3]
+            : selectedGradeNumber >= 4 && selectedGradeNumber <= 6 ? [4, 6]
+            : selectedGradeNumber >= 7 && selectedGradeNumber <= 9 ? [7, 9]
+            : selectedGradeNumber >= 10 && selectedGradeNumber <= 12 ? [10, 12] : null;
+        const selectedLevelLabel = selectedLevelRange
+            ? `GRADE ${selectedLevelRange[0]}–${selectedLevelRange[1]}` : "ALL GRADES";
+        const filteredStudents = (allStudents || []).filter(student => {
+            const studentGrade = String(student?.grade || "").trim();
+            if (!gradeFromUI || /^all grades$/i.test(gradeFromUI)) return true;
+            if (!selectedLevelRange) return studentGrade === gradeFromUI;
+            const n = typeof getGradeNumber === "function" ? getGradeNumber(studentGrade)
+                : (String(studentGrade).match(/\d+/) ? Number(String(studentGrade).match(/\d+/)[0]) : null);
+            return n !== null && n >= selectedLevelRange[0] && n <= selectedLevelRange[1];
+        });
 
 
         // ==================================================
@@ -63977,30 +64102,14 @@ window.generateMarksRecordingSummary = async function (
              * with the other school reports.
              */
 
-            if (
-                typeof schoolHeader ===
-                "function"
-            ) {
-
-                return schoolHeader({
-
-                    name:
-                        "MARKS RECORDING STATUS REPORT",
-
-                    grade:
-                        gradeFromUI
-
-                });
-
-            }
-
-
-            // ==================================================
-            // FALLBACK ONLY
-            // ==================================================
-
-            const school =
-                window.currentSchool || {};
+            const school = window.currentSchool || window.schoolProfile || window.currentSchoolProfile || {};
+            const profileLogo = school.logo || school.schoolLogo || school.logoUrl || school.logoURL ||
+                school.image || localStorage.getItem("schoolLogo") || localStorage.getItem("school_logo") || "";
+            const profileName = school.name || school.schoolName || school.institutionName || "SCHOOL NAME";
+            const profileAddress = school.address || school.schoolAddress || school.location || "";
+            const profileMotto = school.motto || school.schoolMotto || "";
+            const profilePhone = school.phone || school.phoneNumber || school.contactPhone || "";
+            const profileEmail = school.email || school.emailAddress || "";
 
 
             return `
@@ -64013,11 +64122,11 @@ window.generateMarksRecordingSummary = async function (
                 ">
 
                     ${
-                        school.logo
+                        profileLogo
                             ? `
                                 <img
                                     src="${escapeHTML(
-                                        school.logo
+                                        profileLogo
                                     )}"
                                     style="
                                         width:80px;
@@ -64036,21 +64145,20 @@ window.generateMarksRecordingSummary = async function (
                         font-size:20px;
                     ">
                         ${escapeHTML(
-                            school.name ||
-                            "SCHOOL NAME"
+                            profileName
                         )}
                     </h2>
 
 
                     ${
-                        school.address
+                        profileAddress
                             ? `
                                 <div style="
                                     margin-top:3px;
                                     font-size:12px;
                                 ">
                                     ${escapeHTML(
-                                        school.address
+                                        profileAddress
                                     )}
                                 </div>
                             `
@@ -64059,7 +64167,7 @@ window.generateMarksRecordingSummary = async function (
 
 
                     ${
-                        school.motto
+                        profileMotto
                             ? `
                                 <div style="
                                     margin-top:3px;
@@ -64067,13 +64175,15 @@ window.generateMarksRecordingSummary = async function (
                                     font-weight:bold;
                                 ">
                                     ${escapeHTML(
-                                        school.motto
+                                        profileMotto
                                     )}
                                 </div>
                             `
                             : ""
                     }
 
+
+                    ${profilePhone || profileEmail ? `<div style="margin-top:3px;font-size:11px;">${escapeHTML(profilePhone)}${profilePhone && profileEmail ? " | " : ""}${escapeHTML(profileEmail)}</div>` : ""}
 
                     <div style="
                         margin-top:8px;
@@ -64176,7 +64286,7 @@ window.generateMarksRecordingSummary = async function (
                             margin-top:3px;
                         ">
                             ${escapeHTML(
-                                gradeFromUI
+                                selectedLevelRange ? `${selectedLevelLabel} (selected from ${gradeFromUI})` : gradeFromUI
                             )}
                         </div>
 
@@ -64231,7 +64341,7 @@ window.generateMarksRecordingSummary = async function (
                             font-weight:700;
                             margin-top:3px;
                         ">
-                            ${subjects.length}
+                            Calculated per grade
                         </div>
 
                     </div>
@@ -64264,16 +64374,7 @@ window.generateMarksRecordingSummary = async function (
                         line-height:1.7;
                     ">
 
-                        ${subjects
-                            .map(
-                                subject =>
-                                    escapeHTML(
-                                        getSubjectDisplayName(
-                                            subject
-                                        )
-                                    )
-                            )
-                            .join(" • ")}
+                        Subjects are read from Loaded Marks for the selected exam period. Where a grade in the same level is fully recorded, its loaded subjects establish the reference subject set so subjects missing completely from another grade are counted as not recorded. If no grade is fully recorded, the report uses the combined subjects actually observed in loaded marks for that level. Grade 1–3 sub-learning areas are not carried into Grades 4–12.
 
                     </div>
 
@@ -64286,17 +64387,140 @@ window.generateMarksRecordingSummary = async function (
         // GRADE REPORTS
         // ==================================================
 
-        const grades =
-            Object.keys(grouped);
+        const grades = Object.keys(grouped).sort((a, b) => {
+            const an = getGradeNumber(a);
+            const bn = getGradeNumber(b);
+            if (an !== null && bn !== null) return an - bn;
+            return String(a).localeCompare(String(b));
+        });
+        let previousLevelLabel = "";
+        const reportTotals = { total: 0, fully: 0, partially: 0, not: 0 };
+        const gradeSubjectSummaries = [];
+        // Rebuilt on every report generation; each grade gets its own WhatsApp-ready message.
+        window.__rasmMarksStatusGradeMessages = [];
 
+        function levelForGradeName(gradeName) {
+            const n = getGradeNumber(gradeName);
+            return n >= 1 && n <= 3 ? "GRADE 1–3" :
+                n >= 4 && n <= 6 ? "GRADE 4–6" :
+                n >= 7 && n <= 9 ? "GRADE 7–9" :
+                n >= 10 && n <= 12 ? "GRADE 10–12" : "OTHER GRADES";
+        }
 
-        for (
-            const grade of grades
-        ) {
+        function collectGradeSubjectMap(gradeLearners, gradeName) {
+            const gradeNumber = getGradeNumber(gradeName);
+            const map = new Map();
+            (gradeLearners || []).forEach(student => {
+                const learnerMarks = student?.marks?.[examPeriod] || {};
+                Object.keys(learnerMarks).forEach(rawKey => {
+                    if (typeof isMarksMetadataField === "function" && isMarksMetadataField(rawKey)) return;
+                    const rawName = String(window.subjectDisplayNames?.[rawKey] || rawKey).trim();
+                    if (!rawName) return;
+                    if (gradeNumber >= 4 && gradeNumber <= 12) {
+                        const normalized = rawName.toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
+                        const parts = normalized.split(/\s*-\s*/);
+                        const tail = parts[parts.length - 1].trim();
+                        const grade13SubAreas = new Set([
+                            "listening", "reading", "writing", "grammar", "kusikiliza", "kusoma", "kuandika", "sarufi",
+                            "environmental", "environmental activities", "environmental activity"
+                        ]);
+                        if (grade13SubAreas.has(normalized) || grade13SubAreas.has(tail) ||
+                            /^(english|kiswahili)\s*-\s*(listening|reading|writing|grammar|kusikiliza|kusoma|kuandika|sarufi)$/.test(normalized) ||
+                            /^(environmental and cre|environment and cre)\s*-\s*(environmental|cre)$/.test(normalized)) return;
+                    }
+                    const canonical = typeof rasmCanonicalRecordedSubject === "function"
+                        ? String(rasmCanonicalRecordedSubject(rawName, gradeName) || rawName).trim() : rawName;
+                    const id = canonical.toLowerCase();
+                    if (!id || id === "updated at" || id === "timestamp" || id === "lastupdated") return;
+                    if (!map.has(id)) {
+                        let displayName = rawName;
+                        if (gradeNumber >= 4 && gradeNumber <= 6 && typeof rasmCanonicalSubjectName === "function") {
+                            displayName = String(rasmCanonicalSubjectName(rawName, gradeName) || rawName);
+                        }
+                        map.set(id, { key: rawKey, name: displayName, canonical });
+                    }
+                });
+            });
+            return map;
+        }
 
-            const learners =
-                grouped[grade];
+        function recordedSubjectValue(marks, subject, gradeName) {
+            let value = marks?.[subject.key];
+            if (value === undefined || value === null || value === "") {
+                for (const rawKey of Object.keys(marks || {})) {
+                    if (typeof isMarksMetadataField === "function" && isMarksMetadataField(rawKey)) continue;
+                    const rawName = String(window.subjectDisplayNames?.[rawKey] || rawKey).trim();
+                    const canonical = typeof rasmCanonicalRecordedSubject === "function"
+                        ? String(rasmCanonicalRecordedSubject(rawName, gradeName) || rawName).trim().toLowerCase()
+                        : rawName.toLowerCase();
+                    if (canonical === String(subject.canonical).trim().toLowerCase()) {
+                        value = marks[rawKey];
+                        if (value !== undefined && value !== null && value !== "") break;
+                    }
+                }
+            }
+            return typeof getNumericRecordedValue === "function"
+                ? getNumericRecordedValue(value)
+                : (value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null);
+        }
 
+        // First collect subjects by grade. A grade is a reference only when every learner
+        // has a numeric mark for every subject in that grade's loaded-subject set.
+        const subjectMapsByGrade = {};
+        grades.forEach(gradeName => {
+            subjectMapsByGrade[gradeName] = collectGradeSubjectMap(grouped[gradeName], gradeName);
+        });
+        const referenceSubjectsByLevel = {};
+        const fullyRecordedReferenceCandidates = {};
+        grades.forEach(gradeName => {
+            const level = levelForGradeName(gradeName);
+            const gradeLearners = grouped[gradeName] || [];
+            const gradeSubjects = [...subjectMapsByGrade[gradeName].values()];
+            const isFullyRecordedReference = gradeLearners.length > 0 && gradeSubjects.length > 0 &&
+                gradeLearners.every(student => gradeSubjects.every(subject =>
+                    recordedSubjectValue(student?.marks?.[examPeriod] || {}, subject, gradeName) !== null));
+            if (isFullyRecordedReference) {
+                // Prefer the fully recorded grade with the largest observed subject set.
+                // This avoids selecting a grade with only one loaded subject when another
+                // fully recorded grade in the same level has the full loaded curriculum.
+                const existing = fullyRecordedReferenceCandidates[level];
+                if (!existing || gradeSubjects.length > existing.subjectCount) {
+                    fullyRecordedReferenceCandidates[level] = {
+                        subjectMap: subjectMapsByGrade[gradeName],
+                        subjectCount: gradeSubjects.length,
+                        grade: gradeName
+                    };
+                }
+            }
+        });
+        Object.keys(fullyRecordedReferenceCandidates).forEach(level => {
+            referenceSubjectsByLevel[level] = fullyRecordedReferenceCandidates[level].subjectMap;
+        });
+        // If no grade is fully recorded, use the combined observed subject set within that
+        // level; this is evidence from loaded marks, not a hard-coded curriculum guess.
+        grades.forEach(gradeName => {
+            const level = levelForGradeName(gradeName);
+            if (referenceSubjectsByLevel[level]) return;
+            const merged = new Map();
+            grades.filter(g => levelForGradeName(g) === level).forEach(g => {
+                subjectMapsByGrade[g].forEach((subject, id) => { if (!merged.has(id)) merged.set(id, subject); });
+            });
+            referenceSubjectsByLevel[level] = merged;
+        });
+        for (const grade of grades) {
+
+            const learners = grouped[grade];
+            const gradeNumber = getGradeNumber(grade);
+            const levelLabel = gradeNumber >= 1 && gradeNumber <= 3 ? "GRADE 1–3" :
+                gradeNumber >= 4 && gradeNumber <= 6 ? "GRADE 4–6" :
+                gradeNumber >= 7 && gradeNumber <= 9 ? "GRADE 7–9" :
+                gradeNumber >= 10 && gradeNumber <= 12 ? "GRADE 10–12" : "OTHER GRADES";
+
+            // Use the loaded subjects from a 100%-recorded grade in this level when one
+            // exists. That reveals subjects that are completely absent in another grade.
+            // Otherwise use the observed subject set for this level (never a guessed count).
+            const expectedMap = referenceSubjectsByLevel[levelLabel] || subjectMapsByGrade[grade] || new Map();
+            const subjects = [...expectedMap.values()].sort((a, b) => a.name.localeCompare(b.name));
 
             let fullyRecorded = 0;
 
@@ -64315,53 +64539,15 @@ window.generateMarksRecordingSummary = async function (
             learners.forEach(
                 student => {
 
-                    const marks =
-                        student?.marks?.[
-                            examPeriod
-                        ] || {};
-
-
+                    const marks = student?.marks?.[examPeriod] || {};
                     let recordedCount = 0;
+                    const missingSubjects = [];
 
-
-                    const missingSubjects =
-                        [];
-
-
-                    subjects.forEach(
-                        subject => {
-
-                            const value =
-                                marks[
-                                    subject
-                                ];
-
-
-                            if (
-                                value !==
-                                    undefined &&
-
-                                value !==
-                                    null &&
-
-                                value !== ""
-                            ) {
-
-                                recordedCount++;
-
-                            }
-                            else {
-
-                                missingSubjects.push(
-                                    getSubjectDisplayName(
-                                        subject
-                                    )
-                                );
-
-                            }
-
-                        }
-                    );
+                    subjects.forEach(subject => {
+                        const numericValue = recordedSubjectValue(marks, subject, grade);
+                        if (numericValue !== null) recordedCount++;
+                        else missingSubjects.push(subject.name);
+                    });
 
 
                     // ==========================
@@ -64369,8 +64555,7 @@ window.generateMarksRecordingSummary = async function (
                     // ==========================
 
                     if (
-                        recordedCount ===
-                        subjects.length
+                        subjects.length > 0 && recordedCount === subjects.length
                     ) {
 
                         fullyRecorded++;
@@ -64383,7 +64568,7 @@ window.generateMarksRecordingSummary = async function (
                     // ==========================
 
                     else if (
-                        recordedCount > 0
+                        subjects.length > 0 && recordedCount > 0
                     ) {
 
                         partiallyRecorded++;
@@ -64411,25 +64596,8 @@ window.generateMarksRecordingSummary = async function (
                     // ==========================
 
                     else {
-
                         notRecorded++;
-
-
-                        missingLearners.push({
-
-                            name:
-                                student.name ||
-                                "Unnamed",
-
-                            recorded:0,
-
-                            missing:
-                                subjects.map(
-                                    getSubjectDisplayName
-                                )
-
-                        });
-
+                        // Deliberately do not list learner names when zero marks are recorded.
                     }
 
                 }
@@ -64450,10 +64618,81 @@ window.generateMarksRecordingSummary = async function (
                     )
                     : 0;
 
+            // WhatsApp message for this grade only. Per the reporting rule, do not expose
+            // names of learners with zero recorded marks; their count remains in the summary.
+            const gradeShareIndex = window.__rasmMarksStatusGradeMessages.length;
+            const schoolProfileForShare = window.currentSchool || window.schoolProfile || {};
+            const partialLearnerLines = missingLearners.map((learner, index) => [
+                `*${index + 1}. ${learner.name}*`,
+                `📝 Recorded Subjects: *${learner.recorded}/${subjects.length}*`,
+                `🟡 Status: *PARTIALLY RECORDED*`,
+                learner.missing?.length ? `📚 Missing Subjects: ${learner.missing.join(", ")}` : ""
+            ].filter(Boolean).join("\n"));
+            const missingSectionText = partialLearnerLines.length
+                ? partialLearnerLines.join("\n\n") + (notRecorded > 0 ? `\n\n❌ Learners with NO MARKS RECORDED: *${notRecorded}* (names omitted; please check the class register).` : "")
+                : (notRecorded > 0
+                    ? `❌ Learners with NO MARKS RECORDED: *${notRecorded}* (names omitted; please check the class register).`
+                    : "✔ All learners have their marks fully recorded.");
+            const gradeWhatsAppMessage = [
+                `📘 *GRADE ${grade} – MARKS RECORDING STATUS*`,
+                "━━━━━━━━━━━━━━━━━━",
+                "📊 *CLASS SUMMARY*",
+                `👥 Total Learners: *${total}*`,
+                `✅ Fully Recorded: *${fullyRecorded}*`,
+                `🟡 Partially Recorded: *${partiallyRecorded}*`,
+                `❌ Not Recorded: *${notRecorded}*`,
+                `📈 *Marks Recording Completion: ${percent}%*`,
+                "━━━━━━━━━━━━━━━━━━",
+                "📋 *LEARNERS WITH MISSING MARKS*",
+                missingSectionText,
+                "━━━━━━━━━━━━━━━━━━",
+                "⚠️ *ACTION REQUIRED*",
+                "The subject teachers concerned are requested to record the missing marks for the learners above as soon as possible.",
+                "🎯 *Target: 100% Marks Recording Completion*",
+                "Thank you for your cooperation.",
+                `*${schoolProfileForShare.name || "RASM 360 SCHOOL MANAGEMENT SYSTEM"}* 📚`
+            ].join("\n");
+            window.__rasmMarksStatusGradeMessages.push({ grade: String(grade), message: gradeWhatsAppMessage });
+
+            // Subject-level completion for this grade: fully = every learner has a mark,
+            // partial = at least one but not all learners have a mark, not recorded = none.
+            let subjectsFullyRecorded = 0;
+            let subjectsPartiallyRecorded = 0;
+            let subjectsNotRecorded = 0;
+            const subjectStatusRows = subjects.map(subject => {
+                let learnersWithMarks = 0;
+                learners.forEach(student => {
+                    if (recordedSubjectValue(student?.marks?.[examPeriod] || {}, subject, grade) !== null) learnersWithMarks++;
+                });
+                const status = learnersWithMarks === learners.length && learners.length > 0 ? "Fully recorded" :
+                    learnersWithMarks > 0 ? "Partially recorded" : "Not recorded";
+                if (status === "Fully recorded") subjectsFullyRecorded++;
+                else if (status === "Partially recorded") subjectsPartiallyRecorded++;
+                else subjectsNotRecorded++;
+                return { name: subject.name, count: learnersWithMarks, status };
+            });
+            gradeSubjectSummaries.push({
+                grade, levelLabel, learners: total, loadedSubjects: subjects.length,
+                fully: subjectsFullyRecorded, partially: subjectsPartiallyRecorded, not: subjectsNotRecorded,
+                rows: subjectStatusRows
+            });
+
+            reportTotals.total += total;
+            reportTotals.fully += fullyRecorded;
+            reportTotals.partially += partiallyRecorded;
+            reportTotals.not += notRecorded;
+
 
             // ==================================================
-            // GRADE SECTION
+            // LEVEL + GRADE SECTION
             // ==================================================
+            if (levelLabel !== previousLevelLabel) {
+                html += `
+                    <div class="marks-status-level-heading" style="margin:22px 0 10px;padding:10px 14px;background:#0f172a;color:#fff;border-radius:7px;font-size:17px;font-weight:900;letter-spacing:.3px;page-break-after:avoid;">
+                        ${escapeHTML(levelLabel)} LEVEL
+                    </div>`;
+                previousLevelLabel = levelLabel;
+            }
 
             html += `
 
@@ -64480,13 +64719,14 @@ window.generateMarksRecordingSummary = async function (
                         font-weight:800;
                     ">
 
-                        📘 Grade
-                        ${escapeHTML(
-                            grade
-                        )}
+                        📘 Grade ${escapeHTML(grade)}
+                        <span style="float:right;font-size:12px;font-weight:700;">${subjects.length} loaded subject${subjects.length === 1 ? "" : "s"}</span>
 
                     </div>
 
+                    <div class="marks-status-actions" style="display:flex;justify-content:flex-end;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #d1d5db;">
+                        <button type="button" onclick="window.shareMarksRecordingGradeToWhatsApp(${gradeShareIndex})" style="border:0;border-radius:6px;background:#15803d;color:#fff;padding:9px 13px;font-weight:800;cursor:pointer;">💬 Share Grade ${escapeHTML(grade)} Report to WhatsApp</button>
+                    </div>
 
                     <!-- ==============================
                          SUMMARY CARDS
@@ -64851,6 +65091,7 @@ window.generateMarksRecordingSummary = async function (
                                     </table>
 
                                 </div>
+                                ${notRecorded > 0 ? `<div style="margin-top:8px;padding:9px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:6px;font-size:12px;font-weight:700;">❌ ${notRecorded} learner(s) have no marks recorded. Their names are intentionally omitted from this list.</div>` : ""}
 
                             `
 
@@ -64858,13 +65099,13 @@ window.generateMarksRecordingSummary = async function (
 
                                 <div style="
                                     padding:14px;
-                                    background:#f0fdf4;
-                                    border:1px solid #bbf7d0;
+                                    background:${notRecorded > 0 ? "#fef2f2" : "#f0fdf4"};
+                                    border:1px solid ${notRecorded > 0 ? "#fecaca" : "#bbf7d0"};
                                     border-radius:7px;
-                                    color:#166534;
+                                    color:${notRecorded > 0 ? "#991b1b" : "#166534"};
                                     font-weight:700;
                                 ">
-                                    ✔ All learners have their marks fully recorded.
+                                    ${subjects.length && notRecorded > 0 ? `❌ ${notRecorded} learner(s) have no marks recorded. Their names are intentionally omitted from this list.` : subjects.length && partiallyRecorded === 0 && fullyRecorded === total ? "✔ All learners have their marks fully recorded." : subjects.length ? "✔ No learners with partially recorded marks were found. Check the summary above for learners with no marks recorded." : "⚠ No learning-area marks were found in Loaded Marks for this grade and exam period."}
                                 </div>
 
                             `
@@ -64878,6 +65119,170 @@ window.generateMarksRecordingSummary = async function (
 
         }
 
+
+        // ==================================================
+        // LEVEL-WISE SUBJECT RECORDING SUMMARY (PRINTABLE)
+        // ==================================================
+        const levelOrder = ["GRADE 1–3", "GRADE 4–6", "GRADE 7–9", "GRADE 10–12", "OTHER GRADES"];
+        const levelSummaryRows = levelOrder.map(level => {
+            const rows = gradeSubjectSummaries.filter(row => row.levelLabel === level);
+            if (!rows.length) return null;
+            const uniqueGrades = rows.length;
+            const learnerCount = rows.reduce((sum, row) => sum + row.learners, 0);
+            const loadedSubjectInstances = rows.reduce((sum, row) => sum + row.loadedSubjects, 0);
+            const fully = rows.reduce((sum, row) => sum + row.fully, 0);
+            const partially = rows.reduce((sum, row) => sum + row.partially, 0);
+            const not = rows.reduce((sum, row) => sum + row.not, 0);
+            return { level, rows, grades: uniqueGrades, learners: learnerCount, loadedSubjectInstances, fully, partially, not };
+        }).filter(Boolean);
+
+        html += `
+            <section class="marks-status-level-summary" style="margin:20px 0;border:2px solid #334155;padding:12px;background:#fff;page-break-inside:auto;">
+              <h3 style="margin:0 0 8px;font-size:16px;">📊 SUBJECT RECORDING SUMMARY BY LEVEL</h3>
+              <p style="margin:0 0 10px;font-size:11px;">Subject status is based on the marks actually loaded for the selected exam period. “Fully recorded” means every learner in that grade has a mark for the subject; “partially recorded” means at least one but not all learners have marks; “not recorded” means no learners have marks. Level totals count subject-by-grade instances, so the same subject taught in different grades is counted once per grade.</p>
+              <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead><tr style="background:#e2e8f0;">
+                  <th style="border:1px solid #333;padding:6px;text-align:left;">Level</th>
+                  <th style="border:1px solid #333;padding:6px;">Grades</th>
+                  <th style="border:1px solid #333;padding:6px;">Learners</th>
+                  <th style="border:1px solid #333;padding:6px;">Loaded Subject Instances</th>
+                  <th style="border:1px solid #333;padding:6px;">Fully Recorded</th>
+                  <th style="border:1px solid #333;padding:6px;">Partially Recorded</th>
+                  <th style="border:1px solid #333;padding:6px;">Not Recorded</th>
+                </tr></thead>
+                <tbody>${levelSummaryRows.map(row => `
+                  <tr>
+                    <td style="border:1px solid #333;padding:6px;font-weight:700;">${escapeHTML(row.level)}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.grades}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.learners}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.loadedSubjectInstances}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.fully}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.partially}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.not}</td>
+                  </tr>`).join("")}</tbody>
+              </table>
+              ${levelSummaryRows.map(row => `
+                <div style="margin-top:12px;page-break-inside:avoid;break-inside:avoid;">
+                  <h4 style="margin:0 0 6px;font-size:13px;">📘 ${escapeHTML(row.level)} — Grade Breakdown</h4>
+                  <table style="width:100%;border-collapse:collapse;font-size:10px;">
+                    <thead><tr style="background:#f1f5f9;"><th style="border:1px solid #333;padding:5px;text-align:left;">Grade</th><th style="border:1px solid #333;padding:5px;">Learners</th><th style="border:1px solid #333;padding:5px;">Loaded Subjects</th><th style="border:1px solid #333;padding:5px;">Fully Recorded</th><th style="border:1px solid #333;padding:5px;">Partially Recorded</th><th style="border:1px solid #333;padding:5px;">Not Recorded</th></tr></thead>
+                    <tbody>${row.rows.map(g => `<tr><td style="border:1px solid #333;padding:5px;font-weight:700;">${escapeHTML(g.grade)}</td><td style="border:1px solid #333;padding:5px;text-align:center;">${g.learners}</td><td style="border:1px solid #333;padding:5px;text-align:center;">${g.loadedSubjects}</td><td style="border:1px solid #333;padding:5px;text-align:center;">${g.fully}</td><td style="border:1px solid #333;padding:5px;text-align:center;">${g.partially}</td><td style="border:1px solid #333;padding:5px;text-align:center;">${g.not}</td></tr>`).join("")}</tbody>
+                  </table>
+                </div>`).join("")}
+            </section>`;
+
+        // ==================================================
+        // GRADE-BY-GRADE SUBJECT RECORDING SUMMARY
+        // ==================================================
+        html += `
+            <section style="margin:20px 0;border:2px solid #334155;padding:12px;background:#fff;page-break-inside:avoid;">
+              <h3 style="margin:0 0 10px;font-size:16px;">SUBJECT RECORDING SUMMARY BY GRADE</h3>
+              <p style="margin:0 0 10px;font-size:11px;">Subject counts are classified using learner marks in the selected exam period. A subject is fully recorded when all learners in that grade have marks; partially recorded when some do; and not recorded when none do.</p>
+              <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead><tr style="background:#e2e8f0;">
+                  <th style="border:1px solid #333;padding:6px;text-align:left;">Grade</th>
+                  <th style="border:1px solid #333;padding:6px;">Learners</th>
+                  <th style="border:1px solid #333;padding:6px;">Loaded Subjects</th>
+                  <th style="border:1px solid #333;padding:6px;">Fully Recorded Subjects</th>
+                  <th style="border:1px solid #333;padding:6px;">Partially Recorded Subjects</th>
+                  <th style="border:1px solid #333;padding:6px;">Not Recorded Subjects</th>
+                </tr></thead>
+                <tbody>${gradeSubjectSummaries.map(row => `
+                  <tr>
+                    <td style="border:1px solid #333;padding:6px;font-weight:700;">${escapeHTML(row.grade)}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.learners}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.loadedSubjects}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.fully}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.partially}</td>
+                    <td style="border:1px solid #333;padding:6px;text-align:center;">${row.not}</td>
+                  </tr>`).join("")}</tbody>
+              </table>
+              <h4 style="margin:14px 0 7px;font-size:13px;">Subject details by grade</h4>
+              ${gradeSubjectSummaries.map(row => `
+                <div style="margin:8px 0 12px;page-break-inside:avoid;">
+                  <div style="font-weight:800;margin-bottom:4px;">${escapeHTML(row.grade)} — ${row.loadedSubjects} loaded subjects</div>
+                  <table style="width:100%;border-collapse:collapse;font-size:10px;">
+                    <thead><tr><th style="border:1px solid #333;padding:5px;text-align:left;">Subject</th><th style="border:1px solid #333;padding:5px;">Learners with marks</th><th style="border:1px solid #333;padding:5px;">Recording status</th></tr></thead>
+                    <tbody>${row.rows.map(subjectRow => `<tr><td style="border:1px solid #333;padding:5px;">${escapeHTML(subjectRow.name)}</td><td style="border:1px solid #333;padding:5px;text-align:center;">${subjectRow.count} / ${row.learners}</td><td style="border:1px solid #333;padding:5px;text-align:center;">${escapeHTML(subjectRow.status)}</td></tr>`).join("") || `<tr><td colspan="3" style="border:1px solid #333;padding:5px;">No loaded subjects found for this grade and exam period.</td></tr>`}</tbody>
+                  </table>
+                </div>`).join("")}
+            </section>`;
+
+        // ==================================================
+        // LEVEL SUMMARY + PRINT / WHATSAPP SHARING
+        // ==================================================
+        const overallCompletion = reportTotals.total > 0 ? Math.round((reportTotals.fully / reportTotals.total) * 100) : 0;
+        const shareLevelLabel = selectedLevelRange ? `${selectedLevelLabel} LEVEL` : "ALL GRADES";
+        window.__rasmMarksStatusShareText = [
+            "MARKS RECORDING STATUS SUMMARY",
+            (window.currentSchool?.name || "RASM 360 SCHOOL"),
+            `Level: ${shareLevelLabel}`,
+            `Exam Period: ${examPeriod}`,
+            "",
+            `TOTAL LEARNERS: ${reportTotals.total}`,
+            `FULLY RECORDED: ${reportTotals.fully}`,
+            `PARTIALLY RECORDED: ${reportTotals.partially}`,
+            `NOT RECORDED: ${reportTotals.not}`,
+            `Marks Recording Completion: ${overallCompletion}%`,
+            "",
+            "SUBJECT RECORDING STATUS BY GRADE:",
+            ...gradeSubjectSummaries.map(row => `${row.grade}: ${row.loadedSubjects} loaded subjects | Fully recorded: ${row.fully} | Partially recorded: ${row.partially} | Not recorded: ${row.not}`),
+            "",
+            reportTotals.partially + reportTotals.not === 0 ? "✔ All learners have their marks fully recorded." : `⚠ Follow-up required: ${reportTotals.partially} partially recorded learner(s); ${reportTotals.not} learner(s) have no marks recorded (names omitted from the list).`,
+            "Generated by RASM TECH 360 KENYA"
+        ].join("\n");
+
+        window.printMarksRecordingStatusReport = function () {
+            const report = document.querySelector("#marksStatusContent .marks-status-report");
+            if (!report) return Swal.fire("Report not found", "Generate the marks status report first.", "info");
+            const frame = document.createElement("iframe");
+            frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+            document.body.appendChild(frame);
+            const doc = frame.contentWindow.document;
+            doc.open();
+            doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Marks Recording Status Report</title><style>
+                @page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;margin:0;font-size:10pt}
+                .marks-status-report{width:100%!important;padding:0!important;background:#fff!important}
+                .marks-status-actions{display:none!important}table{width:100%;border-collapse:collapse!important;page-break-inside:auto}
+                th,td{border:1px solid #333!important;padding:5px!important;vertical-align:top}tr{page-break-inside:avoid;page-break-after:auto}
+                h2,h3,h4{page-break-after:avoid}img{max-width:80px;max-height:80px;object-fit:contain}
+                .marks-status-level-heading{page-break-after:avoid;break-after:avoid}
+                </style></head><body>${report.outerHTML}</body></html>`);
+            doc.close();
+            setTimeout(() => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } finally { setTimeout(() => frame.remove(), 1500); } }, 350);
+        };
+        window.shareMarksRecordingStatusToWhatsApp = function () {
+            const message = window.__rasmMarksStatusShareText || "Generate the marks status report first.";
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+        };
+        window.shareMarksRecordingGradeToWhatsApp = function (gradeIndex) {
+            const entry = window.__rasmMarksStatusGradeMessages?.[Number(gradeIndex)];
+            if (!entry || !entry.message) {
+                if (window.Swal?.fire) Swal.fire("Grade report not found", "Please regenerate the Marks Recording Status Report and try again.", "info");
+                else alert("Please regenerate the Marks Recording Status Report and try again.");
+                return;
+            }
+            window.open(`https://wa.me/?text=${encodeURIComponent(entry.message)}`, "_blank", "noopener,noreferrer");
+        };
+
+        html += `
+            <div class="marks-status-actions" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;margin:14px 0;padding:12px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;">
+                <button type="button" onclick="window.printMarksRecordingStatusReport()" style="border:0;border-radius:6px;background:#1f2937;color:#fff;padding:10px 15px;font-weight:700;cursor:pointer;">🖨️ Print Report</button>
+                <button type="button" onclick="window.shareMarksRecordingStatusToWhatsApp()" style="border:0;border-radius:6px;background:#15803d;color:#fff;padding:10px 15px;font-weight:700;cursor:pointer;">💬 Share Summary to WhatsApp</button>
+            </div>
+            <div style="border:2px solid #334155;border-radius:8px;margin:12px 0;padding:14px;background:#fff;page-break-inside:avoid;">
+                <h3 style="margin:0 0 12px;font-size:16px;">📊 ${escapeHTML(shareLevelLabel)} — OVERALL SUMMARY</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;">
+                    <div style="border:1px solid #cbd5e1;padding:10px;border-radius:6px;"><div style="font-size:11px;font-weight:800;">TOTAL LEARNERS</div><div style="font-size:23px;font-weight:900;">${reportTotals.total}</div></div>
+                    <div style="border:1px solid #86efac;background:#f0fdf4;padding:10px;border-radius:6px;"><div style="font-size:11px;font-weight:800;">FULLY RECORDED</div><div style="font-size:23px;font-weight:900;color:#15803d;">${reportTotals.fully}</div></div>
+                    <div style="border:1px solid #fcd34d;background:#fffbeb;padding:10px;border-radius:6px;"><div style="font-size:11px;font-weight:800;">PARTIALLY RECORDED</div><div style="font-size:23px;font-weight:900;color:#b45309;">${reportTotals.partially}</div></div>
+                    <div style="border:1px solid #fca5a5;background:#fef2f2;padding:10px;border-radius:6px;"><div style="font-size:11px;font-weight:800;">NOT RECORDED</div><div style="font-size:23px;font-weight:900;color:#b91c1c;">${reportTotals.not}</div></div>
+                </div>
+                <div style="margin-top:12px;font-weight:800;">Marks Recording Completion: ${overallCompletion}%</div>
+                <div style="height:16px;background:#e5e7eb;border-radius:8px;overflow:hidden;margin-top:5px;"><div style="height:100%;width:${overallCompletion}%;background:#16a34a;"></div></div>
+                <div style="margin-top:10px;font-weight:700;color:${reportTotals.partially + reportTotals.not === 0 ? '#166534' : '#92400e'};">${reportTotals.partially + reportTotals.not === 0 ? '✔ All learners have their marks fully recorded.' : `⚠ Follow-up required: ${reportTotals.partially} partially recorded learner(s); ${reportTotals.not} learner(s) have no marks recorded. Names of learners with zero marks are intentionally omitted.`}</div>
+            </div>
+        `;
 
         // ==================================================
         // REPORT FOOTER
@@ -142758,16 +143163,60 @@ window.openAdminRecycleBin = function () {
     const cached=window.__rasmVerifiedSchoolCache.get(sid);
     if(cached && Date.now()-cached.checkedAt<SCHOOL_CACHE_TTL) return cached.data;
     if(window.__rasmVerifiedSchoolPromises.has(sid)) return window.__rasmVerifiedSchoolPromises.get(sid);
+
     const promise=(async()=>{
-      const snap=await fastGet(ref(db,`schools/${sid}`));
-      if(!snap.exists()) throw new Error("SCHOOL_NOT_FOUND");
-      const data=snap.val()||{};
-      if(data.deleted===true) throw new Error("SCHOOL_DELETED");
-      if(data.locked===true) throw new Error("SCHOOL_LOCKED");
-      if(data.active===false) throw new Error("SCHOOL_INACTIVE");
-      window.__rasmVerifiedSchoolCache.set(sid,{checkedAt:Date.now(),data});
-      window.__rasmLastVerifiedSchool=data;
-      return data;
+      let lastError=null;
+      /* Read ONLY the small school identity/security/subscription fields.
+         Reading schools/{sid} downloads the entire school tree (including
+         hundreds of learners, marks, fees and modules) and can time out. */
+      const fields=[
+        "name","schoolName","deleted","locked","active","status",
+        "subscriptionStatus","subscriptionType","subscriptionEndsAt",
+        "subscriptionEndAt","subscriptionExpiresAt","subscriptionExpiry",
+        "trialEndsAt","trialEndAt","trialExpiresAt","trialExpiry",
+        "lifetime","subscriptionLifetime","subscriptionPermanent",
+        "plan","package","subscriptionStartedAt","trialStartedAt"
+      ];
+      for(let attempt=1;attempt<=2;attempt++){
+        try{
+          const reader=typeof window.rasmFreshGet==="function"
+            ? window.rasmFreshGet.bind(window)
+            : (typeof window.rasmGet==="function" ? window.rasmGet.bind(window) : null);
+          if(!reader) throw new Error("FIREBASE_READ_FUNCTION_UNAVAILABLE");
+          const values=await window.withTimeout(Promise.all(fields.map(async key=>{
+            const snap=await reader(ref(db,`schools/${sid}/${key}`));
+            return [key, snap && snap.exists() ? snap.val() : undefined];
+          })),9000,"SCHOOL_VERIFY_TIMEOUT");
+          const data={};
+          values.forEach(([key,value])=>{if(value!==undefined) data[key]=value;});
+          const exists=values.some(([,value])=>value!==undefined);
+          if(!exists) throw new Error("SCHOOL_NOT_FOUND");
+          if(data.deleted===true) throw new Error("SCHOOL_DELETED");
+          if(data.locked===true) throw new Error("SCHOOL_LOCKED");
+          if(data.active===false) throw new Error("SCHOOL_INACTIVE");
+          window.__rasmVerifiedSchoolCache.set(sid,{checkedAt:Date.now(),data});
+          window.__rasmLastVerifiedSchool=data;
+          return data;
+        }catch(error){
+          lastError=error;
+          const code=String(error?.code||"").toLowerCase();
+          const msg=String(error?.message||error||"").toLowerCase();
+          const message=String(error?.message||"");
+          if(["SCHOOL_NOT_FOUND","SCHOOL_DELETED","SCHOOL_LOCKED","SCHOOL_INACTIVE"].includes(message)) throw error;
+          if(code.includes("permission_denied")||code.includes("unauthorized")||msg.includes("permission_denied")||msg.includes("permission denied")){
+            const denied=new Error("SCHOOL_PERMISSION_DENIED"); denied.originalError=error; denied.code=error?.code||"PERMISSION_DENIED"; throw denied;
+          }
+          if(attempt<2){
+            console.warn(`⚠️ School metadata verification attempt ${attempt}/2 failed; retrying shortly.`,error);
+            await new Promise(resolve=>setTimeout(resolve,500));
+          }
+        }
+      }
+      console.error("RASM school metadata read failed. School ID:",sid,"Cause:",lastError);
+      const failed=new Error("SCHOOL_CONNECTION_FAILED");
+      failed.originalError=lastError;
+      failed.code=lastError?.code||"NETWORK_TIMEOUT";
+      throw failed;
     })();
     window.__rasmVerifiedSchoolPromises.set(sid,promise);
     try{return await promise;}finally{window.__rasmVerifiedSchoolPromises.delete(sid);}
@@ -152024,6 +152473,526 @@ ${headerHtml}
     if(window.Swal && typeof window.Swal.fire === "function") return window.Swal.fire({icon:"error",title:"Recycle Bin did not load",text:"Refresh the page and try again."});
     alert("Recycle Bin did not load. Refresh the page and try again.");
   };
+})();
+</script>
+
+<script id="rasm360-login-first-module-boot-gate">
+(function () {
+  "use strict";
+
+  // Always start in login-only mode. Module data loaders become available only
+  // after window.login has authenticated the user and verified subscription.
+  window.__RASM_LOGIN_COMPLETE = false;
+  window.__RASM_AUTH_BOOT_READY = false;
+  window.__RASM_LOGIN_IN_PROGRESS = false;
+  window.__RASM_DEFERRED_MODULE_LOADS = window.__RASM_DEFERRED_MODULE_LOADS || new Set();
+
+  // Gate the actual Firebase data APIs too. Many legacy startup handlers call
+  // local function declarations, bypassing wrappers on window.loadX functions.
+  const __rasmPendingReads = [];
+  const __rasmPendingListeners = [];
+  const __rasmOriginalFastGet = typeof window.fastGet === "function" ? window.fastGet.bind(window) : null;
+  const __rasmOriginalFreshGet = typeof window.rasmFreshGet === "function" ? window.rasmFreshGet.bind(window) : null;
+  const __rasmOriginalFastOnValue = typeof window.fastOnValue === "function" ? window.fastOnValue.bind(window) : null;
+
+  function __rasmCanReadNow() {
+    return window.__RASM_LOGIN_COMPLETE === true || window.__RASM_LOGIN_IN_PROGRESS === true;
+  }
+
+  if (__rasmOriginalFastGet) {
+    window.fastGet = function(firebaseRef) {
+      if (__rasmCanReadNow()) return __rasmOriginalFastGet(firebaseRef);
+      return new Promise((resolve, reject) => {
+        __rasmPendingReads.push({ active: true, run: () => __rasmOriginalFastGet(firebaseRef).then(resolve, reject) });
+      });
+    };
+  }
+
+  if (__rasmOriginalFreshGet) {
+    window.rasmFreshGet = function(firebaseRef) {
+      if (__rasmCanReadNow()) return __rasmOriginalFreshGet(firebaseRef);
+      return new Promise((resolve, reject) => {
+        __rasmPendingReads.push({ active: true, run: () => __rasmOriginalFreshGet(firebaseRef).then(resolve, reject) });
+      });
+    };
+  }
+
+  if (__rasmOriginalFastOnValue) {
+    window.fastOnValue = function(firebaseRef, callback, ...rest) {
+      if (window.__RASM_LOGIN_COMPLETE === true) {
+        return __rasmOriginalFastOnValue(firebaseRef, callback, ...rest);
+      }
+      const entry = { active: true, unsubscribe: null, firebaseRef, callback, rest };
+      __rasmPendingListeners.push(entry);
+      return function() {
+        entry.active = false;
+        if (typeof entry.unsubscribe === "function") entry.unsubscribe();
+      };
+    };
+  }
+
+  window.__RASM_RELEASE_BOOT_QUEUE = function() {
+    if (window.__RASM_LOGIN_COMPLETE !== true) return;
+    while (__rasmPendingReads.length) {
+      const entry = __rasmPendingReads.shift();
+      if (entry && entry.active) {
+        try { entry.run(); } catch (error) { console.error("Deferred Firebase read failed:", error); }
+      }
+    }
+    while (__rasmPendingListeners.length) {
+      const entry = __rasmPendingListeners.shift();
+      if (!entry || !entry.active) continue;
+      try {
+        entry.unsubscribe = __rasmOriginalFastOnValue(entry.firebaseRef, entry.callback, ...entry.rest);
+        if (!entry.active && typeof entry.unsubscribe === "function") entry.unsubscribe();
+      } catch (error) {
+        console.error("Deferred Firebase listener failed:", error);
+      }
+    }
+    if (typeof window.__RASM_RELEASE_NATIVE_BOOT_QUEUE === "function") {
+      window.__RASM_RELEASE_NATIVE_BOOT_QUEUE();
+    }
+    console.info("🔓 RASM login completed: deferred Firebase module work released.");
+  };
+
+  const guardedLoaders = [
+    "loadAll", "loadSchoolProfile", "loadStudents", "loadTeachers",
+    "loadFeeYears", "loadFeeFormYears", "loadFeeFilterGrades", "loadFees",
+    "loadFinanceSummary", "initializeFeeFilters", "loadDefaulterGrades",
+    "loadGradesFromStudents", "loadAttendanceGrades", "updateDashboardFromStudents",
+    "loadUsersTable", "loadPayrollDashboard", "loadResultsFilters",
+    "loadWithdrawalRequests", "loadCourses", "loadTransport", "loadLibraryBooks",
+    "loadLibraryReport", "loadHostelDashboard", "loadInventory",
+    "loadAttendanceDashboard", "loadDashboard", "loadAdminDashboard"
+  ];
+
+  guardedLoaders.forEach(function (name) {
+    const original = window[name];
+    if (typeof original !== "function" || original.__rasmLoginGateWrapped) return;
+
+    const guarded = function () {
+      if (window.__RASM_LOGIN_COMPLETE !== true) {
+        window.__RASM_DEFERRED_MODULE_LOADS.add(name);
+        return undefined;
+      }
+      return original.apply(this, arguments);
+    };
+    guarded.__rasmLoginGateWrapped = true;
+    guarded.__rasmOriginal = original;
+    window[name] = guarded;
+  });
+
+  // Do not allow an old localStorage schoolId or a restored Firebase session to
+  // start bulk module loading while the login page is still being shown.
+  const originalLoadAll = window.loadAll;
+  if (typeof originalLoadAll === "function" && !originalLoadAll.__rasmLoginGateWrapped) {
+    const guardedLoadAll = function () {
+      if (window.__RASM_LOGIN_COMPLETE !== true) {
+        window.__RASM_DEFERRED_MODULE_LOADS.add("loadAll");
+        return Promise.resolve(false);
+      }
+      return originalLoadAll.apply(this, arguments);
+    };
+    guardedLoadAll.__rasmLoginGateWrapped = true;
+    guardedLoadAll.__rasmOriginal = originalLoadAll;
+    window.loadAll = guardedLoadAll;
+  }
+
+  console.info("🔐 RASM login-first boot gate active: school modules wait until successful login.");
+})();
+</script>
+<script>
+/* ================================================================
+   RASM 360 — EXCEL-STYLE MULTI-SUBJECT CLASS MARKS ENTRY
+   Uses existing grade/exam selectors, school student records, and
+   the same percentage storage convention as the standard marks form.
+================================================================ */
+(function () {
+  "use strict";
+  if (window.__rasmExcelBulkMarksInstalled) return;
+  window.__rasmExcelBulkMarksInstalled = true;
+
+  const $ = id => document.getElementById(id);
+  const state = { learners: [], subjects: [], examPeriod: "", grade: "", activeSubject: "", loading: false, saving: false, lastLoaded: false };
+  const panel = () => $("rasmExcelMarksEntry");
+
+  function esc(value) {
+    return String(value == null ? "" : value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+  function schoolIdNow() {
+    return window.schoolId || localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || sessionStorage.getItem("schoolId") || sessionStorage.getItem("currentSchoolId") || "";
+  }
+  function gradeNumber(value) {
+    const m = String(value || "").match(/(?:GRADE\s*)?(\d{1,2})/i);
+    return m ? Number(m[1]) : null;
+  }
+  function isGrade13(grade) { const n = gradeNumber(grade); return n >= 1 && n <= 3; }
+  function normalizedPeriod() {
+    const raw = $("examPeriod")?.value || "";
+    return typeof window.normalizeExamPeriod === "function" ? window.normalizeExamPeriod(raw) : raw.trim();
+  }
+  function paperMaximum() {
+    const select = $("marksPaperOutOf");
+    const custom = $("marksCustomOutOf");
+    const n = select?.value === "custom" ? Number(custom?.value) : Number(select?.value || 100);
+    return Number.isFinite(n) && n > 0 ? n : 100;
+  }
+  function currentMark(learner, subjectKey) {
+    const v = learner.marks && learner.marks[subjectKey];
+    return v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
+  }
+  function subjectCandidates() {
+    const grade = $("gradeSelect")?.value || "";
+    const select = $("subject");
+    const options = [];
+    const seen = new Set();
+    if (isGrade13(grade)) {
+      const grade13 = [
+        ["English — Listening","English · Listening"],["English — Reading","English · Reading"],["English — Writing","English · Writing"],["English — Grammar","English · Grammar"],
+        ["Kiswahili — Kusikiliza","Kiswahili · Kusikiliza"],["Kiswahili — Kusoma","Kiswahili · Kusoma"],["Kiswahili — Kuandika","Kiswahili · Kuandika"],["Kiswahili — Sarufi","Kiswahili · Sarufi"],
+        ["Environmental and CRE — Environmental","Environmental and CRE · Environmental"],["Environmental and CRE — CRE","Environmental and CRE · CRE"],
+        ["Mathematics","Mathematics"],["Creative Arts","Creative Arts"]
+      ];
+      grade13.forEach(([value,label]) => { if (!seen.has(value)) { seen.add(value); options.push({value,label}); } });
+      if (select) [...select.options].forEach(option => {
+        const value = String(option.value || "").trim();
+        const label = String(option.textContent || value).trim();
+        if (!value || /^--/.test(label) || seen.has(value) || option.dataset.customSubject !== "true") return;
+        seen.add(value); options.push({value,label});
+      });
+      return options;
+    }
+    if (select) {
+      [...select.options].forEach(option => {
+        const value = String(option.value || "").trim();
+        const label = String(option.textContent || value).trim();
+        if (!value || /^--/.test(label) || seen.has(value)) return;
+        seen.add(value); options.push({value,label});
+      });
+    }
+    return options;
+  }
+  function renderSubjectChoices() {
+    const wrap = $("rasmBulkSubjectChoices");
+    if (!wrap) return;
+    const candidates = subjectCandidates();
+    const filter = String($("rasmBulkSubjectSearch")?.value || "").trim().toLowerCase();
+    if (!candidates.length) {
+      wrap.innerHTML = '<div class="rasm-excel-empty">Select a grade first so the correct subject list can load.</div>';
+      return;
+    }
+    const selected = new Set(state.subjects.map(s => s.value));
+    const visible = candidates.filter(s => `${s.label} ${s.value}`.toLowerCase().includes(filter));
+    if (!visible.length) { wrap.innerHTML = '<div class="rasm-excel-empty">No subjects match your search.</div>'; return; }
+    wrap.innerHTML = visible.map(s => `<label class="rasm-excel-subject-option" data-subject-search="${esc((s.label+' '+s.value).toLowerCase())}"><input type="checkbox" class="rasmBulkSubjectCheck" value="${esc(s.value)}" ${selected.has(s.value)?"checked":""}><span>${esc(s.label)}</span></label>`).join("");
+  }
+  function selectedSubjectList() {
+    const candidates = subjectCandidates();
+    const selectedValues = [...panel().querySelectorAll(".rasmBulkSubjectCheck:checked")].map(el => el.value);
+    return selectedValues.map(value => candidates.find(s => s.value === value)).filter(Boolean);
+  }
+  function syncContext() {
+    const grade = $("gradeSelect")?.value || "";
+    const period = $("examPeriod")?.selectedOptions?.[0]?.textContent?.trim() || $("examPeriod")?.value || "";
+    const context = $("rasmBulkContext");
+    if (context) context.textContent = grade && period ? `Class: ${grade}  •  Exam: ${period}  •  Paper maximum: ${paperMaximum()}` : "Choose a Grade and Exam Period in the standard marks form below, then load your class.";
+  }
+  function updateStats() {
+    const wrap = $("rasmBulkStats"); if (!wrap) return;
+    let filled = 0, saved = 0;
+    panel().querySelectorAll(".rasm-score-input").forEach(input => { if (input.value.trim() !== "") filled++; });
+    state.learners.forEach(learner => state.subjects.forEach(subject => { if (currentMark(learner, subject.value) !== null) saved++; }));
+    wrap.innerHTML = [
+      ["Learners in class",state.learners.length],["Selected subjects",state.subjects.length],["Scores entered",filled],["Existing marks",saved]
+    ].map(([label,value]) => `<div class="rasm-excel-stat"><span>${label}</span><b>${value}</b></div>`).join("");
+    state.subjects.forEach(subject => {
+      const tab = panel().querySelector(`[data-bulk-tab="${CSS.escape(subject.value)}"] .rasm-tab-count`);
+      if (tab) tab.textContent = state.learners.reduce((n,learner) => n + (currentMark(learner,subject.value) !== null ? 1 : 0),0);
+    });
+  }
+  function renderTabs() {
+    const tabs = $("rasmBulkTabs"), panels = $("rasmBulkTabPanels");
+    if (!tabs || !panels) return;
+    if (!state.subjects.length) {
+      tabs.innerHTML = ""; panels.innerHTML = '<div class="rasm-excel-empty">Select one or more subjects above to create subject tabs.</div>'; $("rasmBulkWorkspace").style.display = "block"; return;
+    }
+    if (!state.subjects.some(s => s.value === state.activeSubject)) state.activeSubject = state.subjects[0].value;
+    tabs.innerHTML = state.subjects.map(s => {
+      const count = state.learners.reduce((n,l) => n + (currentMark(l,s.value) !== null ? 1 : 0),0);
+      return `<button type="button" role="tab" aria-selected="${s.value===state.activeSubject}" class="rasm-excel-tab ${s.value===state.activeSubject?'active':''}" data-bulk-tab="${esc(s.value)}">${esc(s.label)} <span class="rasm-tab-count">${count}</span></button>`;
+    }).join("");
+    const max = paperMaximum();
+    panels.innerHTML = state.subjects.map(subject => {
+      const rows = state.learners.map((learner,index) => {
+        const existing = currentMark(learner,subject.value);
+        return `<tr><td>${index+1}</td><td><b>${esc(learner.name || "Unknown Learner")}</b></td><td>${esc(learner.grade || state.grade)}</td><td class="${existing===null?'rasm-current-empty':'rasm-current-mark'}">${existing===null?'—':`${existing}% saved`}</td><td><input type="number" class="rasm-score-input" data-bulk-score="1" data-learner-key="${esc(learner.key)}" data-subject-key="${esc(subject.value)}" min="1" max="100" step="1" inputmode="numeric" autocomplete="off" aria-label="${esc(subject.label)} score for ${esc(learner.name)}" placeholder="1–100" ${subject.value!==state.activeSubject?'tabindex="-1"':''}></td></tr>`;
+      }).join("");
+      return `<section class="rasm-excel-tab-panel" data-bulk-panel="${esc(subject.value)}" ${subject.value!==state.activeSubject?'hidden':''}><div class="rasm-excel-table-scroll"><table class="rasm-excel-entry-table"><thead><tr><th style="width:60px">No.</th><th>Learner Name</th><th>Grade</th><th>Previously Saved</th><th>Score / ${max}</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No learners found for this grade.</td></tr>'}</tbody></table></div></section>`;
+    }).join("");
+    $("rasmBulkWorkspace").style.display = "block";
+    updateStats();
+  }
+  function switchTab(value) {
+    state.activeSubject = value;
+    panel().querySelectorAll(".rasm-excel-tab").forEach(tab => {
+      const active = tab.getAttribute("data-bulk-tab") === value;
+      tab.classList.toggle("active",active); tab.setAttribute("aria-selected",String(active));
+    });
+    panel().querySelectorAll(".rasm-excel-tab-panel").forEach(p => { p.hidden = p.getAttribute("data-bulk-panel") !== value; });
+    panel().querySelectorAll(".rasm-score-input").forEach(input => input.tabIndex = input.getAttribute("data-subject-key") === value ? 0 : -1);
+    const first = panel().querySelector(`.rasm-excel-tab-panel[data-bulk-panel="${CSS.escape(value)}"] .rasm-score-input`);
+    if (first) first.focus({preventScroll:true});
+  }
+  async function loadClass() {
+    if (state.loading || state.saving) return;
+    const schoolId = schoolIdNow();
+    const grade = $("gradeSelect")?.value || "";
+    const examPeriod = normalizedPeriod();
+    if (!schoolId || !grade || !examPeriod) {
+      if (window.Swal) await Swal.fire({icon:"warning",title:"Select class and exam",text:"Choose a Grade and Exam Period in the standard marks form before loading the class."});
+      else alert("Choose a Grade and Exam Period before loading the class.");
+      return;
+    }
+    state.loading = true;
+    const btn = $("rasmBulkLoadBtn"); if (btn) { btn.disabled = true; btn.textContent = "Loading class…"; }
+    try {
+      const snapshot = await fastGet(ref(db, `schools/${schoolId}/students`));
+      const learners = [];
+      const normalizeGradeForMarks = value => String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
+      const normalizePeriodForMarks = value => (typeof window.normalizeExamPeriod === "function" ? window.normalizeExamPeriod(value) : String(value || "").trim().replace(/\s+/g, "")).toLowerCase();
+      snapshot.forEach(child => {
+        const data = child.val() || {};
+        if (normalizeGradeForMarks(data.grade) !== normalizeGradeForMarks(grade)) return;
+        const marksByPeriod = data.marks && typeof data.marks === "object" ? data.marks : {};
+        const matchedPeriodKey = Object.keys(marksByPeriod).find(key => normalizePeriodForMarks(key) === normalizePeriodForMarks(examPeriod));
+        const marks = matchedPeriodKey && marksByPeriod[matchedPeriodKey] && typeof marksByPeriod[matchedPeriodKey] === "object" ? marksByPeriod[matchedPeriodKey] : {};
+        learners.push({key:child.key,id:child.key,name:String(data.name || data.fullName || "Unknown Learner").trim(),grade:data.grade || grade,marks});
+      });
+      learners.sort((a,b) => a.name.localeCompare(b.name,undefined,{sensitivity:"base"}));
+      state.learners = learners; state.grade = grade; state.examPeriod = examPeriod; state.lastLoaded = true;
+      // Keep chosen subjects only if they remain valid for the selected grade.
+      const available = subjectCandidates();
+      state.subjects = state.subjects.filter(s => available.some(a => a.value === s.value));
+      renderSubjectChoices();
+      const context = $("rasmBulkContext");
+      if (context) context.textContent = `${grade} · ${learners.length} learners · Exam: ${$("examPeriod")?.selectedOptions?.[0]?.textContent?.trim() || examPeriod} · Paper maximum: ${paperMaximum()}`;
+      $("rasmBulkWorkspace").style.display = "block";
+      renderTabs();
+      const status = $("rasmBulkSaveStatus"); if (status) status.textContent = learners.length ? `Class loaded: ${learners.length} learners` : "No learners found for this grade";
+      if (!learners.length && window.Swal) Swal.fire({icon:"info",title:"No learners found",text:`No registered learners matched ${grade}. Check that learners' grade labels match the selected grade.`});
+    } catch (error) {
+      console.error("RASM bulk marks: failed to load class",error);
+      if (window.Swal) Swal.fire({icon:"error",title:"Could not load class",text:error?.message || "Please check your connection and try again."});
+    } finally {
+      state.loading = false; if (btn) { btn.disabled = false; btn.textContent = "↻ Load Class"; }
+    }
+  }
+  function refreshSubjectListAfterGradeChange() {
+    state.subjects = []; state.activeSubject = ""; state.learners = []; state.lastLoaded = false;
+    if ($("rasmBulkSubjectChoices")) renderSubjectChoices();
+    if ($("rasmBulkWorkspace")) $("rasmBulkWorkspace").style.display = "none";
+    syncContext();
+  }
+  function clearGrid() {
+    panel().querySelectorAll(".rasm-score-input").forEach(input => { input.value = ""; input.classList.remove("invalid"); });
+    updateStats();
+    const status = $("rasmBulkSaveStatus"); if (status) status.textContent = "Entry cells cleared; saved Firebase marks are unchanged";
+  }
+  function collectAndValidate() {
+    const max = paperMaximum();
+    const byLearner = new Map(); let errors = [];
+    panel().querySelectorAll(".rasm-score-input").forEach(input => {
+      input.classList.remove("invalid");
+      const raw = input.value.trim();
+      if (raw === "") return;
+      const score = Number(raw);
+      if (!Number.isFinite(score) || score < 1 || score > 100 || score > max || !Number.isInteger(score)) {
+        input.classList.add("invalid"); errors.push({input,message:`Enter a whole-number score from 1 to ${Math.min(100, max)}.`}); return;
+      }
+      const learnerKey = input.dataset.learnerKey, subjectKey = input.dataset.subjectKey;
+      if (!byLearner.has(learnerKey)) byLearner.set(learnerKey,{values:{},learner:state.learners.find(l => l.key === learnerKey)});
+      byLearner.get(learnerKey).values[subjectKey] = typeof window.getConvertedPercentage === "function" ? window.getConvertedPercentage(score,max) : Math.round(score/max*100);
+    });
+    return {byLearner,errors};
+  }
+  async function saveAll() {
+    if (state.saving || state.loading) return;
+    if (!state.lastLoaded || !state.learners.length || !state.subjects.length) {
+      if (window.Swal) Swal.fire({icon:"info",title:"Load a class first",text:"Load the class, select at least one subject, and enter the marks before saving."});
+      return;
+    }
+    const schoolId = schoolIdNow();
+    const grade = $("gradeSelect")?.value || state.grade;
+    const examPeriod = normalizedPeriod();
+    if (!schoolId || grade !== state.grade || examPeriod !== state.examPeriod) {
+      if (window.Swal) Swal.fire({icon:"warning",title:"Class or exam changed",text:"Reload the class before saving so marks are written to the correct grade and exam period."});
+      return;
+    }
+    const {byLearner,errors} = collectAndValidate();
+    if (errors.length) {
+      errors[0].input.focus({preventScroll:false});
+      if (window.Swal) Swal.fire({icon:"error",title:"Please correct the highlighted scores",text:`${errors.length} score cell(s) contain invalid values. Nothing has been saved yet.`});
+      return;
+    }
+    if (!byLearner.size) {
+      if (window.Swal) Swal.fire({icon:"warning",title:"No scores entered",text:"Enter at least one score. Blank cells are ignored and will not erase existing marks."});
+      return;
+    }
+    const totalScores = [...byLearner.values()].reduce((n,item)=>n+Object.keys(item.values).length,0);
+    const confirmed = window.Swal ? await Swal.fire({icon:"question",title:"Save class marks?",html:`You are about to save <b>${totalScores}</b> score(s) for <b>${byLearner.size}</b> learner(s), across <b>${state.subjects.length}</b> selected subject tab(s).<br><br>Scores are converted to percentages using a paper maximum of <b>${paperMaximum()}</b>. Existing marks are updated only where you entered a score.`,showCancelButton:true,confirmButtonText:"Save all marks",cancelButtonText:"Review entries",confirmButtonColor:"#15803d",reverseButtons:true}) : {isConfirmed:confirm(`Save ${totalScores} score(s) for ${byLearner.size} learners?`)};
+    if (!confirmed.isConfirmed) return;
+
+    state.saving = true;
+    const saveBtn = $("rasmBulkSaveBtn"); if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving marks…"; }
+    const progressWrap = $("rasmBulkProgressWrap"), progressBar = $("rasmBulkProgressBar");
+    if (progressWrap) progressWrap.style.display = "block";
+    if (progressBar) progressBar.style.width = "0%";
+    const status = $("rasmBulkSaveStatus");
+    let savedLearners = 0, failedLearners = 0, savedScores = 0; const failures = [];
+    const items = [...byLearner.entries()];
+    try {
+      for (let i=0;i<items.length;i++) {
+        const [learnerKey,item] = items[i];
+        try {
+          const path = `schools/${schoolId}/students/${learnerKey}/marks/${examPeriod}`;
+          const payload = {...item.values,schoolId,name:item.learner?.name || "Unknown Learner",grade:item.learner?.grade || grade,updatedAt:Date.now()};
+          await update(ref(db,path),payload);
+          savedLearners++; savedScores += Object.keys(item.values).length;
+          // Update local marks immediately so saved status and counters are accurate.
+          item.learner.marks = {...(item.learner.marks || {}),...item.values};
+          panel().querySelectorAll(`.rasm-score-input[data-learner-key="${CSS.escape(learnerKey)}"]`).forEach(input => {
+            if (input.value.trim() !== "") { input.dataset.justSaved = "1"; input.classList.remove("invalid"); }
+          });
+        } catch (error) {
+          failedLearners++; failures.push(`${item.learner?.name || learnerKey}: ${error?.message || "write failed"}`);
+        }
+        const percent = Math.round(((i+1)/items.length)*100);
+        if (progressBar) progressBar.style.width = percent+"%";
+        if (status) status.textContent = `Saving learner ${i+1} of ${items.length} · ${percent}%`;
+      }
+      // Clear only cells confirmed saved; leave failed learner entries available for retry.
+      panel().querySelectorAll('.rasm-score-input[data-just-saved="1"]').forEach(input => { input.value=""; delete input.dataset.justSaved; });
+      renderTabs(); updateStats();
+      if (!failedLearners) {
+        // Keep the standard marks table and any open marks view in sync with the persisted class records.
+        const refreshCandidates = ["loadMarksUnifiedClean", "loadMarksTable", "loadMarks", "loadRecordedMarks", "loadMarksForGrade"];
+        const resultsPeriod = $("resultsExamPeriod");
+        if (resultsPeriod) {
+          const matchingPeriodOption = [...resultsPeriod.options].find(option =>
+            typeof window.normalizeExamPeriod === "function"
+              ? window.normalizeExamPeriod(option.value) === examPeriod
+              : String(option.value || "").trim() === examPeriod
+          );
+          if (matchingPeriodOption) resultsPeriod.value = matchingPeriodOption.value;
+          else if (resultsPeriod.options.length) {
+            const addedOption = new Option(examPeriod, examPeriod);
+            resultsPeriod.add(addedOption);
+            resultsPeriod.value = examPeriod;
+          }
+        }
+        const resultsGrade = $("gradeFilter");
+        if (resultsGrade) {
+          const matchingGradeOption = [...resultsGrade.options].find(option =>
+            String(option.value || "").trim().toUpperCase() === String(grade || "").trim().toUpperCase()
+          );
+          if (matchingGradeOption) resultsGrade.value = matchingGradeOption.value;
+          else resultsGrade.value = "";
+        }
+        for (const fnName of refreshCandidates) {
+          if (typeof window[fnName] !== "function") continue;
+          try { await window[fnName](); } catch (refreshError) { console.warn(`RASM bulk marks saved; ${fnName} refresh skipped:`, refreshError); }
+          break;
+        }
+      }
+      if (status) status.textContent = failedLearners ? `Saved ${savedScores} scores; ${failedLearners} learner record(s) need retry` : `Successfully saved ${savedScores} score(s) for ${savedLearners} learner(s)`;
+      if (window.Swal) {
+        const details = failures.length ? `<div style="text-align:left;max-height:180px;overflow:auto;margin-top:10px;font-size:12px">${failures.slice(0,8).map(esc).join("<br>")}${failures.length>8?`<br>…and ${failures.length-8} more`:""}</div>` : "";
+        await Swal.fire({icon:failedLearners?"warning":"success",title:failedLearners?"Some marks need retry":"Marks saved successfully",html:`<b>${savedScores}</b> score(s) saved for <b>${savedLearners}</b> learner(s).${failedLearners?`<br><b>${failedLearners}</b> learner record(s) failed.`:""}${details}`,confirmButtonColor:failedLearners?"#d97706":"#15803d"});
+      }
+    } finally {
+      state.saving = false; if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "💾 Save All Entered Marks"; }
+      if (progressWrap) progressWrap.style.display = "none";
+    }
+  }
+
+  function install() {
+    if (!panel()) return;
+    renderSubjectChoices(); syncContext();
+    $("rasmBulkLoadBtn")?.addEventListener("click",loadClass);
+    $("rasmBulkClearBtn")?.addEventListener("click",clearGrid);
+    $("rasmBulkSaveBtn")?.addEventListener("click",saveAll);
+    $("rasmBulkSubjectSearch")?.addEventListener("input",renderSubjectChoices);
+    $("rasmBulkAddSubjectBtn")?.addEventListener("click",async () => {
+      if (typeof window.addCustomSubject !== "function") {
+        if (window.Swal) Swal.fire({icon:"error",title:"Add Subject Unavailable",text:"The existing subject management function could not be found."});
+        return;
+      }
+      await window.addCustomSubject();
+      renderSubjectChoices();
+    });
+    $("rasmBulkSelectAll")?.addEventListener("click",() => {
+      const visibleValues = [...panel().querySelectorAll(".rasmBulkSubjectCheck")].map(check => check.value);
+      const candidates = subjectCandidates();
+      const merged = new Map(state.subjects.map(subject => [subject.value,subject]));
+      visibleValues.forEach(value => { const subject = candidates.find(item => item.value === value); if (subject) merged.set(value,subject); });
+      state.subjects = [...merged.values()];
+      state.activeSubject = state.subjects[0]?.value || "";
+      renderSubjectChoices(); renderTabs();
+    });
+    $("rasmBulkDeselectAll")?.addEventListener("click",() => {
+      state.subjects=[]; state.activeSubject=""; renderSubjectChoices(); renderTabs();
+    });
+    $("rasmBulkSubjectChoices")?.addEventListener("change",event => {
+      if (!event.target.matches(".rasmBulkSubjectCheck")) return;
+      const value = event.target.value;
+      const candidate = subjectCandidates().find(item => item.value === value);
+      if (event.target.checked && candidate && !state.subjects.some(item => item.value === value)) state.subjects.push(candidate);
+      if (!event.target.checked) state.subjects = state.subjects.filter(item => item.value !== value);
+      if (!state.subjects.some(s => s.value === state.activeSubject)) state.activeSubject = state.subjects[0]?.value || "";
+      renderTabs();
+    });
+    $("rasmBulkTabs")?.addEventListener("click",event => {
+      const tab = event.target.closest("[data-bulk-tab]"); if (tab) switchTab(tab.getAttribute("data-bulk-tab"));
+    });
+    $("rasmBulkTabPanels")?.addEventListener("input",event => { if (event.target.matches(".rasm-score-input")) { event.target.classList.remove("invalid"); updateStats(); } });
+    $("rasmBulkTabPanels")?.addEventListener("keydown",event => {
+      const input = event.target;
+      if (!input.matches(".rasm-score-input") || event.key !== "Enter" || event.isComposing || event.repeat) return;
+
+      // Handle Enter only here so the app-wide Enter shortcut cannot move focus
+      // a second time and skip a learner's score box.
+      event.preventDefault();
+      event.stopPropagation();
+
+      const visible = [...panel().querySelectorAll(
+        '.rasm-excel-tab-panel:not([hidden]) .rasm-score-input:not([disabled])'
+      )];
+      const idx = visible.indexOf(input);
+      const next = idx >= 0 ? visible[idx + 1] : null;
+
+      if (next) {
+        next.focus();
+        if (typeof next.select === "function") next.select();
+      }
+    });
+    $("gradeSelect")?.addEventListener("change",refreshSubjectListAfterGradeChange);
+    $("examPeriod")?.addEventListener("change",() => { state.lastLoaded=false; syncContext(); });
+    const refreshPaperMaximum = () => {
+      const max = paperMaximum(); syncContext();
+      panel().querySelectorAll(".rasm-score-input").forEach(input => { input.max=max; input.placeholder=`0–${max}`; });
+      panel().querySelectorAll(".rasm-excel-entry-table thead th:last-child").forEach(th => { th.textContent=`Score / ${max}`; });
+    };
+    $("marksPaperOutOf")?.addEventListener("change",refreshPaperMaximum);
+    $("marksCustomOutOf")?.addEventListener("input",refreshPaperMaximum);
+    document.addEventListener("click",event => {
+      const input = event.target.closest?.(".rasm-score-input");
+      if (!input) return;
+      // Make native keyboard navigation feel like a spreadsheet while retaining normal tab order.
+      const panelSubject = input.dataset.subjectKey;
+      if (panelSubject && panelSubject !== state.activeSubject) switchTab(panelSubject);
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",install,{once:true}); else install();
 })();
 </script>
 </html>
