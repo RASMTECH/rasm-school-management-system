@@ -12586,6 +12586,7 @@ document.addEventListener(
     <div class="rasm-excel-context" id="rasmBulkContext">Choose a Grade and Exam Period above, then load your class.</div>
     <div class="rasm-excel-toolbar-actions">
       <button type="button" id="rasmBulkLoadBtn" class="rasm-excel-btn rasm-excel-btn-primary">↻ Load Class</button>
+      <button type="button" id="rasmBulkCopySavedBtn" class="rasm-excel-btn rasm-excel-btn-light">↪ Copy Previously Saved Scores to Current Score</button>
       <button type="button" id="rasmBulkClearBtn" class="rasm-excel-btn rasm-excel-btn-light">Clear Entry Grid</button>
     </div>
   </div>
@@ -51502,15 +51503,17 @@ async function loadMarksUnifiedClean() {
     function getMarksForNormalizedPeriod(studentData, requestedPeriod) {
         const marksByPeriod = studentData && studentData.marks;
         if (!marksByPeriod || typeof marksByPeriod !== "object") return null;
-        if (marksByPeriod[requestedPeriod] && typeof marksByPeriod[requestedPeriod] === "object") {
-            return marksByPeriod[requestedPeriod];
-        }
         const requested = normalizeExamPeriod(requestedPeriod).toLowerCase();
-        const matchedKey = Object.keys(marksByPeriod).find(period =>
+        const matchedKeys = Object.keys(marksByPeriod).filter(period =>
             normalizeExamPeriod(period).toLowerCase() === requested
         );
-        const matched = matchedKey ? marksByPeriod[matchedKey] : null;
-        return matched && typeof matched === "object" ? matched : null;
+        if (!matchedKeys.length) return null;
+        const merged = {};
+        matchedKeys.forEach(key => {
+            const record = marksByPeriod[key];
+            if (record && typeof record === "object") Object.assign(merged, record);
+        });
+        return merged;
     }
 
     // ===========================================
@@ -54967,21 +54970,35 @@ window.openReportMeta = function () {
             social: "Social Studies", socialstudies: "Social Studies",
             creativearts: "Creative Arts", creativeart: "Creative Arts",
             pretech: "Pre-Technical Studies", pretechnical: "Pre-Technical Studies",
-            cre: "CRE", religiouseducation: "CRE"
+            cre: "Christian Religious Education", religiouseducation: "Christian Religious Education",
+            christianreligiouseducation: "Christian Religious Education", christianreligioused: "Christian Religious Education"
         };
         const normalizeSubjectKey = subject => String(subject || "")
             .toLowerCase()
             .replace(/[—–-]/g, "")
             .replace(/[^a-z0-9]/g, "");
         const canonicalSubjects = new Map();
-        [...recordedSubjects].forEach(subject => {
+        // Use both the numeric marks actually found and the exact display-subject
+        // resolver used by Loaded Marks. Some older records use CRE aliases or
+        // object-shaped scores, so relying on one raw key list can hide CRE.
+        const subjectCandidates = new Set([...recordedSubjects, ...gradeAwareSubjects]);
+        const isStandaloneCRE = raw => /^(?:cre|religious\s*education|christian\s*religious\s*education|christian\s*religious\s*ed)$/i.test(String(raw || '').trim());
+        gradeLearners.forEach(learner => {
+            Object.keys(learner?.marks || {}).forEach(raw => {
+                if (isStandaloneCRE(raw)) subjectCandidates.add(raw);
+            });
+        });
+        subjectCandidates.forEach(subject => {
             const raw = String(subject || "").trim();
             const key = normalizeSubjectKey(raw);
-            // Grade 1-3 sub-learning areas must never leak into Grade 4-12.
-            if (!raw || isMarksMetadataField(raw) ||
+            if (!raw || isMarksMetadataField(raw)) return;
+            // Standalone CRE is a real Grade 4-12 subject, not a Grade 1-3
+            // sub-learning-area key. Never filter it out as a component named CRE.
+            if (!isStandaloneCRE(raw) && (
                 isReportSubLearningArea(raw) ||
-                /^(english(listening|reading|writing)|kiswahili(kuandika|kusikiliza|kusoma)|environmentalandcre(environment|cre))$/i.test(key)) return;
-            const canonical = subjectAliases[key] || raw;
+                /^(english(listening|reading|writing)|kiswahili(kuandika|kusikiliza|kusoma)|environmentalandcre(environment|cre))$/i.test(key)
+            )) return;
+            const canonical = isStandaloneCRE(raw) ? "Christian Religious Education" : (subjectAliases[key] || raw);
             const canonicalKey = normalizeSubjectKey(canonical);
             if (!canonicalSubjects.has(canonicalKey)) canonicalSubjects.set(canonicalKey, canonical);
         });
@@ -56513,6 +56530,21 @@ window.generateAssessmentReports = async function () {
                     subjects = [...canonicalSubjectMap.entries()]
                         .filter(([key]) => recordedCanonical.has(key))
                         .map(([, canonical]) => canonical);
+
+                    // Explicitly retain standalone CRE in Assessment Reports even
+                    // when the stored key is CRE, Religious Education, or the full
+                    // Christian Religious Education label and the configured subject
+                    // list uses a different spelling.
+                    const creAliases = Object.keys(currentMarks || {}).concat(
+                        learnerHasPreviousExam ? Object.keys(previousMarks || {}) : []
+                    ).filter(key => /^(cre|religious\s*education|christian\s*religious\s*education)$/i.test(String(key).trim()));
+                    const creHasRecordedMark = creAliases.some(key =>
+                        getNumericRecordedValue(currentMarks?.[key]) !== null ||
+                        getNumericRecordedValue(previousMarks?.[key]) !== null
+                    );
+                    if (creHasRecordedMark && !subjects.some(subject => /^(cre|christian\s*religious\s*education)$/i.test(String(subject).trim()))) {
+                        subjects.push("Christian Religious Education");
+                    }
 
                     // Stable curriculum/report order without duplicate aliases.
                     subjects.sort((a, b) => a.localeCompare(b));
@@ -69152,44 +69184,26 @@ const isGrade1To6 = gradeNo >= 1 && gradeNo <= 6;
 
     return;
   }
-// ==========================================
-// USE ONLY SUBJECTS RECORDED FOR THIS GRADE
-// ==========================================
-
-// ==========================================
-// USE ONLY RECORDED SUBJECTS FOR THIS GRADE
-// ==========================================
-
-const recordedSubjects = new Set();
-
-(window.schoolSubjects || []).forEach(subject => {
-
-    const hasMarks = learners.some(learner => {
-
-        const value = learner.marks?.[subject];
-
-        return (
-            value !== null &&
-            value !== "" &&
-            value !== undefined &&
-            !isNaN(Number(value))
-        );
-
-    });
-
-    if (hasMarks) {
-
-        recordedSubjects.add(subject);
-
-    }
-
-});
-
 // =========================================================
-// COMPACT SUBJECT DISPLAY NAMES
-// Keep the original subject key/name for all calculations.
-// Only the visible Merit List heading/summary label is shortened.
+// SUBJECTS: derive from the actual filtered learner marks, NOT
+// window.schoolSubjects. This guarantees recorded subjects such as CRE
+// appear even when the configured subject list uses a different key.
 // =========================================================
+function meritCanonicalSubject(rawKey) {
+    const raw = String(rawKey || "").trim();
+    const display = String(window.subjectDisplayNames?.[raw] || raw).trim();
+    const aliases = {
+        "cre": "Christian Religious Education",
+        "religious education": "Christian Religious Education",
+        "christian religious education": "Christian Religious Education",
+        "c r e": "Christian Religious Education",
+        "eng": "English", "kiswa": "Kiswahili", "math": "Mathematics",
+        "science": "Integrated Science", "social": "Social Studies",
+        "pretech": "Pre-Technical Studies"
+    };
+    return aliases[display.toLowerCase()] || display.replace(/([A-Z])/g, " $1").replace(/\s+/g, " ").trim();
+}
+
 function getMeritSubjectShortName(subjectName, gradeValue = "") {
     const full = String(subjectName || "").trim();
     // Read the actual grade number directly so labels still shorten when the
@@ -69286,37 +69300,39 @@ function getMeritSubjectShortName(subjectName, gradeValue = "") {
         .trim();
 }
 
-const subjects = (window.schoolSubjects || [])
+const subjectBuckets = new Map();
+learners.forEach(learner => {
+    const marks = learner?.marks;
+    if (!marks || typeof marks !== "object") return;
+    Object.keys(marks).forEach(rawKey => {
+        const value = marks[rawKey];
+        if (!rawKey || (typeof isMarksMetadataField === "function" && isMarksMetadataField(rawKey))) return;
+        if (value === undefined || value === null || String(value).trim() === "" || !Number.isFinite(Number(value))) return;
+        const fullName = meritCanonicalSubject(rawKey);
+        if (!fullName) return;
+        const bucketKey = fullName.toLowerCase();
+        if (!subjectBuckets.has(bucketKey)) {
+            subjectBuckets.set(bucketKey, { key: fullName, name: fullName, aliases: [], shortName: "" });
+        }
+        const bucket = subjectBuckets.get(bucketKey);
+        if (!bucket.aliases.includes(rawKey)) bucket.aliases.push(rawKey);
+    });
+});
 
-    .filter(subject => recordedSubjects.has(subject))
+const subjects = [...subjectBuckets.values()]
+    .map(subject => ({ ...subject, shortName: getMeritSubjectShortName(subject.name, grade) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-    .map(subject => {
-        const fullName =
-            window.subjectDisplayNames?.[subject] ||
-            ({
-                eng: "English",
-                ENG: "English",
-                kiswa: "Kiswahili",
-                KISWA: "Kiswahili",
-                math: "Mathematics",
-                kiswahili: "Kiswahili",
-                science: "Integrated Science",
-                social: "Social Studies",
-                agriculture: "Agriculture",
-                cre: "Religious Education",
-                preTech: "Pre-Technical Studies",
-                creativeArt: "Creative Arts"
-            }[subject]) ||
-            subject
-                .replace(/([A-Z])/g, " $1")
-                .replace(/^./, c => c.toUpperCase());
-
-        return {
-            key: subject,
-            name: fullName,
-            shortName: getMeritSubjectShortName(fullName, grade)
-        };
-    });  // ================= TOTALS =================
+function meritValue(learner, subject) {
+    const marks = learner?.marks || {};
+    for (const key of (subject.aliases || [subject.key])) {
+        const value = marks[key];
+        if (value !== undefined && value !== null && String(value).trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+    }
+    const direct = marks[subject.key];
+    return direct !== undefined && direct !== null && String(direct).trim() !== "" && Number.isFinite(Number(direct)) ? Number(direct) : "";
+}
+// ================= TOTALS =================
   updateProgress(40, "Calculating totals...");
   await new Promise(r => setTimeout(r, 300));
 
@@ -69334,7 +69350,7 @@ const subjects = (window.schoolSubjects || [])
 
   subjects.forEach(s => {
 
-  const value = l.marks?.[s.key];
+  const value = meritValue(l, s);
 
   if (
     value !== undefined &&
@@ -69348,8 +69364,7 @@ const subjects = (window.schoolSubjects || [])
 
 });
 
-    totals.totalMarks +=
-      Number(l.total || 0);
+    totals.totalMarks += subjects.reduce((sum, subject) => { const mark = meritValue(l, subject); return sum + (mark === "" ? 0 : Number(mark)); }, 0);
   });
 
   const avg = v =>
@@ -69385,7 +69400,7 @@ levelSummary[subject.key] = isGrade1To6
 
     learners.forEach(l => {
 
-const value = l.marks?.[subject.key];
+const value = meritValue(l, subject);
 
 if (
     value !== undefined &&
@@ -69616,7 +69631,7 @@ subjects.forEach(s => {
 
   const enteredSubjects = subjects.filter(s => {
 
-  const value = l.marks?.[s.key];
+  const value = meritValue(l, s);
 
   return value !== undefined &&
          value !== null &&
@@ -69624,10 +69639,8 @@ subjects.forEach(s => {
 
 }).length;
 
-const average =
-  enteredSubjects
-    ? (l.total / enteredSubjects).toFixed(1)
-    : "0.0";
+const learnerTotal = subjects.reduce((sum, subject) => { const mark = meritValue(l, subject); return sum + (mark === "" ? 0 : Number(mark)); }, 0);
+const average = enteredSubjects ? (learnerTotal / enteredSubjects).toFixed(1) : "0.0";
 
     html += `
 <tr>
@@ -69643,7 +69656,7 @@ const average =
 
     subjects.forEach(s => {
 
-     const value = l.marks?.[s.key];
+     const value = meritValue(l, s);
 
 const score =
   value !== undefined &&
@@ -69664,7 +69677,7 @@ const score =
     });
 
     html += `
-<td><b>${l.total}</b></td>
+<td><b>${learnerTotal}</b></td>
 
 <td><b>${average}</b></td>
 
@@ -142485,77 +142498,75 @@ html,body,#app,.main{
   //    subject deletion all get individual recycle entries.
   // ---------------------------------------------------------
   window.deleteLearnerMarks=async function(studentId,examPeriod){
-    if(!studentId || !examPeriod) return Swal.fire("Missing data","","error");
+    if(!studentId || !examPeriod) return Swal.fire("Missing data","Select a learner and exam period first.","error");
     const schoolId=getSchoolId();
-    const normalized=typeof normalizeExamPeriod==="function"
-      ? normalizeExamPeriod(examPeriod) : String(examPeriod).trim();
-    const path=`schools/${schoolId}/students/${studentId}/marks/${normalized}`;
-
-    const snap=await fastGet(ref(db,path));
-    if(!snap.exists()) return Swal.fire("Not Found","No marks were found for this learner and exam.","info");
-
-    const ok=await Swal.fire({
-      title:"Move Exam Results to Recycle Bin?",
-      text:"Only this learner's results for the selected exam will be moved.",
-      icon:"warning",showCancelButton:true,
-      confirmButtonText:"🗑 Move to Recycle Bin",
-      cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"
-    });
-    if(!ok.isConfirmed) return;
-
+    const requested=typeof normalizeExamPeriod==="function" ? normalizeExamPeriod(examPeriod) : String(examPeriod).trim();
+    const studentPath=`schools/${schoolId}/students/${studentId}`;
     try{
-      Swal.fire({title:"Moving Results...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
-      await saveRecycleRecord("examResults",path,snap.val(),`${studentId}_${normalized}`);
-      await remove(ref(db,path));
-      Swal.close();
+      const studentSnap=await fastGet(ref(db,studentPath));
+      const student=studentSnap.exists()?studentSnap.val():null;
+      const marksByPeriod=student?.marks||{};
+      const matchingPeriods=Object.keys(marksByPeriod).filter(key=>{
+        const normalized=typeof normalizeExamPeriod==="function"?normalizeExamPeriod(key):String(key).trim();
+        return normalized.toLowerCase()===requested.toLowerCase();
+      });
+      if(!matchingPeriods.length) return Swal.fire("Not Found","No saved marks were found for this learner and exam period.","info");
+      const ok=await Swal.fire({title:"Delete learner marks now?",text:"The selected learner's marks for this exam period will be removed immediately from active marks and placed in the Recycle Bin for possible restoration.",icon:"warning",showCancelButton:true,confirmButtonText:"Delete marks now",cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"});
+      if(!ok.isConfirmed) return;
+      Swal.fire({title:"Deleting Marks...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+      for(const periodKey of matchingPeriods){
+        const path=`${studentPath}/marks/${periodKey}`;
+        const snap=await fastGet(ref(db,path));
+        if(snap.exists()) await saveRecycleRecord("examResults",path,snap.val(),`${studentId}_${periodKey}`);
+        await remove(ref(db,path));
+      }
+      // Clear stale local rows before refreshing from Firebase.
+      [window.currentFilteredLearners,(typeof allLoadedLearners!=="undefined"?allLoadedLearners:window.allLoadedLearners)].forEach(list=>{
+        if(Array.isArray(list)) list.forEach(learner=>{ if(String(learner?.id)===String(studentId)) learner.marks={}; });
+      });
       try{await window.loadMarksUnifiedClean?.();}catch(_){}
-      Swal.fire("Moved to Recycle Bin","The selected exam results can be restored individually.","success");
+      Swal.close();
+      await Swal.fire("Marks Deleted","The learner's selected exam marks have been removed from active records.","success");
     }catch(error){
       Swal.close();
-      Swal.fire("Delete Failed",error.message||"Exam results were not deleted.","error");
+      Swal.fire("Delete Failed",error.message||"Learner marks could not be deleted.","error");
     }
   };
 
   window.deleteSelectedLearnersMarks=async function(){
     const examPeriod=document.getElementById("resultsExamPeriod")?.value;
-    if(!examPeriod) return Swal.fire("Select Exam Period","","warning");
-
-    const selected=document.querySelectorAll(".learnerCheckbox:checked");
-    if(!selected.length) return Swal.fire("No learners selected","","info");
-
-    const ok=await Swal.fire({
-      title:"Move selected exam results to Recycle Bin?",
-      html:`<b>${selected.length}</b> learner result record(s) will be moved.<br>
-            <span style="color:#16a34a;font-weight:700">Each result is stored separately and can be restored separately.</span>`,
-      icon:"warning",showCancelButton:true,
-      confirmButtonText:"🗑 Move to Recycle Bin",
-      cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"
-    });
+    if(!examPeriod) return Swal.fire("Select Exam Period","Please select an exam period first.","warning");
+    const selected=[...document.querySelectorAll(".learnerCheckbox:checked")];
+    if(!selected.length) return Swal.fire("No learners selected","Select one or more learners first.","info");
+    const ok=await Swal.fire({title:"Delete selected learner marks now?",html:`<b>${selected.length}</b> learner(s)' marks for this exam period will be removed immediately from active records and saved individually to the Recycle Bin.`,icon:"warning",showCancelButton:true,confirmButtonText:"Delete selected marks",cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"});
     if(!ok.isConfirmed) return;
-
     const schoolId=getSchoolId();
-    const normalized=typeof normalizeExamPeriod==="function"
-      ? normalizeExamPeriod(examPeriod) : String(examPeriod).trim();
-
+    const requested=typeof normalizeExamPeriod==="function"?normalizeExamPeriod(examPeriod):String(examPeriod).trim();
     try{
-      Swal.fire({title:"Moving Exam Results...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
-      let done=0;
+      Swal.fire({title:"Deleting Selected Marks...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+      let removedCount=0;
       for(const cb of selected){
-        const studentId=cb.value;
-        const path=`schools/${schoolId}/students/${studentId}/marks/${normalized}`;
-        const snap=await fastGet(ref(db,path));
-        if(snap.exists()){
-          await saveRecycleRecord("examResults",path,snap.val(),`${studentId}_${normalized}`);
-          await remove(ref(db,path));
+        const studentId=String(cb.value||""); if(!studentId) continue;
+        const studentPath=`schools/${schoolId}/students/${studentId}`;
+        const studentSnap=await fastGet(ref(db,studentPath));
+        const periods=studentSnap.exists()?Object.keys(studentSnap.val()?.marks||{}):[];
+        const matching=periods.filter(key=>{
+          const normalized=typeof normalizeExamPeriod==="function"?normalizeExamPeriod(key):String(key).trim();
+          return normalized.toLowerCase()===requested.toLowerCase();
+        });
+        for(const periodKey of matching){
+          const path=`${studentPath}/marks/${periodKey}`;
+          const snap=await fastGet(ref(db,path));
+          if(snap.exists()) await saveRecycleRecord("examResults",path,snap.val(),`${studentId}_${periodKey}`);
+          await remove(ref(db,path)); removedCount++;
         }
-        done++;
       }
-      Swal.close();
       try{await window.loadMarksUnifiedClean?.();}catch(_){}
-      Swal.fire("Moved to Recycle Bin",`${done} learner result record(s) were moved. You can restore them one at a time.`,"success");
+      Swal.close();
+      await Swal.fire("Marks Deleted",`${removedCount} learner exam-mark record(s) have been removed from active records.`,"success");
     }catch(error){
       Swal.close();
-      Swal.fire("Delete Failed",error.message||"Exam results were not deleted.","error");
+      Swal.fire("Delete Failed",error.message||"Selected learner marks were not deleted.","error");
     }
   };
 
@@ -142619,24 +142630,46 @@ html,body,#app,.main{
     try{
       Swal.fire({title:"Moving Subject Marks...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
       let moved=0;
+      const normalizeSub = raw => String(raw||"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
+      const canonicalSub = raw => {
+        const key=normalizeSub(raw);
+        const aliases={eng:"english",english:"english",math:"mathematics",maths:"mathematics",mathematics:"mathematics",kiswa:"kiswahili",kisw:"kiswahili",kiswahili:"kiswahili",cre:"christianreligiouseducation",religiouseducation:"christianreligiouseducation",christianreligiouseducation:"christianreligiouseducation",agric:"agriculture",agriculture:"agriculture",integratedscience:"integratedscience",science:"integratedscience",social:"socialstudies",socialstudies:"socialstudies",creativeart:"creativearts",creativearts:"creativearts",pretech:"pretechnicalstudies",pretechnical:"pretechnicalstudies",pretechnicalstudies:"pretechnicalstudies"};
+        return aliases[key]||key;
+      };
       for(const learner of gradeLearners){
         if(!learner.id) continue;
-        const path=`schools/${schoolId}/students/${learner.id}/marks/${examPeriod}/${value.subject}`;
-        const snap=await fastGet(ref(db,path));
-        if(snap.exists()){
-          await saveRecycleRecord(
-            "examResults",
-            path,
-            snap.val(),
-            `${learner.id}_${examPeriod}_${value.subject}`
-          );
-          await remove(ref(db,path));
-          moved++;
+        const studentPath=`schools/${schoolId}/students/${learner.id}`;
+        const studentSnap=await fastGet(ref(db,studentPath));
+        const periods=studentSnap.exists()?Object.keys(studentSnap.val()?.marks||{}):[];
+        const matchingPeriods=periods.filter(periodKey=>{
+          const normalized=typeof normalizeExamPeriod==="function"?normalizeExamPeriod(periodKey):String(periodKey).trim();
+          return normalized.toLowerCase()===String(examPeriod).toLowerCase();
+        });
+        for(const periodKey of matchingPeriods){
+          const periodPath=`${studentPath}/marks/${periodKey}`;
+          const periodSnap=await fastGet(ref(db,periodPath));
+          if(!periodSnap.exists()) continue;
+          const periodMarks=periodSnap.val()||{};
+          const target=canonicalSub(value.subject);
+          const keysToDelete=Object.keys(periodMarks).filter(key=>{
+            if(isMarksMetadataField(key)) return false;
+            const exact=canonicalSub(key)===target;
+            // Support legacy compound keys that explicitly store CRE as a component.
+            const creComponent=target==="christianreligiouseducation" && /(?:^|[—–-])\s*(?:cre|religious\s*education|christian\s*religious\s*education)\s*$/i.test(key);
+            return exact || creComponent;
+          });
+          for(const subjectKey of keysToDelete){
+            const path=`${periodPath}/${subjectKey}`;
+            const snap=await fastGet(ref(db,path));
+            if(snap.exists()) await saveRecycleRecord("examResults",path,snap.val(),`${learner.id}_${periodKey}_${subjectKey}`);
+            await remove(ref(db,path)); moved++;
+          }
         }
       }
       Swal.close();
+      // Reload from Firebase so deleted values disappear from Loaded Marks and reports immediately.
       try{await window.loadMarksUnifiedClean?.();}catch(_){}
-      Swal.fire("Moved to Recycle Bin",`${moved} subject mark record(s) were moved.`,"success");
+      Swal.fire("Subject Marks Deleted",`${moved} subject mark record(s) have been removed from active marks and placed in the Recycle Bin.`,"success");
     }catch(error){
       Swal.close();
       Swal.fire("Delete Failed",error.message||"Subject marks were not deleted.","error");
@@ -152637,9 +152670,46 @@ ${headerHtml}
     const n = select?.value === "custom" ? Number(custom?.value) : Number(select?.value || 100);
     return Number.isFinite(n) && n > 0 ? n : 100;
   }
+  function subjectKeyNorm(value) {
+    return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
   function currentMark(learner, subjectKey) {
-    const v = learner.marks && learner.marks[subjectKey];
+    const marks = learner && learner.marks && typeof learner.marks === "object" ? learner.marks : {};
+    let v = marks[subjectKey];
+    if (v === undefined || v === null || v === "") {
+      const target = subjectKeyNorm(subjectKey);
+      const aliases = {
+        english: ["english", "eng"], eng: ["english", "eng"],
+        kiswahili: ["kiswahili", "kiswa", "kisw"], kiswa: ["kiswahili", "kiswa", "kisw"],
+        mathematics: ["mathematics", "math", "maths"], math: ["mathematics", "math", "maths"],
+        cre: ["cre", "christianreligiouseducation", "religiouseducation"],
+        christianreligiouseducation: ["cre", "christianreligiouseducation", "religiouseducation"]
+      };
+      const keys = aliases[target] || [target];
+      const match = Object.keys(marks).find(key => keys.includes(subjectKeyNorm(key)));
+      if (match !== undefined) v = marks[match];
+    }
     return v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
+  }
+  function savedScoreCount(subjectKey) {
+    return state.learners.reduce((count, learner) => count + (currentMark(learner, subjectKey) !== null ? 1 : 0), 0);
+  }
+  function copySavedScoresToCurrent(subjectKey = state.activeSubject) {
+    if (!subjectKey) {
+      if (window.Swal) Swal.fire({icon:"info",title:"Select a subject first",text:"Choose a subject tab, then copy its previously saved scores into the current score cells."});
+      return 0;
+    }
+    let copied = 0;
+    panel().querySelectorAll(`.rasm-score-input[data-subject-key="${CSS.escape(subjectKey)}"]`).forEach(input => {
+      const learner = state.learners.find(item => item.key === input.dataset.learnerKey);
+      const saved = currentMark(learner, subjectKey);
+      if (saved !== null) { input.value = String(saved); input.classList.remove("invalid"); copied++; }
+    });
+    updateStats();
+    const status = $("rasmBulkSaveStatus");
+    if (status) status.textContent = copied ? `Copied ${copied} previously saved ${subjectKey} score(s) into current entry cells. Click Save All Entered Marks to save them.` : `No previously saved scores were found for ${subjectKey} in this grade and exam period.`;
+    if (window.Swal) Swal.fire({icon:copied?"success":"info",title:copied?"Saved scores copied":"No saved scores found",text:copied?`${copied} saved score(s) copied into the current score column. Review them, then click Save All Entered Marks.`:`No recorded scores were found for ${subjectKey} in this grade and exam period.`});
+    return copied;
   }
   function subjectCandidates() {
     const grade = $("gradeSelect")?.value || "";
@@ -152764,8 +152834,15 @@ ${headerHtml}
         const data = child.val() || {};
         if (normalizeGradeForMarks(data.grade) !== normalizeGradeForMarks(grade)) return;
         const marksByPeriod = data.marks && typeof data.marks === "object" ? data.marks : {};
-        const matchedPeriodKey = Object.keys(marksByPeriod).find(key => normalizePeriodForMarks(key) === normalizePeriodForMarks(examPeriod));
-        const marks = matchedPeriodKey && marksByPeriod[matchedPeriodKey] && typeof marksByPeriod[matchedPeriodKey] === "object" ? marksByPeriod[matchedPeriodKey] : {};
+        const matchingPeriodKeys = Object.keys(marksByPeriod).filter(key => normalizePeriodForMarks(key) === normalizePeriodForMarks(examPeriod));
+        // Merge every stored key that normalizes to the selected exam. Older records
+        // may use a different spacing/punctuation form, and selecting only the first
+        // match can hide recorded scores from the loaded table.
+        const marks = {};
+        matchingPeriodKeys.forEach(key => {
+          const periodMarks = marksByPeriod[key];
+          if (periodMarks && typeof periodMarks === "object") Object.assign(marks, periodMarks);
+        });
         learners.push({key:child.key,id:child.key,name:String(data.name || data.fullName || "Unknown Learner").trim(),grade:data.grade || grade,marks});
       });
       learners.sort((a,b) => a.name.localeCompare(b.name,undefined,{sensitivity:"base"}));
@@ -152839,6 +152916,61 @@ ${headerHtml}
       return;
     }
     const totalScores = [...byLearner.values()].reduce((n,item)=>n+Object.keys(item.values).length,0);
+
+    // Preflight the exact grade/period records before writing. If a score
+    // already exists for any entered subject, require explicit overwrite consent.
+    const existingMarks = [];
+    try {
+      for (const [learnerKey, item] of byLearner.entries()) {
+        const path = `schools/${schoolId}/students/${learnerKey}/marks/${examPeriod}`;
+        const snap = await fastGet(ref(db, path));
+        const saved = snap && typeof snap.val === "function" ? (snap.val() || {}) : {};
+        Object.keys(item.values).forEach(subjectKey => {
+          const oldValue = saved[subjectKey];
+          if (oldValue !== undefined && oldValue !== null && String(oldValue).trim() !== "" && Number.isFinite(Number(oldValue))) {
+            existingMarks.push({
+              learner: item.learner?.name || learnerKey,
+              subject: subjectKey,
+              oldValue,
+              newValue: item.values[subjectKey]
+            });
+          }
+        });
+      }
+    } catch (checkError) {
+      console.error("Could not verify existing marks before saving:", checkError);
+      if (window.Swal) await Swal.fire({
+        icon: "error",
+        title: "Could not check existing marks",
+        text: "No marks were saved. Please check your connection and try again so existing scores are not overwritten accidentally."
+      });
+      return;
+    }
+
+    if (existingMarks.length) {
+      const preview = existingMarks.slice(0, 12).map(item =>
+        `<tr><td style="padding:5px;border:1px solid #ddd">${esc(item.learner)}</td><td style="padding:5px;border:1px solid #ddd">${esc(item.subject)}</td><td style="padding:5px;border:1px solid #ddd;text-align:center">${esc(item.oldValue)}</td><td style="padding:5px;border:1px solid #ddd;text-align:center"><b>${esc(item.newValue)}</b></td></tr>`
+      ).join("");
+      const overwriteChoice = window.Swal ? await Swal.fire({
+        icon: "warning",
+        title: "Marks already exist",
+        html: `<p style="margin-bottom:10px">Found <b>${existingMarks.length}</b> existing score(s) for <b>${grade}</b>, exam period <b>${esc(examPeriod)}</b>.</p>
+          <p style="margin-bottom:10px">Do you want to overwrite those existing scores with the new entries?</p>
+          <div style="max-height:240px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:left;font-size:12px"><thead><tr><th style="padding:5px;border:1px solid #ddd">Learner</th><th style="padding:5px;border:1px solid #ddd">Subject</th><th style="padding:5px;border:1px solid #ddd">Existing</th><th style="padding:5px;border:1px solid #ddd">New</th></tr></thead><tbody>${preview}</tbody></table></div>
+          ${existingMarks.length > 12 ? `<p style="margin-top:8px">Showing 12 of ${existingMarks.length} existing scores.</p>` : ""}`,
+        showCancelButton: true,
+        confirmButtonText: "Yes, overwrite existing scores",
+        cancelButtonText: "No, go back",
+        confirmButtonColor: "#b91c1c",
+        reverseButtons: true,
+        width: 760
+      }) : {isConfirmed: confirm(`Found ${existingMarks.length} existing scores. Overwrite them?`)};
+      if (!overwriteChoice.isConfirmed) {
+        if (window.Swal) await Swal.fire({icon:"info",title:"No changes made",text:"Existing marks have been kept. Review your entries and save again when ready."});
+        return;
+      }
+    }
+
     const confirmed = window.Swal ? await Swal.fire({icon:"question",title:"Save class marks?",html:`You are about to save <b>${totalScores}</b> score(s) for <b>${byLearner.size}</b> learner(s), across <b>${state.subjects.length}</b> selected subject tab(s).<br><br>Scores are converted to percentages using a paper maximum of <b>${paperMaximum()}</b>. Existing marks are updated only where you entered a score.`,showCancelButton:true,confirmButtonText:"Save all marks",cancelButtonText:"Review entries",confirmButtonColor:"#15803d",reverseButtons:true}) : {isConfirmed:confirm(`Save ${totalScores} score(s) for ${byLearner.size} learners?`)};
     if (!confirmed.isConfirmed) return;
 
@@ -152942,15 +153074,35 @@ ${headerHtml}
     $("rasmBulkDeselectAll")?.addEventListener("click",() => {
       state.subjects=[]; state.activeSubject=""; renderSubjectChoices(); renderTabs();
     });
-    $("rasmBulkSubjectChoices")?.addEventListener("change",event => {
+    $("rasmBulkSubjectChoices")?.addEventListener("change", async event => {
       if (!event.target.matches(".rasmBulkSubjectCheck")) return;
-      const value = event.target.value;
+      const checkbox = event.target;
+      const value = checkbox.value;
       const candidate = subjectCandidates().find(item => item.value === value);
-      if (event.target.checked && candidate && !state.subjects.some(item => item.value === value)) state.subjects.push(candidate);
-      if (!event.target.checked) state.subjects = state.subjects.filter(item => item.value !== value);
+      if (checkbox.checked && candidate && !state.subjects.some(item => item.value === value)) {
+        const savedCount = state.lastLoaded ? savedScoreCount(value) : 0;
+        if (savedCount > 0) {
+          checkbox.checked = false;
+          const choice = window.Swal ? await Swal.fire({
+            icon:"warning", title:"Subject scores already exist",
+            html:`<b>${esc(candidate.label)}</b> already has recorded scores for <b>${esc(state.grade)}</b> in this exam period (<b>${savedCount}</b> learner score(s)).<br><br>To avoid entering duplicates, select another subject to proceed. If you need to reuse these records, choose <b>Copy previously saved scores</b>.`,
+            showCancelButton:true, confirmButtonText:"Copy saved scores", cancelButtonText:"Select another subject", confirmButtonColor:"#1d4ed8", reverseButtons:true
+          }) : {isConfirmed:confirm(`${candidate.label} already has ${savedCount} saved scores. Copy them into the current score cells?`)};
+          if (choice.isConfirmed) {
+            state.subjects.push(candidate); state.activeSubject = value;
+            renderSubjectChoices(); renderTabs(); copySavedScoresToCurrent(value);
+            return;
+          }
+          renderSubjectChoices();
+          return;
+        }
+        state.subjects.push(candidate);
+      }
+      if (!checkbox.checked) state.subjects = state.subjects.filter(item => item.value !== value);
       if (!state.subjects.some(s => s.value === state.activeSubject)) state.activeSubject = state.subjects[0]?.value || "";
       renderTabs();
     });
+    $("rasmBulkCopySavedBtn")?.addEventListener("click", () => copySavedScoresToCurrent());
     $("rasmBulkTabs")?.addEventListener("click",event => {
       const tab = event.target.closest("[data-bulk-tab]"); if (tab) switchTab(tab.getAttribute("data-bulk-tab"));
     });
@@ -152993,6 +153145,148 @@ ${headerHtml}
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",install,{once:true}); else install();
+})();
+</script>
+
+<script id="rasm360-final-instant-subject-delete-fix">
+(function(){
+  "use strict";
+  const normPeriod = v => (typeof window.normalizeExamPeriod === "function" ? window.normalizeExamPeriod(v) : String(v||"").trim()).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normSubject = v => String(v||"").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const canonicalSubject = v => {
+    const k=normSubject(v);
+    const aliases={eng:"english",english:"english",math:"mathematics",maths:"mathematics",mathematics:"mathematics",kiswa:"kiswahili",kisw:"kiswahili",kiswahili:"kiswahili",cre:"cre",religiouseducation:"cre",christianreligiouseducation:"cre",agric:"agriculture",agriculture:"agriculture",integratedscience:"integratedscience",science:"integratedscience",social:"socialstudies",socialstudies:"socialstudies",creativeart:"creativearts",creativearts:"creativearts",pretech:"pretechnicalstudies",pretechnical:"pretechnicalstudies",pretechnicalstudies:"pretechnicalstudies"};
+    return aliases[k]||k;
+  };
+  const ignored = new Set(["schoolid","name","grade","updatedat","createdat","timestamp","average","total","points","rank","position","examperiod","stream"]);
+  const esc = v => String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"}[c]));
+  function getSchool(){return window.schoolId||localStorage.getItem("schoolId")||sessionStorage.getItem("schoolId")||"";}
+  function currentPeriodKeys(marks, wanted){return Object.keys(marks||{}).filter(k=>normPeriod(k)===normPeriod(wanted));}
+  function subjectKeysFor(marks, chosen){
+    const target=canonicalSubject(chosen);
+    return Object.keys(marks||{}).filter(k=>{
+      if(ignored.has(normSubject(k))) return false;
+      const key=canonicalSubject(k);
+      if(key===target) return true;
+      // Legacy curriculum fields such as "Environmental and CRE — CRE" store a CRE component.
+      if(target==="cre" && /(?:^|[—–-])\s*(?:cre|religious\s*education|christian\s*religious\s*education)\s*$/i.test(k)) return true;
+      return false;
+    });
+  }
+  function renderInstant(){
+    const current=Array.isArray(window.currentFilteredLearners)?window.currentFilteredLearners:[];
+    const all=(typeof allLoadedLearners!=="undefined" && Array.isArray(allLoadedLearners))?allLoadedLearners:(Array.isArray(window.allLoadedLearners)?window.allLoadedLearners:[]);
+    [current,all].forEach(list=>list.forEach(l=>{
+      if(!l || !l.marks || typeof l.marks!=="object") return;
+      // These Loaded Marks records use a flattened subject map for the active exam.
+      Object.keys(l.marks).forEach(k=>{ if(l.__rasmDeletedSubjectKeys && l.__rasmDeletedSubjectKeys.has(normSubject(k))) delete l.marks[k]; });
+      delete l.__rasmDeletedSubjectKeys;
+    }));
+    const gradeEl=document.getElementById("gradeSelect");
+    const selected=(gradeEl?.value||"").trim();
+    const filtered=!selected?all:all.filter(l=>String(l.grade||"").trim().toLowerCase()===selected.toLowerCase());
+    window.currentFilteredLearners=filtered;
+    try{ if(typeof window.buildMarksHeader==="function") window.buildMarksHeader(selected||(filtered[0]?.grade||""),filtered); }catch(e){console.warn(e);}
+    try{ if(typeof window.renderMarksTable==="function") window.renderMarksTable(filtered); }catch(e){console.warn(e);}
+    try{ if(typeof window.renderTotals==="function") window.renderTotals(filtered); }catch(e){console.warn(e);}
+    try{ if(typeof window.renderAverages==="function") window.renderAverages(filtered); }catch(e){console.warn(e);}
+  }
+  window.deleteClassSubjectMarks=async function(){
+    if(typeof window.rasmIsAdmin==="function" && !window.rasmIsAdmin()) return window.Swal?.fire("Admin Only","Only an administrator can delete marks.","warning");
+    const periodEl=document.getElementById("resultsExamPeriod");
+    const period=String(periodEl?.value||"").trim();
+    if(!period) return window.Swal?.fire("Select Exam Period","Please select an exam period first.","warning");
+    const schoolId=getSchool();
+    if(!schoolId) return window.Swal?.fire("School ID Missing","Please sign in again and retry.","error");
+    let root;
+    try{root=await window.fastGet(ref(db,`schools/${schoolId}/students`));}
+    catch(e){return window.Swal?.fire("Could not read marks",e.message||"Check your connection and permissions.","error");}
+    const students=root?.val?.()||{};
+    const gradeMap=new Map();
+    const subjects=new Set();
+    for(const [id,st] of Object.entries(students)){
+      const grade=String(st?.grade||"").trim().toUpperCase();
+      if(!grade) continue;
+      const periods=currentPeriodKeys(st?.marks,period);
+      if(!periods.length) continue;
+      if(!gradeMap.has(grade)) gradeMap.set(grade,[]);
+      gradeMap.get(grade).push({id,student:st,periods});
+      periods.forEach(pk=>Object.keys(st.marks?.[pk]||{}).forEach(k=>{if(!ignored.has(normSubject(k)) && !/^\d+$/.test(k)) subjects.add(k);}));
+    }
+    if(!gradeMap.size) return window.Swal?.fire("No Saved Marks Found",`No learner records with marks were found for ${esc(period)}.`,"info");
+    const grades=[...gradeMap.keys()].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    const gradeOptions=grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("");
+    const subjectOptions=[...subjects].sort((a,b)=>a.localeCompare(b)).map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
+    const selected=await window.Swal.fire({title:"🗑 Delete Subject Marks",html:`<div style="text-align:left"><p><b>Exam Period</b><br>${esc(period)}</p><label for="rasmInstantDeleteGrade"><b>Select Grade</b></label><select id="rasmInstantDeleteGrade" class="swal2-select" style="width:100%">${gradeOptions}</select><label for="rasmInstantDeleteSubject"><b>Select Subject</b></label><select id="rasmInstantDeleteSubject" class="swal2-select" style="width:100%">${subjectOptions}</select><p style="font-size:12px;color:#555">Deletes saved marks for the selected grade and exam period, then refreshes Loaded Marks without requiring logout.</p></div>`,showCancelButton:true,confirmButtonText:"Continue",cancelButtonText:"Cancel",focusConfirm:false,preConfirm:()=>({grade:document.getElementById("rasmInstantDeleteGrade")?.value,subject:document.getElementById("rasmInstantDeleteSubject")?.value})});
+    if(!selected.isConfirmed||!selected.value) return;
+    const {grade,subject}=selected.value;
+    const roster=gradeMap.get(String(grade||"").toUpperCase())||[];
+    let matches=0;
+    for(const entry of roster){
+      for(const pk of entry.periods){
+        const marks=entry.student?.marks?.[pk]||{};
+        matches+=subjectKeysFor(marks,subject).length;
+      }
+    }
+    if(!matches) return window.Swal?.fire("No Matching Marks",`No saved marks for ${esc(subject)} were found in ${esc(grade)} for ${esc(period)}.`,"info");
+    const confirm=await window.Swal.fire({icon:"warning",title:"Delete these subject marks?",html:`Remove <b>${esc(subject)}</b> marks for grade <b>${esc(grade)}</b>, exam period <b>${esc(period)}</b>?<br><br><b>${matches}</b> stored subject value(s) will be removed from active marks and the Loaded Marks table will update immediately.`,showCancelButton:true,confirmButtonText:"Delete marks now",cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"});
+    if(!confirm.isConfirmed) return;
+    const loader=typeof window.showLoader==="function";
+    try{
+      if(loader) window.showLoader();
+      let deleted=0; const errors=[];
+      for(const entry of roster){
+        for(const pk of entry.periods){
+          const periodPath=`schools/${schoolId}/students/${entry.id}/marks/${pk}`;
+          let snap;
+          try{snap=await window.fastGet(ref(db,periodPath));}catch(e){errors.push(`${entry.id}: ${e.message}`);continue;}
+          if(!snap?.exists()) continue;
+          const marks=snap.val()||{}; const keys=subjectKeysFor(marks,subject);
+          for(const key of keys){
+            const path=`${periodPath}/${key}`;
+            try{
+              const valSnap=await window.fastGet(ref(db,path));
+              if(!valSnap?.exists()) continue;
+              if(typeof window.saveRecycleRecord==="function"){
+                try{await window.saveRecycleRecord("examResults",path,valSnap.val(),`${entry.id}_${pk}_${key}`);}catch(re){console.warn("Recycle Bin copy failed; continuing delete",re);}
+              }
+              await remove(ref(db,path));
+              const verify=await window.fastGet(ref(db,path));
+              if(verify?.exists()) throw new Error("Firebase still reports this mark as present after deletion.");
+              deleted++;
+              // Immediately remove the subject alias from both live table arrays.
+              [window.currentFilteredLearners,(typeof allLoadedLearners!=="undefined"?allLoadedLearners:window.allLoadedLearners)].forEach(list=>{
+                if(!Array.isArray(list)) return;
+                const learner=list.find(l=>String(l.id)===String(entry.id));
+                if(learner?.marks){
+                  const target=canonicalSubject(subject);
+                  Object.keys(learner.marks).forEach(k=>{
+                    if(canonicalSubject(k)===target || (target==="cre" && /(?:^|[—–-])\s*(?:cre|religious\s*education|christian\s*religious\s*education)\s*$/i.test(k))) delete learner.marks[k];
+                  });
+                }
+              });
+            }catch(e){errors.push(`${entry.student?.name||entry.id} / ${key}: ${e.message||e}`);}
+          }
+        }
+      }
+      // Render cached state first, then re-read Firebase in the background; no logout/relogin needed.
+      renderInstant();
+      if(loader) window.hideLoader?.();
+      if(typeof window.loadMarksUnifiedClean==="function"){
+        try{await window.loadMarksUnifiedClean();}catch(e){console.error("Post-delete marks refresh failed:",e);}
+      }
+      if(errors.length){
+        console.error("Some subject marks could not be deleted:",errors);
+        await window.Swal.fire({icon:"warning",title:"Deletion partly completed",html:`Deleted <b>${deleted}</b> mark value(s). <b>${errors.length}</b> item(s) could not be confirmed; see the browser console for details.`,confirmButtonColor:"#b45309"});
+      }else{
+        await window.Swal.fire({icon:"success",title:"Subject marks deleted",html:`Deleted <b>${deleted}</b> saved mark value(s) for <b>${esc(subject)}</b> in <b>${esc(grade)}</b>.<br><br>The Loaded Marks table has been refreshed from Firebase.`,confirmButtonColor:"#15803d"});
+      }
+    }catch(e){
+      if(loader) window.hideLoader?.();
+      console.error("Instant subject deletion failed",e);
+      await window.Swal.fire({icon:"error",title:"Delete failed",text:e?.message||"Firebase did not confirm the deletion. Please retry."});
+    }
+  };
 })();
 </script>
 </html>
