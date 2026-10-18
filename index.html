@@ -153448,3 +153448,154 @@ ${headerHtml}
 })();
 </script>
 
+
+<!-- RASM 360 — GUARDED CHECKBOX STABILITY PATCH: SUPPORT STAFF / ICT / TRANSPORT -->
+<script id="rasm360-targeted-checkbox-stability-final">
+(function(){
+  "use strict";
+  if(window.__rasmTargetedCheckboxStabilityInstalled) return;
+  window.__rasmTargetedCheckboxStabilityInstalled = true;
+
+  const TARGETS = [
+    {module:"supportStaff", section:"#supportStaff", list:"#supportStaffList"},
+    {module:"ict", section:"#ict", list:"#ictList"},
+    {module:"transport", section:"#transport", list:"#transportList"}
+  ];
+  const selectedByModule = new Map();
+  const clean = value => String(value == null ? "" : value).trim();
+  let scheduled = false;
+
+  function selectedSet(module){
+    if(!selectedByModule.has(module)) selectedByModule.set(module, new Set());
+    return selectedByModule.get(module);
+  }
+
+  function boxes(module){
+    return Array.from(document.querySelectorAll('.rasm-record-select[data-module="' + module + '"]'));
+  }
+
+  function capture(module){
+    const saved = selectedSet(module);
+    boxes(module).forEach(cb => {
+      const key = clean(cb.dataset.key);
+      if(!key) return;
+      if(cb.checked) saved.add(key);
+      else saved.delete(key);
+    });
+  }
+
+  function syncControls(module){
+    const allBoxes = boxes(module);
+    const checkedCount = allBoxes.filter(cb => cb.checked).length;
+    document.querySelectorAll(
+      '.rasm-record-select-all[data-module="' + module + '"], ' +
+      '.rasm-toolbar-select-all[data-module="' + module + '"]'
+    ).forEach(control => {
+      control.checked = allBoxes.length > 0 && checkedCount === allBoxes.length;
+      control.indeterminate = checkedCount > 0 && checkedCount < allBoxes.length;
+    });
+    document.querySelectorAll('.rasm-checkbox-recycle-toolbar[data-module="' + module + '"] .rasm-checkbox-selected-count, [data-count-for="' + module + '"]').forEach(el => {
+      el.textContent = checkedCount + " selected";
+    });
+    document.querySelectorAll('.rasm-checkbox-recycle-toolbar[data-module="' + module + '"]').forEach(bar => {
+      bar.style.animation = "none";
+      bar.style.transition = "none";
+    });
+  }
+
+  function stabilize(target){
+    const section = document.querySelector(target.section);
+    const list = document.querySelector(target.list);
+    if(!section || !list) return;
+
+    section.style.animation = "none";
+    section.style.transition = "none";
+    section.querySelectorAll(".rasm-checkbox-recycle-toolbar").forEach(bar => {
+      bar.style.animation = "none";
+      bar.style.transition = "none";
+    });
+
+    // The generic recycle decorator is the sole checkbox source for these rows.
+    // Remove only duplicate controls with the same role inside one row.
+    list.querySelectorAll("tr").forEach(row => {
+      const rowBoxes = Array.from(row.querySelectorAll('.rasm-record-select[data-module="' + target.module + '"]'));
+      rowBoxes.slice(1).forEach(cb => {
+        const label = cb.closest("label");
+        if(label && label.querySelectorAll('input[type="checkbox"]').length === 1) label.remove();
+        else cb.remove();
+      });
+    });
+
+    const saved = selectedSet(target.module);
+    boxes(target.module).forEach(cb => {
+      const key = clean(cb.dataset.key);
+      if(!key) return;
+      cb.checked = saved.has(key);
+    });
+    syncControls(target.module);
+  }
+
+  function apply(){
+    scheduled = false;
+    TARGETS.forEach(stabilize);
+  }
+
+  function schedule(){
+    if(scheduled) return;
+    scheduled = true;
+    window.setTimeout(apply, 50);
+  }
+
+  document.addEventListener("change", function(event){
+    const target = event.target;
+    if(!target || !target.matches) return;
+    const module = clean(target.dataset && target.dataset.module);
+    if(TARGETS.some(item => item.module === module) &&
+       (target.matches(".rasm-record-select") ||
+        target.matches(".rasm-record-select-all") ||
+        target.matches(".rasm-toolbar-select-all"))){
+      if(target.matches(".rasm-record-select")){
+        const saved = selectedSet(module);
+        const key = clean(target.dataset.key);
+        if(key){
+          if(target.checked) saved.add(key);
+          else saved.delete(key);
+        }
+      } else {
+        const saved = selectedSet(module);
+        boxes(module).forEach(cb => {
+          const key = clean(cb.dataset.key);
+          cb.checked = !!target.checked;
+          if(key){
+            if(cb.checked) saved.add(key);
+            else saved.delete(key);
+          }
+        });
+      }
+      syncControls(module);
+    }
+  }, true);
+
+  // Keep state through table redraws, but clear it only after the recycle
+  // workflow has completed successfully or the user explicitly unticks items.
+  const observer = new MutationObserver(schedule);
+  function start(){
+    if(document.body) observer.observe(document.body, {childList:true, subtree:true});
+    apply();
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, {once:true});
+  else start();
+
+  // Expose a safe hook for the existing verified bulk recycle workflow.
+  window.rasmTargetedCheckboxStability = {
+    apply,
+    clearModule: function(module){
+      selectedSet(module).clear();
+      boxes(module).forEach(cb => { cb.checked = false; });
+      syncControls(module);
+    },
+    getSelectedKeys: function(module){ return Array.from(selectedSet(module)); }
+  };
+})();
+</script>
+
