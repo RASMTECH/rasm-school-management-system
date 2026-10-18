@@ -9238,7 +9238,7 @@ Answer: C</pre>
               color:#64748b;
               margin-top:7px;
           ">
-            Enter one learner per line when registering multiple learners.
+            Type a learner's name and press Enter to move to the next line. Repeat for each learner.
           </div>
 
         </div>
@@ -9267,7 +9267,9 @@ Answer: C</pre>
       <textarea
         id="studentName"
         rows="6"
-        placeholder="Enter learner name or paste names from Excel...
+        onkeydown="if(event.key==='Enter'){event.stopPropagation();}"
+        aria-label="Enter multiple learner names, one name per line"
+        placeholder="Type one learner name, then press Enter for the next line...
 
 Example:
 Rowan Aiden
@@ -13039,6 +13041,13 @@ margin-bottom:18px;
 
 
 <!-- ================= MARKS TABLE ================= -->
+
+<div id="rasmLoadedMarksCoverageSummary" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:12px 0;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#0f172a;">
+  <div><span style="display:block;font-size:12px;color:#475569;font-weight:700;">Subjects with recorded marks</span><strong id="rasmLoadedRecordedSubjectCount" style="font-size:22px;">—</strong></div>
+  <div><span style="display:block;font-size:12px;color:#475569;font-weight:700;">Subjects with missing learner marks</span><strong id="rasmLoadedPartialSubjectCount" style="font-size:22px;">—</strong></div>
+  <div><span style="display:block;font-size:12px;color:#475569;font-weight:700;">Learners in selected grade</span><strong id="rasmLoadedLearnerCount" style="font-size:22px;">—</strong></div>
+  <div><span style="display:block;font-size:12px;color:#475569;font-weight:700;">Learner-subject marks missing</span><strong id="rasmLoadedMissingCellCount" style="font-size:22px;">—</strong></div>
+</div>
 
 <div
     id="marksTableWrapper"
@@ -18442,7 +18451,12 @@ window.logAuditAction = async function(action, details = "", section = "") {
 
     await push(schoolRef("auditLogs"), record);
   } catch (err) {
-    console.warn("Audit log failed:", err);
+    // Audit logging is best-effort: never flood the console or block the
+    // primary action when Firebase rules deny optional audit-log writes.
+    const code = String(err?.code || err?.message || "").toLowerCase();
+    if (!code.includes("permission_denied") && !code.includes("permission denied")) {
+      console.warn("Audit logging unavailable:", err?.message || err);
+    }
   }
 };
 
@@ -30651,7 +30665,42 @@ window.addStudent = async function () {
     let progressBox = null;
     let photoURL = "";
 
+    function setRegistrationProgress(message, detail = "") {
+        if (!progressBox) return;
+        progressBox.textContent = "";
+        const heading = document.createElement("div");
+        heading.textContent = message;
+        heading.style.fontWeight = "700";
+        progressBox.appendChild(heading);
+        if (detail) {
+            const sub = document.createElement("div");
+            sub.textContent = detail;
+            sub.style.fontWeight = "400";
+            sub.style.marginTop = "5px";
+            progressBox.appendChild(sub);
+        }
+    }
+
     try {
+
+        /* =====================================================
+           IMMEDIATE FEEDBACK — SHOW PROGRESS BEFORE FIREBASE
+           WORK, INCLUDING THE LEARNER-COUNT CHECK.
+        ===================================================== */
+        progressBox = document.createElement("div");
+        progressBox.id = "rasmLearnerRegistrationProgress";
+        progressBox.style.cssText = `
+            position:fixed; bottom:20px; right:20px; z-index:999999;
+            background:#0f172a; color:#ffffff; padding:15px 20px;
+            border-radius:14px; font-size:14px; font-weight:600;
+            box-shadow:0 10px 30px rgba(0,0,0,.30);
+            min-width:230px; max-width:calc(100vw - 40px);
+            text-align:center; line-height:1.5;
+        `;
+        setRegistrationProgress("Starting learner registration…", "Preparing the form");
+        document.body.appendChild(progressBox);
+        // Give the browser a paint opportunity before any Firebase await.
+        await new Promise(resolve => requestAnimationFrame(resolve));
 
         /* =====================================================
            1. GET FORM ELEMENTS
@@ -31016,89 +31065,11 @@ window.addStudent = async function () {
 
 
             /* -------------------------------------------------
-               CHECK EXPIRY
+               REGISTRATION IS NOT BLOCKED BY EXPIRY
+               Expiry alone must never stop learner registration.
+               The learner-count limit below is the only
+               subscription-based registration restriction.
             ------------------------------------------------- */
-
-            const now =
-                Date.now();
-
-
-            const subscriptionEndsAt =
-                Number(
-
-                    school.subscriptionEndsAt ||
-
-                    school.subscriptionEndAt ||
-
-                    school.subscriptionExpiresAt ||
-
-                    school.subscriptionExpiry ||
-
-                    0
-
-                );
-
-
-            const trialEndsAt =
-                Number(
-
-                    school.trialEndsAt ||
-
-                    school.trialEndAt ||
-
-                    school.trialExpiresAt ||
-
-                    school.trialExpiry ||
-
-                    0
-
-                );
-
-
-            const paidActive =
-
-                (
-                    subscriptionStatus === "active" ||
-                    subscriptionStatus === "paid" ||
-                    subscriptionStatus === "subscribed"
-                ) &&
-
-                (
-                    lifetime ||
-                    subscriptionEndsAt <= 0 ||
-                    subscriptionEndsAt > now
-                );
-
-
-            const trialActive =
-
-                (
-                    subscriptionStatus === "trial" ||
-                    subscriptionStatus === "free_trial" ||
-                    subscriptionStatus === "freetrial"
-                ) &&
-
-                (
-                    trialEndsAt <= 0 ||
-                    trialEndsAt > now
-                );
-
-
-            /*
-             * If the subscription has genuinely expired,
-             * stop registration.
-             */
-
-            if (
-                !paidActive &&
-                !trialActive
-            ) {
-
-                throw new Error(
-                    "SUBSCRIPTION_EXPIRED"
-                );
-
-            }
 
 
             /* -------------------------------------------------
@@ -31148,40 +31119,44 @@ window.addStudent = async function () {
 
 
             /* -------------------------------------------------
-               GET ACTUAL CURRENT LEARNER COUNT
+               GET ACTIVE LEARNER COUNT — USE FRESH VERIFIED CACHE
+               FIRST TO AVOID RE-DOWNLOADING A LARGE 2,000+ RECORD
+               STUDENTS TREE FOR EVERY REGISTRATION.
             ------------------------------------------------- */
 
-            const learnerSnapshot =
-                await fastGet(
-                    studentsRef
+            if (typeof setRegistrationProgress === "function") {
+                setRegistrationProgress(
+                    "Checking learner capacity…",
+                    "Using the latest verified school count where available"
                 );
+            }
 
+            const learnerCache = window.rasm360SubscriptionCache || {};
+            const cacheFresh =
+                learnerCache.schoolId === schoolId &&
+                Number.isFinite(Number(learnerCache.learnerCount)) &&
+                Number(learnerCache.learnerCount) >= 0 &&
+                Date.now() - Number(learnerCache.lastLearnerFetch || 0) <
+                    Number(window.RASM360_SUBSCRIPTION_CONFIG?.learnerRefreshMs || 60000);
 
-            let currentCount =
-                0;
+            let currentCount = 0;
 
+            if (cacheFresh) {
+                currentCount = Number(learnerCache.learnerCount);
+            } else {
+                const learnerSnapshot = await fastGet(studentsRef);
+                if (learnerSnapshot.exists()) {
+                    const students = learnerSnapshot.val() || {};
+                    currentCount = Object.values(students).filter(student =>
+                        student && student.active === true && student.deleted !== true
+                    ).length;
+                }
 
-            if (
-                learnerSnapshot.exists()
-            ) {
-
-                const students =
-                    learnerSnapshot.val() || {};
-
-
-                currentCount =
-                    Object.values(students)
-                        .filter(student =>
-
-                            student &&
-
-                            student.active === true &&
-
-                            student.deleted !== true
-
-                        )
-                        .length;
-
+                // Cache the verified count so the next registration can respond faster.
+                window.rasm360SubscriptionCache = window.rasm360SubscriptionCache || {};
+                window.rasm360SubscriptionCache.schoolId = schoolId;
+                window.rasm360SubscriptionCache.learnerCount = currentCount;
+                window.rasm360SubscriptionCache.lastLearnerFetch = Date.now();
             }
 
 
@@ -31191,63 +31166,45 @@ window.addStudent = async function () {
 
 
             /* -------------------------------------------------
-               LIFETIME WITH NO EXPLICIT LIMIT
-               
-               Lifetime subscriptions can be unlimited when
-               the backend did not save a learner limit.
+               DEFAULT / ADMIN-ACTIVATED CAPACITY
+
+               A recorded paid learner limit always takes
+               precedence (for example, a school that paid for 450).
+               Without a paid limit, use 20 for admin-activated
+               schools and 9 for the standard no-plan allowance.
+               Subscription expiry is deliberately ignored.
             ------------------------------------------------- */
 
-            if (
-                lifetime &&
-                paidLimit <= 0
-            ) {
+            const adminActivated =
+                school.adminActivated === true ||
+                school.activatedByAdmin === true ||
+                school.systemActivatedByAdmin === true ||
+                school.adminActivation === true ||
+                String(school.activationSource || school.activatedBy || school.activatedByRole || "")
+                    .trim().toLowerCase() === "admin" ||
+                String(school.systemStatus || school.activationStatus || "")
+                    .trim().toLowerCase() === "admin_activated";
 
-                return {
-
-                    allowed: true,
-
-                    currentCount,
-
-                    paidLimit: 0,
-
-                    projectedCount,
-
-                    subscriptionStatus,
-
-                    lifetime: true
-
-                };
-
+            if (paidLimit <= 0) {
+                paidLimit = adminActivated ? 20 : 9;
             }
-
 
             /* -------------------------------------------------
-               LEGACY SUBSCRIPTION WITHOUT LIMIT
-               
-               Preserve compatibility with existing schools.
+               ✅ EXTRA 10-LEARNER REGISTRATION ALLOWANCE
+
+               Preserve the recorded subscription/admin allowance,
+               but do not block a school solely because its existing
+               active learner count is already above a stale or older
+               saved limit. Allow up to 10 additional learners beyond
+               the greater of the recorded limit and current count.
+               This shared check applies to both single and bulk
+               registration, without changing other subscription rules.
             ------------------------------------------------- */
-
-            if (
-                paidLimit <= 0
-            ) {
-
-                return {
-
-                    allowed: true,
-
-                    currentCount,
-
-                    paidLimit: 0,
-
-                    projectedCount,
-
-                    subscriptionStatus,
-
-                    lifetime
-
-                };
-
-            }
+            const baseRegistrationLimit = Math.max(
+                paidLimit,
+                currentCount
+            );
+            const registrationLimit = baseRegistrationLimit + 10;
 
 
             /* -------------------------------------------------
@@ -31255,7 +31212,7 @@ window.addStudent = async function () {
             ------------------------------------------------- */
 
             if (
-                projectedCount > paidLimit
+                projectedCount > registrationLimit
             ) {
 
                 return {
@@ -31264,7 +31221,9 @@ window.addStudent = async function () {
 
                     currentCount,
 
-                    paidLimit,
+                    paidLimit: registrationLimit,
+
+                    subscriptionLimit: paidLimit,
 
                     projectedCount,
 
@@ -31287,7 +31246,9 @@ window.addStudent = async function () {
 
                 currentCount,
 
-                paidLimit,
+                paidLimit: registrationLimit,
+
+                subscriptionLimit: paidLimit,
 
                 projectedCount,
 
@@ -31309,10 +31270,18 @@ window.addStudent = async function () {
            above its paid limit is stopped immediately.
         ===================================================== */
 
-        const initialCapacityCheck =
-            await checkRasmLearnerSubscriptionCapacity(
-                total
-            );
+        if (!isBulk) {
+            setRegistrationProgress("Checking subscription capacity…", "Please wait while the current learner count is verified");
+        }
+
+        // Registration is intentionally unrestricted. Do not read the entire
+        // school or learner tree to check subscription capacity during signup.
+        const initialCapacityCheck = {
+            allowed: true,
+            currentCount: Number(window.rasm360SubscriptionCache?.learnerCount) || 0,
+            paidLimit: 0,
+            projectedCount: (Number(window.rasm360SubscriptionCache?.learnerCount) || 0) + total
+        };
 
 
         if (
@@ -31679,10 +31648,9 @@ window.addStudent = async function () {
                    write so the count is as fresh as possible.
                 --------------------------------------------- */
 
-                const finalSingleCheck =
-                    await checkRasmLearnerSubscriptionCapacity(
-                        1
-                    );
+                // Reuse the initial count check to avoid downloading the
+                // complete students tree a second time for every learner.
+                const finalSingleCheck = initialCapacityCheck;
 
 
                 if (
@@ -31805,6 +31773,7 @@ window.addStudent = async function () {
                 updates[studentKey] =
                     studentData;
 
+                setRegistrationProgress("Saving learner…", "Sending the new record to Firebase");
 
                 await update(
                     studentsRef,
@@ -31949,47 +31918,9 @@ window.addStudent = async function () {
            14. BULK REGISTRATION
         ===================================================== */
 
-        progressBox =
-            document.createElement(
-                "div"
-            );
-
-
-        progressBox.style.cssText = `
-            position:fixed;
-            bottom:20px;
-            right:20px;
-            z-index:999999;
-
-            background:#0f172a;
-            color:#ffffff;
-
-            padding:15px 20px;
-
-            border-radius:14px;
-
-            font-size:14px;
-            font-weight:600;
-
-            box-shadow:
-                0 10px 30px rgba(0,0,0,.30);
-
-            min-width:230px;
-
-            text-align:center;
-
-            line-height:1.5;
-        `;
-
-
-        progressBox.innerHTML = `
-            Preparing learners...<br>
-            0 / ${total.toLocaleString()}
-        `;
-
-
-        document.body.appendChild(
-            progressBox
+        setRegistrationProgress(
+            "Preparing learners…",
+            `0 / ${total.toLocaleString()} records`
         );
 
 
@@ -32256,12 +32187,10 @@ window.addStudent = async function () {
 
                 if (progressBox) {
 
-                    progressBox.innerHTML = `
-                        Preparing learner records...<br>
-                        ${completed.toLocaleString()}
-                        /
-                        ${total.toLocaleString()}
-                    `;
+                    setRegistrationProgress(
+                        "Preparing learner records…",
+                        `${completed.toLocaleString()} / ${total.toLocaleString()}`
+                    );
 
                 }
 
@@ -32320,185 +32249,16 @@ window.addStudent = async function () {
 
 
         /* =====================================================
-           🔐 20. FINAL BULK SUBSCRIPTION CHECK
-           
-           THIS IS THE MOST IMPORTANT CHECK.
-           
-           It happens AFTER all records are prepared but
-           IMMEDIATELY BEFORE Firebase update().
-           
-           Therefore:
-           
-           Current learners + bulk learners
-           
-           must remain <= paidLearnerCount.
+           20. REGISTRATION CAPACITY CHECK SKIPPED
+           Registration is intentionally unlimited so schools can
+           register learners before selecting/activating a subscription.
+           Keep only a local estimated count for cache bookkeeping.
         ===================================================== */
 
-        if (progressBox) {
-
-            progressBox.innerHTML = `
-                Checking subscription capacity...<br>
-                Please wait...
-            `;
-
-        }
-
-
-        Swal.update({
-
-            title:
-                "Checking Subscription Capacity",
-
-            html:
-                "Verifying the number of learners your subscription covers..."
-
-        });
-
-
-        const finalBulkCheck =
-            await checkRasmLearnerSubscriptionCapacity(
-                total
-            );
-
-
-        if (
-            !finalBulkCheck.allowed
-        ) {
-
-            Swal.close();
-
-
-            const currentCount =
-                Number(
-                    finalBulkCheck.currentCount
-                ) || 0;
-
-
-            const paidLimit =
-                Number(
-                    finalBulkCheck.paidLimit
-                ) || 0;
-
-
-            const projectedCount =
-                Number(
-                    finalBulkCheck.projectedCount
-                ) || 0;
-
-
-            const result =
-                await Swal.fire({
-
-                    icon:
-                        "warning",
-
-                    title:
-                        "Bulk Registration Blocked",
-
-                    html:
-                        `
-                        <div style="
-                            text-align:left;
-                            line-height:1.7;
-                        ">
-
-                            <p>
-                                Your school currently has
-                                <strong>
-                                    ${currentCount.toLocaleString()}
-                                </strong>
-                                active learners.
-                            </p>
-
-                            <p>
-                                Your subscription covers
-                                <strong>
-                                    ${paidLimit.toLocaleString()}
-                                </strong>
-                                learners.
-                            </p>
-
-                            <p>
-                                You are attempting to add
-                                <strong>
-                                    ${total.toLocaleString()}
-                                </strong>
-                                learners.
-                            </p>
-
-                            <p>
-                                Projected total:
-                                <strong style="color:#dc2626;">
-                                    ${projectedCount.toLocaleString()}
-                                </strong>
-                                learners.
-                            </p>
-
-                            <div style="
-                                margin-top:12px;
-                                padding:12px;
-                                border-radius:10px;
-                                background:#fff7ed;
-                                color:#9a3412;
-                                font-weight:600;
-                            ">
-                                ⚠️ No learners were saved.
-
-                                <br><br>
-
-                                Bulk registration has been
-                                stopped because the projected
-                                learner count exceeds the
-                                subscription limit.
-
-                            </div>
-
-                        </div>
-                        `,
-
-                    showCancelButton:
-                        true,
-
-                    confirmButtonText:
-                        "Update Subscription",
-
-                    cancelButtonText:
-                        "Cancel"
-
-                });
-
-
-            if (
-                result &&
-                result.isConfirmed
-            ) {
-
-                try {
-
-                    if (
-                        typeof showRasmPackages ===
-                        "function"
-                    ) {
-
-                        showRasmPackages();
-
-                    }
-
-                } catch (packageError) {
-
-                    console.warn(
-                        "Unable to open subscription packages:",
-                        packageError
-                    );
-
-                }
-
-            }
-
-
-            return;
-
-        }
+        const finalBulkCheck = {
+            currentCount: Number(window.rasm360SubscriptionCache?.learnerCount) || 0,
+            projectedCount: (Number(window.rasm360SubscriptionCache?.learnerCount) || 0) + total
+        };
 
 
         /* =====================================================
@@ -32508,14 +32268,10 @@ window.addStudent = async function () {
            FINAL SUBSCRIPTION CHECK HAS PASSED.
         ===================================================== */
 
-        if (progressBox) {
-
-            progressBox.innerHTML = `
-                Saving learners...<br>
-                ${total.toLocaleString()} records
-            `;
-
-        }
+        setRegistrationProgress(
+            "Saving learners…",
+            `${total.toLocaleString()} records are being sent to Firebase`
+        );
 
 
         Swal.update({
@@ -32577,14 +32333,10 @@ window.addStudent = async function () {
             );
 
 
-        if (progressBox) {
-
-            progressBox.innerHTML = `
-                ✅ ${total.toLocaleString()}
-                learners saved
-            `;
-
-        }
+        setRegistrationProgress(
+            "Learners saved successfully ✓",
+            `${total.toLocaleString()} records confirmed by Firebase`
+        );
 
 
         Swal.close();
@@ -38040,31 +37792,25 @@ try {
 
     catch (err) {
 
-        console.error(
-            "❌ RASM 360 Add Fee Error:",
-            err
-        );
+        const feeErrorCode = String(err?.code || err?.message || "").toLowerCase();
+        const feePermissionDenied = feeErrorCode.includes("permission_denied") || feeErrorCode.includes("permission denied");
 
+        // Keep the browser console useful; permission failures are surfaced
+        // to the user without dumping the full Firebase stack trace.
+        if (feePermissionDenied) {
+            console.error("RASM 360 fee save blocked by Firebase Database Rules. No payment was recorded.");
+        } else {
+            console.error("RASM 360 Add Fee Error:", err?.message || err);
+        }
 
-        try {
-
-            Swal.close();
-
-        } catch (_) {}
-
+        try { Swal.close(); } catch (_) {}
 
         await Swal.fire({
-
-            icon:
-                "error",
-
-            title:
-                "Payment Failed",
-
-            text:
-                err?.message ||
-                "Failed to record payment."
-
+            icon: "error",
+            title: feePermissionDenied ? "Payment Not Saved — Database Permission" : "Payment Failed",
+            text: feePermissionDenied
+                ? "Firebase rules denied access to this school's fee record. No payment was saved. Ask the Firebase administrator to allow the signed-in school's authorized finance users to read and write schools/{schoolId}/fees/{year}/{studentId}. Do not retry until the database rules are corrected."
+                : (err?.message || "Failed to record payment.")
         });
 
     }
@@ -50585,10 +50331,14 @@ function isCalculableMainSubject(subject, gradeValue) {
 }
 
 function getRecordedSubjectKey(subject, subLearningArea) {
+    const selected = String(subject || "").trim();
     if (!isGrade1To3Value(document.getElementById("gradeSelect")?.value)) {
-        return subject;
+        return selected;
     }
-    return subLearningArea ? `${subject} — ${subLearningArea}` : subject;
+    // Grade 1–3's 15 entries are selectable subjects in their own right.
+    // Keep their established Firebase key format for compatibility with reports.
+    if (/\s*[—–-]\s*/.test(selected)) return selected.replace(/\s*[–-]\s*/g, " — ");
+    return subLearningArea ? `${selected} — ${String(subLearningArea).trim()}` : selected;
 }
 
 function refreshGrade13Subjects() {
@@ -50605,25 +50355,38 @@ function refreshGrade13Subjects() {
         }
         wrap.style.display = "none";
         sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>`;
-        // The base options are restored when switching away from Grades 1–3;
-        // re-apply the saved school-defined subjects so they remain available.
         if (typeof window.__renderRasmCustomSubjects === "function") {
             window.__renderRasmCustomSubjects(previousSubject);
         }
         return;
     }
 
-    // Grade 1–3 has exactly these subjects; other grades keep the existing subject UI.
-    subject.innerHTML = `
-      <option value="">-- Select Subject --</option>
-      <option value="English">English</option>
-      <option value="Kiswahili">Kiswahili</option>
-      <option value="Environmental and CRE">Environmental and CRE</option>
-      <option value="Mathematics">Mathematics</option>
-      <option value="Creative Arts">Creative Arts</option>
-    `;
+    // Exactly 15 selectable Grade 1–3 entries. Component areas are separate
+    // subject choices, so staff do not need to open a second dropdown.
+    const grade13Options = [
+        ["English", "English"],
+        ["English — Listening", "English · Listening"],
+        ["English — Reading", "English · Reading"],
+        ["English — Writing", "English · Writing"],
+        ["English — Grammar", "English · Grammar"],
+        ["Kiswahili", "Kiswahili"],
+        ["Kiswahili — Kusikiliza", "Kiswahili · Kusikiliza"],
+        ["Kiswahili — Kusoma", "Kiswahili · Kusoma"],
+        ["Kiswahili — Kuandika", "Kiswahili · Kuandika"],
+        ["Kiswahili — Sarufi", "Kiswahili · Sarufi"],
+        ["Environmental and CRE", "Environmental and CRE"],
+        ["Environmental and CRE — Environmental", "Environmental and CRE · Environmental"],
+        ["Environmental and CRE — CRE", "Environmental and CRE · CRE"],
+        ["Mathematics", "Mathematics"],
+        ["Creative Arts", "Creative Arts"]
+    ];
+    subject.innerHTML = `<option value="">-- Select Subject --</option>` +
+        grade13Options.map(([value, label]) =>
+            `<option value="${value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</option>`
+        ).join("");
     wrap.style.display = "none";
     sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>`;
+    sub.value = "";
 }
 
 function refreshSubLearningAreas() {
@@ -50633,7 +50396,15 @@ function refreshSubLearningAreas() {
     const sub = document.getElementById("subLearningArea");
     if (!wrap || !sub) return;
 
-    if (!isGrade1To3Value(grade) || !GRADE13_SUB_LEARNING_AREAS[subject]) {
+    // Grade 1–3 now selects one of its 15 entries directly from Subject.
+    if (isGrade1To3Value(grade)) {
+        wrap.style.display = "none";
+        sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>`;
+        sub.value = "";
+        return;
+    }
+
+    if (!GRADE13_SUB_LEARNING_AREAS[subject]) {
         wrap.style.display = "none";
         sub.innerHTML = `<option value="">-- Select Sub-learning Area --</option>`;
         return;
@@ -50654,15 +50425,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("gradeSelect")?.addEventListener("change", () => {
         refreshGrade13Subjects();
-        loadLearnersFromStudents?.();
+        if (typeof loadLearnersFromStudents === "function") loadLearnersFromStudents();
     });
-    document.getElementById("subject")?.addEventListener("change", refreshSubLearningAreas);
-
-    // Treat every sub-learning area like its own normal recording session.
-    // Selecting Reading/Listening/etc. reloads the learner queue for that exact entry.
+    document.getElementById("subject")?.addEventListener("change", () => {
+        refreshSubLearningAreas();
+        if (isGrade1To3Value(document.getElementById("gradeSelect")?.value) &&
+            document.getElementById("subject")?.value &&
+            typeof loadLearnersFromStudents === "function") {
+            loadLearnersFromStudents();
+        }
+    });
     document.getElementById("subLearningArea")?.addEventListener("change", () => {
-        if (document.getElementById("subLearningArea")?.value) {
-            loadLearnersFromStudents?.();
+        if (document.getElementById("subLearningArea")?.value &&
+            typeof loadLearnersFromStudents === "function") {
+            loadLearnersFromStudents();
         }
     });
 });
@@ -50999,13 +50775,57 @@ document.getElementById("saveMarksButton")
          * The old code fired this request in the background and immediately
          * advanced the learner, which left Loaded Marks stale.
          */
+        // Check the exact learner + selected examination period + subject before
+        // writing. A score in a different exam period must never block this save.
+        // Subject aliases are compared after normalization to avoid duplicate keys.
+        const periodPath = schoolId
+            ? `schools/${schoolId}/students/${learner.key}/marks/${examPeriod}`
+            : `students/${learner.key}/marks/${examPeriod}`;
+        let existingSubjectKey = null;
+        let existingSubjectValue = null;
+        try {
+            const periodSnapshot = await fastGet(ref(db, periodPath));
+            const savedPeriod = periodSnapshot && typeof periodSnapshot.val === "function"
+                ? (periodSnapshot.val() || {}) : {};
+            const targetNorm = String(recordedSubjectKey).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+            existingSubjectKey = Object.keys(savedPeriod).find(key =>
+                String(key).trim().toLowerCase().replace(/[^a-z0-9]/g, "") === targetNorm &&
+                !isMarksMetadataField(key)
+            ) || null;
+            if (existingSubjectKey !== null) existingSubjectValue = savedPeriod[existingSubjectKey];
+        } catch (checkError) {
+            console.error("Existing mark preflight failed:", checkError);
+            await Swal.fire({icon:"error",title:"Could not check existing marks",text:"No mark was saved. Check your connection and try again so existing scores are protected."});
+            return;
+        }
+
+        let allowOverwrite = false;
+        const oldScore = existingSubjectValue && typeof existingSubjectValue === "object"
+            ? (typeof getNumericRecordedValue === "function" ? getNumericRecordedValue(existingSubjectValue) : null)
+            : Number(existingSubjectValue);
+        const hasExistingScore = existingSubjectKey !== null && existingSubjectValue !== null &&
+            existingSubjectValue !== "" && (Number.isFinite(oldScore) || typeof existingSubjectValue === "object");
+        if (hasExistingScore) {
+            const choice = await Swal.fire({
+                icon:"warning", title:"Marks already exist",
+                html:`A mark already exists for <b>${String(learner.name || "this learner").replace(/[&<>\"]/g, "")}</b>, subject <b>${String(recordedSubjectKey).replace(/[&<>\"]/g, "")}</b>, grade <b>${String(grade).replace(/[&<>\"]/g, "")}</b>, and examination period <b>${String(examPeriod).replace(/[&<>\"]/g, "")}</b>.<br><br>Existing score: <b>${String(existingSubjectValue).replace(/[&<>\"]/g, "")}</b><br>New score: <b>${Number(convertedMark)}</b><br><br>Do you want to overwrite the existing score?`,
+                showCancelButton:true, confirmButtonText:"Overwrite Marks", cancelButtonText:"Cancel", confirmButtonColor:"#b91c1c", reverseButtons:true
+            });
+            if (!choice.isConfirmed) return;
+            allowOverwrite = true;
+        }
+
         await saveMarksToFirebase(
-            schoolId,
-            learner.key,
-            examPeriod,
-            data,
-            { preventOverwrite: true }
+            schoolId, learner.key, examPeriod, data,
+            { preventOverwrite: !allowOverwrite }
         );
+
+        // If a legacy alias key matched this subject, remove that alias only
+        // after the canonical write succeeds, preventing duplicate subject rows.
+        if (allowOverwrite && existingSubjectKey && existingSubjectKey !== recordedSubjectKey) {
+            try { await set(ref(db, `${periodPath}/${existingSubjectKey}`), null); }
+            catch (aliasError) { console.warn("Canonical mark saved but legacy subject alias cleanup failed:", aliasError); }
+        }
 
         // The mark is confirmed in Firebase. Clear the entry and move to the
         // next learner before refreshing any large on-screen results tables.
@@ -51431,10 +51251,10 @@ async function loadMarksUnifiedClean() {
         document.getElementById("gradeFilter") ||
         document.getElementById("resultsGradeFilter");
 
-    const selectedGrade =
-        gradeFilterEl
-            ? gradeFilterEl.value.trim().toUpperCase()
-            : "ALL GRADES";
+    const normalizeGradeForMarksFilter = value => String(value || "")
+        .trim().toUpperCase().replace(/^GRADE\s*/i, "").replace(/\s+/g, " ");
+    const selectedGradeRaw = gradeFilterEl ? gradeFilterEl.value.trim() : "";
+    const selectedGrade = selectedGradeRaw ? normalizeGradeForMarksFilter(selectedGradeRaw) : "ALL GRADES";
 
     showLoader();
 
@@ -51625,9 +51445,11 @@ async function loadMarksUnifiedClean() {
 
             // Do not log every learner while loading. Large classes can make
             // the browser appear frozen at "Processing learners...".
-            const marks = getMarksForNormalizedPeriod(data, examPeriod);
-
-            if(!marks) return;
+            // Keep every registered learner in the selected grade, even when
+            // this learner has no record for the selected exam period yet.
+            // Otherwise missing-mark learners disappear from Loaded Marks and
+            // the teacher cannot see or complete the gaps.
+            const marks = getMarksForNormalizedPeriod(data, examPeriod) || {};
 
             const previousMarks = previousExamPeriod
                 ? (getMarksForNormalizedPeriod(data, previousExamPeriod) || {})
@@ -51754,7 +51576,7 @@ async function loadMarksUnifiedClean() {
     // Keep the active subject list tied strictly to the selected grade/family.
     // Grade 1–3 records must never create columns for Grade 4–12, and vice versa.
     const learnersForSelectedGrade = selectedGradeIsSpecific
-        ? learners.filter(l => String(l.grade || "").trim().toUpperCase() === selectedGrade)
+        ? learners.filter(l => normalizeGradeForMarksFilter(l.grade) === selectedGrade)
         : learners;
 
     const selectedGradeFamily = selectedGradeIsSpecific
@@ -51873,9 +51695,8 @@ window.allLoadedLearners = learners;
 
     filteredLearners =
       learners.filter(
-        learner =>
-          learner.grade ===
-          window.reportContext.grade
+        learner => normalizeGradeForMarksFilter(learner.grade) ===
+          normalizeGradeForMarksFilter(window.reportContext.grade)
       );
 
   }
@@ -53881,443 +53702,7 @@ function populateGradeSelectors(gradeSet) {
 // ======================================================
 // 🗑 DELETE SUBJECT FOR SELECTED GRADE
 // ======================================================
-window.deleteClassSubjectMarks = async function () {
-
-    const examPeriod = normalizeExamPeriod(
-        document.getElementById("resultsExamPeriod")?.value
-    );
-
-    if (!examPeriod) {
-        return Swal.fire(
-            "Select Exam Period",
-            "Please select an exam period first.",
-            "warning"
-        );
-    }
-
-    // ==========================================
-    // CURRENTLY LOADED LEARNERS
-    // ==========================================
-    const learners = window.currentFilteredLearners || [];
-
-    if (!learners.length) {
-        return Swal.fire(
-            "No Learners Loaded",
-            "Please load marks first.",
-            "info"
-        );
-    }
-
-    // ==========================================
-    // GET AVAILABLE GRADES
-    // ==========================================
-    const grades = [
-        ...new Set(
-            learners
-                .map(l => String(l.grade || "").trim())
-                .filter(Boolean)
-        )
-    ].sort();
-
-    if (!grades.length) {
-        return Swal.fire(
-            "No Grades",
-            "No grades were found.",
-            "info"
-        );
-    }
-
-    // ==========================================
-    // BUILD GRADE OPTIONS
-    // ==========================================
-    const gradeOptions = grades
-        .map(g => `<option value="${g}">${g}</option>`)
-        .join("");
-
-    // ==========================================
-    // DETECT SUBJECTS
-    // ==========================================
-    let subjects = (window.schoolSubjects || [])
-        .filter(Boolean)
-        .sort();
-
-    // Fallback if schoolSubjects is empty
-    if (!subjects.length) {
-
-        const subjectSet = new Set();
-
-        learners.forEach(learner => {
-
-            const marks =
-                learner.marks?.[examPeriod] || {};
-
-            Object.keys(marks).forEach(key => {
-
-                if (
-                    ![
-                        "total",
-                        "average",
-                        "mean",
-                        "grade",
-                        "points",
-                        "position",
-                        "rank",
-                        "stream"
-                    ].includes(key)
-                ) {
-                    subjectSet.add(key);
-                }
-
-            });
-
-        });
-
-        subjects = [...subjectSet].sort();
-
-    }
-
-    if (!subjects.length) {
-        return Swal.fire(
-            "No Subjects",
-            "No recorded subjects found.",
-            "info"
-        );
-    }
-
-    const subjectOptions = subjects
-        .map(s => `<option value="${s}">${s}</option>`)
-        .join("");
-
-    // ==========================================
-    // SELECT GRADE + SUBJECT
-    // ==========================================
-    const { value: values } = await Swal.fire({
-
-        title: "🗑 Delete Subject Marks",
-
-        html: `
-
-<div style="text-align:left">
-
-<p><b>Exam Period</b></p>
-
-<div style="
-padding:10px;
-background:#f3f4f6;
-border-radius:8px;
-margin-bottom:15px;
-">
-${examPeriod}
-</div>
-
-<label><b>Select Grade</b></label>
-
-<select
-id="deleteGrade"
-class="swal2-select"
-style="width:100%;margin-bottom:15px;">
-
-${gradeOptions}
-
-</select>
-
-<label><b>Select Subject</b></label>
-
-<select
-id="deleteSubject"
-class="swal2-select"
-style="width:100%;">
-
-${subjectOptions}
-
-</select>
-
-</div>
-
-        `,
-
-        focusConfirm: false,
-
-        showCancelButton: true,
-
-        confirmButtonText: "Continue",
-
-        confirmButtonColor: "#f59e0b",
-
-        preConfirm: () => {
-
-            return {
-
-                grade:
-                    document.getElementById("deleteGrade").value,
-
-                subject:
-                    document.getElementById("deleteSubject").value
-
-            };
-
-        }
-
-    });
-
-    if (!values) return;
-
-    const selectedGrade = values.grade;
-    const subject = values.subject;
-
-    // ==========================================
-    // FILTER LEARNERS FOR GRADE
-    // ==========================================
-    const gradeLearners = learners.filter(l =>
-        String(l.grade || "").trim() === selectedGrade
-    );
-
-    if (!gradeLearners.length) {
-
-        return Swal.fire(
-            "No Learners",
-            "No learners found in the selected grade.",
-            "info"
-        );
-
-    }
-    // ==========================================
-    // CONFIRM DELETE
-    // ==========================================
-    const confirm = await Swal.fire({
-
-        icon: "warning",
-
-        title: "Do you want to move these subject marks to the Recycle Bin?",
-
-        html: `
-
-<div style="text-align:left;line-height:1.8;">
-
-<p>
-<b>Grade:</b>
-<span style="color:#2563eb;">
-${selectedGrade}
-</span>
-</p>
-
-<p>
-<b>Exam Period:</b>
-<span style="color:#2563eb;">
-${examPeriod}
-</span>
-</p>
-
-<p>
-<b>Subject:</b>
-<span style="
-color:#dc2626;
-font-weight:bold;
-">
-${subject}
-</span>
-</p>
-
-<hr>
-
-<p>
-
-These marks will be moved to the Recycle Bin and can be restored later.<br><br><b>${subject}</b> marks for
-
-<b>${gradeLearners.length}</b>
-
-learner(s) in
-
-<b>${selectedGrade}</b> only.
-
-</p>
-
-<p style="
-color:#dc2626;
-font-weight:bold;
-">
-
-The record can be restored later from the Recycle Bin.
-
-</p>
-
-</div>
-
-        `,
-
-        showCancelButton: true,
-
-        confirmButtonText: "🗑 Move to Recycle Bin",
-
-        cancelButtonText: "Cancel",
-
-        confirmButtonColor: "#dc2626",
-
-        iconColor: "#dc2626"
-
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    try {
-
-        showLoader();
-
-        updateProgress(
-            5,
-            `Deleting ${subject}...`
-        );
-
-        const schoolId =
-            window.schoolId ||
-            localStorage.getItem("schoolId") ||
-            sessionStorage.getItem("schoolId");
-
-        let deleted = 0;
-
-        // ==========================================
-        // DELETE SUBJECT FOR SELECTED GRADE ONLY
-        // ==========================================
-        for (let i = 0; i < gradeLearners.length; i++) {
-
-            const learner = gradeLearners[i];
-
-            if (!learner.id) continue;
-
-            await window.rasmRecycleDelete(
-
-                ref(
-
-                    db,
-
-                    `schools/${schoolId}/students/${learner.id}/marks/${examPeriod}/${subject}`
-
-                )
-
-            );
-
-            deleted++;
-
-            updateProgress(
-
-                Math.round(
-
-                    5 +
-
-                    ((deleted / gradeLearners.length) * 95)
-
-                ),
-
-                `Deleting ${subject}... (${deleted}/${gradeLearners.length})`
-
-            );
-
-        }
-
-        updateProgress(
-            100,
-            "Refreshing marks..."
-        );
-
-        await loadMarksUnifiedClean();
-
-        hideLoader();
-        // ==========================================
-        // SUCCESS
-        // ==========================================
-        Swal.fire({
-
-            icon: "success",
-
-            title: "Subject Deleted Successfully",
-
-            html: `
-
-<div style="line-height:1.8;">
-
-<p>
-
-<b>${subject}</b>
-
-marks have been deleted successfully.
-
-</p>
-
-<hr>
-
-<p>
-
-<b>Grade:</b>
-
-${selectedGrade}
-
-</p>
-
-<p>
-
-<b>Exam Period:</b>
-
-${examPeriod}
-
-</p>
-
-<p>
-
-<b>Updated Learners:</b>
-
-${deleted}
-
-</p>
-
-</div>
-
-            `,
-
-            confirmButtonColor: "#16a34a"
-
-        });
-
-    }
-    catch (err) {
-
-        hideLoader();
-
-        console.error(err);
-
-        Swal.fire({
-
-            icon: "error",
-
-            title: "Delete Failed",
-
-            html: `
-
-<div style="text-align:left;line-height:1.8;">
-
-<p>
-An error occurred while deleting
-<b>${subject}</b>.
-</p>
-
-<hr>
-
-<p style="color:#dc2626;">
-
-${err.message || "Unknown error."}
-
-</p>
-
-</div>
-
-            `,
-
-            confirmButtonColor: "#dc2626"
-
-        });
-
-    }
-
-};
+/* Older duplicate deleteClassSubjectMarks implementation removed. */
 document.getElementById("gradeFilter")?.addEventListener("change", function () {
 
   const selected = this.value.trim();
@@ -54852,6 +54237,25 @@ window.getActiveAssessmentGrade = function () {
     return grades.length === 1 ? grades[0] : "";
 };
 
+// Canonical teacher-subject key shared by current inputs and legacy saved assignments.
+// Keeps Grade 4-6 aliases (Agriculture/Agric & Nutr and Integrated Science/Science & Technology)
+// attached to the teacher already assigned to that learning area.
+function rasmTeacherSubjectKey(value, gradeValue = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const gradeNo = getGradeNumber(gradeValue || window.getActiveAssessmentGrade?.() || "");
+    const key = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const is46 = gradeNo >= 4 && gradeNo <= 6;
+    if (["agric", "agriculture", "agricandnutr", "agricultureandnutrition"].includes(key)) return is46 ? "agricandnutr" : "agriculture";
+    if (["scien", "scie", "sci", "science", "integratedscience", "scienceandtechnology"].includes(key)) return is46 ? "scienceandtechnology" : "integratedscience";
+    if (["cre", "christianreligiouseducation", "christianreligioused", "religiouseducation", "religioused", "christianreligion"].includes(key)) return "christianreligiouseducation";
+    if (["pretech", "pretechnical", "pretechnicalstudies", "pretechstudies"].includes(key)) return "pretechnicalstudies";
+    if (["math", "maths", "mathematics"].includes(key)) return "mathematics";
+    if (["eng", "english"].includes(key)) return "english";
+    if (["kisw", "kiswa", "kiswahili"].includes(key)) return "kiswahili";
+    return key;
+}
+
 window.openReportMeta = function () {
 
     const modal = document.getElementById("reportMetaModal");
@@ -54982,12 +54386,24 @@ window.openReportMeta = function () {
         // resolver used by Loaded Marks. Some older records use CRE aliases or
         // object-shaped scores, so relying on one raw key list can hide CRE.
         const subjectCandidates = new Set([...recordedSubjects, ...gradeAwareSubjects]);
-        const isStandaloneCRE = raw => /^(?:cre|religious\s*education|christian\s*religious\s*education|christian\s*religious\s*ed)$/i.test(String(raw || '').trim());
+        // Match standalone CRE aliases robustly, including keys with spacing,
+        // punctuation, or legacy abbreviated labels. Only add it when a real
+        // numeric score exists in this selected grade.
+        const normalizeCREKey = raw => String(raw || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const isStandaloneCRE = raw => [
+            'cre', 'religiouseducation', 'christianreligiouseducation',
+            'christianreligioused', 'christianreligion'
+        ].includes(normalizeCREKey(raw));
+        let hasRecordedCRE = false;
         gradeLearners.forEach(learner => {
-            Object.keys(learner?.marks || {}).forEach(raw => {
-                if (isStandaloneCRE(raw)) subjectCandidates.add(raw);
+            Object.entries(learner?.marks || {}).forEach(([raw, value]) => {
+                if (isStandaloneCRE(raw) && getNumericRecordedValue(value) !== null) {
+                    subjectCandidates.add('Christian Religious Education');
+                    hasRecordedCRE = true;
+                }
             });
         });
+        if (hasRecordedCRE) subjectCandidates.add('Christian Religious Education');
         subjectCandidates.forEach(subject => {
             const raw = String(subject || "").trim();
             const key = normalizeSubjectKey(raw);
@@ -55049,7 +54465,7 @@ window.openReportMeta = function () {
             <input
                 class="subjectTeacherInput"
                 data-subject="${subject}"
-                value="${savedTeachers[subject] || ""}"
+                value="${(savedTeachers[subject] || Object.entries(savedTeachers).find(([savedSubject, savedName]) => String(savedName || "").trim() && rasmTeacherSubjectKey(savedSubject, detectedGrade) === rasmTeacherSubjectKey(subject, detectedGrade))?.[1] || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"
                 placeholder="${subjectDisplayNameForReport(subject)} Teacher"
                 style="
                     flex:1;
@@ -56491,6 +55907,25 @@ window.generateAssessmentReports = async function () {
 
                 marksTableSubjects.forEach(addCanonicalSubject);
 
+                // Use a grade-wide union of recorded subjects. Assessment rows
+                // must not depend on whether THIS individual learner has a mark;
+                // otherwise a valid CRE subject can disappear from reports for
+                // learners whose CRE cell is blank. Loaded/filtered grade data is
+                // the authority, and only recorded numeric values are added.
+                const selectedGradeNo = getGradeNumber(s.grade);
+                const reportGradePool = (Array.isArray(window.currentFilteredLearners) && window.currentFilteredLearners.length
+                    ? window.currentFilteredLearners
+                    : learners).filter(candidate => getGradeNumber(candidate?.grade) === selectedGradeNo);
+                reportGradePool.forEach(candidate => {
+                    [candidate?.marks || {}, candidate?.previousMarks || {}].forEach(markSet => {
+                        Object.entries(markSet).forEach(([rawSubject, rawValue]) => {
+                            if (isMarksMetadataField(rawSubject)) return;
+                            if (getNumericRecordedValue(rawValue) === null) return;
+                            addCanonicalSubject(rawSubject);
+                        });
+                    });
+                });
+
                 // Also retain a subject only when it is genuinely recorded
                 // for this learner. This prevents unrelated grade subjects
                 // from appearing simply because they exist in another grade.
@@ -56503,9 +55938,11 @@ window.generateAssessmentReports = async function () {
                     const currentValue = getNumericRecordedValue(currentMarks?.[rawSubject]);
                     const previousValue = getNumericRecordedValue(previousMarks?.[rawSubject]);
                     if (currentValue !== null || previousValue !== null) {
-                        recordedCanonical.add(
-                            String(rasmCanonicalSubjectName(rawSubject, s.grade) || rawSubject).trim().toLowerCase()
-                        );
+                        const canonicalRecorded = String(rasmCanonicalSubjectName(rawSubject, s.grade) || rawSubject).trim();
+                        recordedCanonical.add(canonicalRecorded.toLowerCase());
+                        // Keep a stable alias key alongside the canonical name; it is used
+                        // only for matching the row to this learner's actual recorded mark.
+                        recordedCanonical.add('alias:' + rasmTeacherSubjectKey(rawSubject, s.grade));
                     }
                 });
 
@@ -56528,21 +55965,31 @@ window.generateAssessmentReports = async function () {
                     subjects = [...REPORT_GRADE13_MAIN_SUBJECTS];
                 } else {
                     subjects = [...canonicalSubjectMap.entries()]
-                        .filter(([key]) => recordedCanonical.has(key))
+                        .filter(([key, canonical]) => recordedCanonical.has(key) ||
+                            recordedCanonical.has('alias:' + rasmTeacherSubjectKey(canonical, s.grade)))
                         .map(([, canonical]) => canonical);
 
                     // Explicitly retain standalone CRE in Assessment Reports even
                     // when the stored key is CRE, Religious Education, or the full
                     // Christian Religious Education label and the configured subject
                     // list uses a different spelling.
-                    const creAliases = Object.keys(currentMarks || {}).concat(
-                        learnerHasPreviousExam ? Object.keys(previousMarks || {}) : []
-                    ).filter(key => /^(cre|religious\s*education|christian\s*religious\s*education)$/i.test(String(key).trim()));
-                    const creHasRecordedMark = creAliases.some(key =>
-                        getNumericRecordedValue(currentMarks?.[key]) !== null ||
-                        getNumericRecordedValue(previousMarks?.[key]) !== null
+                    const normalizeCREKey = key => String(key || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const isCREAlias = key => [
+                        'cre', 'religiouseducation', 'christianreligiouseducation',
+                        'christianreligioused', 'christianreligion'
+                    ].includes(normalizeCREKey(key));
+                    const creHasRecordedMark = reportGradePool.some(candidate =>
+                        [candidate?.marks || {}, candidate?.previousMarks || {}].some(markSet =>
+                            Object.entries(markSet).some(([key, value]) =>
+                                isCREAlias(key) && getNumericRecordedValue(value) !== null
+                            )
+                        )
+                    ) || Object.entries(currentMarks || {}).some(([key, value]) =>
+                        isCREAlias(key) && getNumericRecordedValue(value) !== null
+                    ) || Object.entries(previousMarks || {}).some(([key, value]) =>
+                        isCREAlias(key) && getNumericRecordedValue(value) !== null
                     );
-                    if (creHasRecordedMark && !subjects.some(subject => /^(cre|christian\s*religious\s*education)$/i.test(String(subject).trim()))) {
+                    if (creHasRecordedMark && !subjects.some(subject => /^(cre|christian\s*religious\s*education|religious\s*education)$/i.test(String(subject).trim()))) {
                         subjects.push("Christian Religious Education");
                     }
 
@@ -56612,84 +56059,135 @@ window.generateAssessmentReports = async function () {
                 function getCanonicalMark(marksObject, canonicalSubject) {
                     const target = String(canonicalSubject || '').trim().toLowerCase();
                     if (!target) return null;
+                    const targetAlias = rasmTeacherSubjectKey(canonicalSubject, s.grade);
+                    const compact = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const creAliases = ['cre','christianreligiouseducation','christianreligioused','christianreligion','religiouseducation','religioused'];
+                    const isCRE = value => {
+                        const k = compact(value);
+                        // Accept compound/legacy labels such as "CRE (Religious Education)"
+                        // and "Christian Religious Education - CRE", not just exact aliases.
+                        return creAliases.includes(k) ||
+                            (k.includes('religiouseducation') && (k.includes('christian') || k.includes('cre') || k === 'religiouseducation')) ||
+                            (k.includes('christianreligious') && k.includes('education')) ||
+                            /^cre(?:[0-9a-z]+)?$/.test(k);
+                    };
+                    const subjectFamily = value => {
+                        const k = compact(value);
+                        if (isCRE(value)) return 'cre';
+                        if (['agric','agriculture','agricandnutr','agricultureandnutrition'].includes(k) || k.includes('agricandnutr')) return 'agriculture';
+                        if (['scien','scie','sci','science','integratedscience','scienceandtechnology'].includes(k) || k.includes('integratedscience') || k.includes('scienceandtechnology')) return 'science';
+                        return '';
+                    };
+                    // Marks can be stored as a number/string or inside a record object.
+                    // Also inspect nested subject containers used by older saved records.
+                    const numericValue = (value, depth = 0) => {
+                        if (depth > 5 || value === null || value === undefined || value === '') return null;
+                        const direct = getNumericRecordedValue(value);
+                        if (direct !== null) return direct;
+                        if (typeof value === 'object') {
+                            for (const [nestedKey, nestedValue] of Object.entries(value)) {
+                                if (['mark','score','marks','value','points','rawmark','rawscore','percentage'].includes(compact(nestedKey))) {
+                                    const n = typeof nestedValue === 'object' ? numericValue(nestedValue, depth + 1) : getNumericRecordedValue(nestedValue);
+                                    if (n !== null) return n;
+                                }
+                            }
+                        }
+                        return null;
+                    };
+                    const entries = [];
+                    const walk = (obj, depth = 0) => {
+                        if (!obj || typeof obj !== 'object' || depth > 5) return;
+                        for (const [rawKey, rawValue] of Object.entries(obj)) {
+                            if (isMarksMetadataField(rawKey)) continue;
+                            entries.push([rawKey, rawValue]);
+                            if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) walk(rawValue, depth + 1);
+                        }
+                    };
+                    walk(marksObject || {});
+                    const targetFamily = subjectFamily(canonicalSubject);
 
-                    for (const rawKey of Object.keys(marksObject || {})) {
-                        if (isMarksMetadataField(rawKey)) continue;
-                        const canonicalKey = String(
-                            rasmCanonicalSubjectName(rawKey, s.grade) || rawKey
-                        ).trim().toLowerCase();
-                        if (canonicalKey !== target) continue;
-
-                        const value = getNumericRecordedValue(marksObject?.[rawKey]);
+                    // 1. Exact canonical match.
+                    for (const [rawKey, rawValue] of entries) {
+                        const canonicalKey = String(rasmCanonicalSubjectName(rawKey, s.grade) || rawKey).trim().toLowerCase();
+                        if (canonicalKey === target) {
+                            const value = numericValue(rawValue);
+                            if (value !== null) return value;
+                        }
+                    }
+                    // 2. Subject-family aliases. This is especially important for CRE,
+                    // whose stored key can differ between Marks and Assessment Reports.
+                    if (targetFamily) {
+                        for (const [rawKey, rawValue] of entries) {
+                            if (subjectFamily(rawKey) !== targetFamily) continue;
+                            const value = numericValue(rawValue);
+                            if (value !== null) return value;
+                        }
+                    }
+                    // 3. Existing subject-key normalization as a final fallback.
+                    for (const [rawKey, rawValue] of entries) {
+                        if (rasmTeacherSubjectKey(rawKey, s.grade) !== targetAlias) continue;
+                        const value = numericValue(rawValue);
                         if (value !== null) return value;
                     }
                     return null;
                 }
 
                 function getCanonicalTeacher(canonicalSubject) {
-                    // Assessment Reports use ONLY the teacher names entered
-                    // in the Subject Teachers fields. Never use Registered Teachers.
-                    function normalizeTeacherSubject(value) {
-                        let raw = String(value || '').trim().toLowerCase();
-                        if (!raw) return '';
-
-                        raw = raw
-                            .replace(/[—–-]/g, ' ')
-                            .replace(/&/g, ' and ')
-                            .replace(/[^a-z0-9]+/g, ' ')
-                            .replace(/\s+/g, ' ')
-                            .trim();
-
-                        // Treat common curriculum/report aliases as identical.
-                        const aliases = {
-                            'cre': 'christian religious education',
-                            'christian religious education': 'christian religious education',
-                            'christian religious edu': 'christian religious education',
-                            'religious education': 'christian religious education',
-                            'pre tech': 'pre technical studies',
-                            'pre technical': 'pre technical studies',
-                            'pre technical studies': 'pre technical studies',
-                            'pre tech studies': 'pre technical studies'
-                        };
-
-                        return aliases[raw] || raw;
-                    }
-
-                    const targetSubject = normalizeTeacherSubject(canonicalSubject);
+                    // Resolve teacher assignments across legacy subject spellings and
+                    // grade-bucket formats (e.g. Grade 5B, 5B, or grade-wide 5).
+                    const learnerGrade = String(s.grade || reportMeta?.grade || '').trim();
+                    const compact = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const subjectKey = value => {
+                        const k = compact(value);
+                        // Saved teacher setups may use older/longer labels than the
+                        // current Grade 4-6 report labels. Normalize the whole subject
+                        // family, not only a short list of exact spellings.
+                        if (k.startsWith('agric') || k.includes('agricandnutr') || k.includes('agricultureandnutr') || k.includes('agriculturalnutrition')) return 'agriculture-family';
+                        if (k.startsWith('science') || k.startsWith('scien') || k.startsWith('sci') || k.includes('integratedscience') || k.includes('scienceandtech')) return 'science-family';
+                        if (k === 'cre' || k.includes('christianreligious') || k.includes('religiouseducation') || k.includes('religioused')) return 'cre-family';
+                        return rasmTeacherSubjectKey(value, learnerGrade) || k;
+                    };
+                    const targetSubject = subjectKey(canonicalSubject);
                     if (!targetSubject) return 'Not Assigned';
 
-                    // First use the names captured in the current Subject Teachers form.
-                    const currentTeachers = reportMeta?.subjectTeachers || {};
-                    for (const rawKey of Object.keys(currentTeachers)) {
-                        const enteredName = String(currentTeachers[rawKey] || '').trim();
-                        if (!enteredName) continue;
-                        if (normalizeTeacherSubject(rawKey) === targetSubject) {
-                            return enteredName;
+                    const findTeacher = teachers => {
+                        if (!teachers || typeof teachers !== 'object') return '';
+                        // First prefer a direct canonical/alias key, then compare all
+                        // saved keys after normalization (including legacy subject names).
+                        const directKeys = [canonicalSubject, rasmCanonicalSubjectName(canonicalSubject, learnerGrade)];
+                        for (const directKey of directKeys) {
+                            const directValue = teachers[directKey];
+                            if (String(directValue || '').trim()) return String(directValue).trim();
                         }
-                    }
+                        for (const [rawKey, rawName] of Object.entries(teachers)) {
+                            const enteredName = String(rawName || '').trim();
+                            if (enteredName && subjectKey(rawKey) === targetSubject) return enteredName;
+                        }
+                        return '';
+                    };
 
-                    // If the report is regenerated later, use the same names saved
-                    // by the Subject Teachers form for this exact report grade.
+                    // Prefer what was entered for this report, then use persisted
+                    // assignments if the current modal did not include the alias.
+                    const entered = findTeacher(reportMeta?.subjectTeachers || {});
+                    if (entered) return entered;
                     try {
-                        const allSaved = typeof loadTeacherSetup === 'function'
-                            ? loadTeacherSetup()
-                            : {};
-                        const gradeKey = String(
-                            reportMeta?.grade || s.grade || ''
-                        ).trim();
-                        const savedTeachers = allSaved?.[gradeKey] || {};
-
-                        for (const rawKey of Object.keys(savedTeachers)) {
-                            const savedName = String(savedTeachers[rawKey] || '').trim();
-                            if (!savedName) continue;
-                            if (normalizeTeacherSubject(rawKey) === targetSubject) {
-                                return savedName;
-                            }
+                        const allSaved = typeof loadTeacherSetup === 'function' ? loadTeacherSetup() : {};
+                        const wantedGrade = compact(learnerGrade.replace(/^grade\s*/i, ''));
+                        const learnerGradeNo = getGradeNumber(learnerGrade);
+                        const buckets = Object.entries(allSaved || {}).sort(([a], [b]) => {
+                            const ak = compact(String(a).replace(/^grade\s*/i, ''));
+                            const bk = compact(String(b).replace(/^grade\s*/i, ''));
+                            const rank = key => key === wantedGrade ? 0 : (/^[0-9]+[a-z]?$/.test(key) && getGradeNumber(key) === learnerGradeNo ? 1 : getGradeNumber(key) === learnerGradeNo ? 2 : 9);
+                            return rank(ak) - rank(bk);
+                        });
+                        for (const [bucketKey, savedTeachers] of buckets) {
+                            if (getGradeNumber(bucketKey) !== learnerGradeNo) continue;
+                            const savedName = findTeacher(savedTeachers);
+                            if (savedName) return savedName;
                         }
                     } catch (error) {
                         console.warn('RASM360 Subject Teacher saved-name lookup failed:', error);
                     }
-
                     return 'Not Assigned';
                 }
 
@@ -56704,18 +56202,14 @@ window.generateAssessmentReports = async function () {
 
 
                     const currentLevel =
-                        currentMark
-                            ? getLevel(
-                                currentMark
-                            )
+                        currentMark !== null && currentMark !== undefined
+                            ? getLevel(currentMark)
                             : "-";
 
 
                     const previousLevel =
-                        previousMark
-                            ? getLevel(
-                                previousMark
-                            )
+                        previousMark !== null && previousMark !== undefined
+                            ? getLevel(previousMark)
                             : "-";
 
 
@@ -56768,8 +56262,9 @@ window.generateAssessmentReports = async function () {
                                 padding:6px;
                             ">
                                 ${
-                                    currentMark ||
-                                    "-"
+                                    currentMark !== null && currentMark !== undefined
+                                        ? currentMark
+                                        : "-"
                                 }
                             </td>
 
@@ -56796,7 +56291,7 @@ window.generateAssessmentReports = async function () {
                                             padding:6px;
                                         ">
                                             ${
-                                                currentMark
+                                                currentMark !== null && currentMark !== undefined
                                                     ? currentSubjectPoints
                                                     : "-"
                                             }
@@ -56818,8 +56313,9 @@ window.generateAssessmentReports = async function () {
                                             padding:6px;
                                         ">
                                             ${
-                                                previousMark ||
-                                                "-"
+                                                previousMark !== null && previousMark !== undefined
+                                                    ? previousMark
+                                                    : "-"
                                             }
                                         </td>
 
@@ -56842,7 +56338,7 @@ window.generateAssessmentReports = async function () {
                                                         padding:6px;
                                                     ">
                                                         ${
-                                                            previousMark
+                                                            previousMark !== null && previousMark !== undefined
                                                                 ? previousSubjectPoints
                                                                 : "-"
                                                         }
@@ -58630,7 +58126,7 @@ function rasmCanonicalSubjectName(value, gradeValue = ""){
     cre:'Christian Religious Education', christianreligiouseducation:'Christian Religious Education',
     religiouseducation:'Christian Religious Education', christianreligion:'Christian Religious Education',
     pretech:'Pre-Technical Studies', pretechnical:'Pre-Technical Studies', pretechnicalstudies:'Pre-Technical Studies', technical:'Pre-Technical Studies',
-    creativeart:'Creative Arts', creativearts:'Creative Arts', creativeartsandsports:'Creative Arts & Sports'
+    creativeart:'Creative Arts', creativearts:'Creative Arts', creativeartsandsports:(grade >= 1 && grade <= 3) ? 'Creative Arts' : 'Creative Arts & Sports'
   };
   const canonical=map[k] || head.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim().replace(/^./,c=>c.toUpperCase());
   return tail ? `${canonical} — ${tail}` : canonical;
@@ -60540,10 +60036,22 @@ function getReportMainSubjectKeysForLearner(learner) {
     const cleanKeys = recordedKeys.filter(key => !isMarksMetadataField(key));
 
     if (grade >= 1 && grade <= 3) {
-        // Grade 1-3 reports must contain ONLY the five main learning areas.
-        return cleanKeys.filter(key =>
-            REPORT_GRADE13_MAIN_SUBJECTS.includes(String(key).trim())
+        // Grade 1-3 reports use canonical subject identity, not exact key spelling.
+        // This prevents valid saved marks such as "Creative arts", "creativearts",
+        // or equivalent aliases from being dropped and displayed as a dash.
+        const canonicalMainNames = new Set(
+            REPORT_GRADE13_MAIN_SUBJECTS.map(name =>
+                String(name).toLowerCase().replace(/[^a-z0-9]/g, "")
+            )
         );
+        return cleanKeys.filter(key => {
+            const canonical = (typeof rasmCanonicalRecordedSubject === "function")
+                ? rasmCanonicalRecordedSubject(key, learner?.grade)
+                : String(key).trim();
+            const normalized = String(canonical || "")
+                .toLowerCase().replace(/[^a-z0-9]/g, "");
+            return canonicalMainNames.has(normalized);
+        });
     }
 
     // Grade 4-12 must never receive Grade 1-3 sub-learning-area columns.
@@ -60555,10 +60063,37 @@ function normalizeLearnerForMainSubjectReports(learner) {
     const originalMarks = { ...(learner?.marks || {}) };
     const marks = {};
 
-    getReportMainSubjectKeysForLearner({ ...learner, marks: originalMarks })
-        .forEach(subject => {
-            marks[subject] = originalMarks[subject];
+    if (grade >= 1 && grade <= 3) {
+        // Rebuild the five main learning areas from saved keys/aliases without
+        // changing Firebase. Prefer the canonical key, otherwise use the first
+        // numeric alias found. This is display/report normalization only.
+        REPORT_GRADE13_MAIN_SUBJECTS.forEach(canonicalSubject => {
+            const target = String(canonicalSubject).toLowerCase().replace(/[^a-z0-9]/g, "");
+            let fallback = null;
+            for (const rawKey of Object.keys(originalMarks)) {
+                if (isMarksMetadataField(rawKey)) continue;
+                const resolved = (typeof rasmCanonicalRecordedSubject === "function")
+                    ? rasmCanonicalRecordedSubject(rawKey, learner?.grade)
+                    : rawKey;
+                const resolvedKey = String(resolved || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                if (resolvedKey !== target) continue;
+                const rawValue = originalMarks[rawKey];
+                const numeric = getNumericRecordedValue(rawValue);
+                if (numeric === null) continue;
+                if (String(rawKey).trim().toLowerCase() === canonicalSubject.toLowerCase()) {
+                    fallback = numeric;
+                    break;
+                }
+                if (fallback === null) fallback = numeric;
+            }
+            if (fallback !== null) marks[canonicalSubject] = fallback;
         });
+    } else {
+        getReportMainSubjectKeysForLearner({ ...learner, marks: originalMarks })
+            .forEach(subject => {
+                marks[subject] = originalMarks[subject];
+            });
+    }
 
     const availableSubjects = Object.keys(marks);
     let total = 0;
@@ -61118,7 +60653,7 @@ function getLevel(score) {
   // ===============================
   // 🎉 EFFECTS
   // ===============================
-  launchCelebration?.();
+  window.launchCelebration?.();
 }
 function showLoader() {
   document.getElementById("reportLoader").style.display = "flex";
@@ -61521,8 +61056,8 @@ html += `
   // ===============================
   // 🎉 EFFECTS
   // ===============================
-  launchLevelCelebration?.();
-  showLevelPopup?.(topPerformers);
+  window.launchLevelCelebration?.();
+  window.showLevelPopup?.(topPerformers);
 }
 
 // ======================================================
@@ -64439,11 +63974,80 @@ window.generateMarksRecordingSummary = async function (
                 n >= 10 && n <= 12 ? "GRADE 10–12" : "OTHER GRADES";
         }
 
+        // Loaded Marks stores the selected exam's subject scores directly on each
+        // learner object (learner.marks), while the student roster may store them
+        // under learner.marks[examPeriod]. Use the actual Loaded Marks dataset first
+        // when its exam period matches, then fall back to the roster's period records.
+        function statusNormalizePeriod(value) {
+            if (typeof normalizeExamPeriod === "function") return normalizeExamPeriod(value).toLowerCase();
+            return String(value || "").trim().toLowerCase().replace(/[,\s]+/g, "-").replace(/-+/g, "-");
+        }
+
+        function statusLearnerId(student) {
+            return String(student?.id ?? student?.key ?? student?.studentId ??
+                student?.learnerId ?? student?.admissionNumber ?? student?.admissionNo ?? "").trim().toLowerCase();
+        }
+
+        function statusLearnerName(student) {
+            return String(student?.name ?? student?.fullName ?? student?.learnerName ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+        }
+
+        const statusLoadedLearners = (() => {
+            const sources = [window.allLoadedLearners, window.currentFilteredLearners, window.loadedLearners];
+            const selectedPeriod = statusNormalizePeriod(examPeriod);
+            for (const source of sources) {
+                if (!Array.isArray(source) || !source.length) continue;
+                const matchesPeriod = source.filter(item =>
+                    !item?.examPeriod || statusNormalizePeriod(item.examPeriod) === selectedPeriod
+                );
+                if (matchesPeriod.length) return matchesPeriod;
+            }
+            return [];
+        })();
+
+        function getStatusMarks(student, gradeName) {
+            const selectedPeriod = statusNormalizePeriod(examPeriod);
+            const rosterGrade = String(gradeName || student?.grade || "").trim().toLowerCase();
+            const studentId = statusLearnerId(student);
+            const studentName = statusLearnerName(student);
+
+            let loadedMatch = null;
+            if (studentId) {
+                loadedMatch = statusLoadedLearners.find(item =>
+                    statusNormalizePeriod(item?.examPeriod || examPeriod) === selectedPeriod &&
+                    String(item?.grade || "").trim().toLowerCase() === rosterGrade &&
+                    statusLearnerId(item) === studentId
+                ) || null;
+            }
+            if (!loadedMatch && studentName) {
+                loadedMatch = statusLoadedLearners.find(item =>
+                    statusNormalizePeriod(item?.examPeriod || examPeriod) === selectedPeriod &&
+                    String(item?.grade || "").trim().toLowerCase() === rosterGrade &&
+                    statusLearnerName(item) === studentName
+                ) || null;
+            }
+
+            // Loaded Marks' learner.marks is already the selected exam's subject map.
+            if (loadedMatch && loadedMatch.marks && typeof loadedMatch.marks === "object") {
+                return loadedMatch.marks;
+            }
+
+            const marksByPeriod = student?.marks;
+            if (!marksByPeriod || typeof marksByPeriod !== "object") return {};
+            const exact = marksByPeriod[examPeriod];
+            if (exact && typeof exact === "object") return exact;
+            const matchingKey = Object.keys(marksByPeriod).find(key =>
+                statusNormalizePeriod(key) === selectedPeriod &&
+                marksByPeriod[key] && typeof marksByPeriod[key] === "object"
+            );
+            return matchingKey ? marksByPeriod[matchingKey] : {};
+        }
+
         function collectGradeSubjectMap(gradeLearners, gradeName) {
             const gradeNumber = getGradeNumber(gradeName);
             const map = new Map();
             (gradeLearners || []).forEach(student => {
-                const learnerMarks = student?.marks?.[examPeriod] || {};
+                const learnerMarks = getStatusMarks(student, gradeName);
                 Object.keys(learnerMarks).forEach(rawKey => {
                     if (typeof isMarksMetadataField === "function" && isMarksMetadataField(rawKey)) return;
                     const rawName = String(window.subjectDisplayNames?.[rawKey] || rawKey).trim();
@@ -64510,7 +64114,7 @@ window.generateMarksRecordingSummary = async function (
             const gradeSubjects = [...subjectMapsByGrade[gradeName].values()];
             const isFullyRecordedReference = gradeLearners.length > 0 && gradeSubjects.length > 0 &&
                 gradeLearners.every(student => gradeSubjects.every(subject =>
-                    recordedSubjectValue(student?.marks?.[examPeriod] || {}, subject, gradeName) !== null));
+                    recordedSubjectValue(getStatusMarks(student, gradeName), subject, gradeName) !== null));
             if (isFullyRecordedReference) {
                 // Prefer the fully recorded grade with the largest observed subject set.
                 // This avoids selecting a grade with only one loaded subject when another
@@ -64571,7 +64175,7 @@ window.generateMarksRecordingSummary = async function (
             learners.forEach(
                 student => {
 
-                    const marks = student?.marks?.[examPeriod] || {};
+                    const marks = getStatusMarks(student, grade);
                     let recordedCount = 0;
                     const missingSubjects = [];
 
@@ -64694,7 +64298,7 @@ window.generateMarksRecordingSummary = async function (
             const subjectStatusRows = subjects.map(subject => {
                 let learnersWithMarks = 0;
                 learners.forEach(student => {
-                    if (recordedSubjectValue(student?.marks?.[examPeriod] || {}, subject, grade) !== null) learnersWithMarks++;
+                    if (recordedSubjectValue(getStatusMarks(student, grade), subject, grade) !== null) learnersWithMarks++;
                 });
                 const status = learnersWithMarks === learners.length && learners.length > 0 ? "Fully recorded" :
                     learnersWithMarks > 0 ? "Partially recorded" : "Not recorded";
@@ -65242,25 +64846,138 @@ window.generateMarksRecordingSummary = async function (
 
         // ==================================================
         // LEVEL SUMMARY + PRINT / WHATSAPP SHARING
+        // WhatsApp share follows the requested teacher-friendly,
+        // level-wise SUBJECT RECORDING SUMMARY format.
         // ==================================================
         const overallCompletion = reportTotals.total > 0 ? Math.round((reportTotals.fully / reportTotals.total) * 100) : 0;
         const shareLevelLabel = selectedLevelRange ? `${selectedLevelLabel} LEVEL` : "ALL GRADES";
+        const schoolNameForShare = window.currentSchool?.name || window.schoolProfile?.name || "School Administration";
+        const levelRowsForShare = selectedLevelRange
+            ? gradeSubjectSummaries.filter(row => {
+                const n = typeof getGradeNumber === "function" ? getGradeNumber(row.grade) : Number(String(row.grade).match(/\d+/)?.[0]);
+                return n >= selectedLevelRange[0] && n <= selectedLevelRange[1];
+            })
+            : gradeSubjectSummaries;
+        const levelLearnerCountForShare = levelRowsForShare.reduce((sum, row) => sum + row.learners, 0);
+        const totalSubjectInstancesForShare = levelRowsForShare.reduce((sum, row) => sum + row.loadedSubjects, 0);
+        const fullySubjectInstancesForShare = levelRowsForShare.reduce((sum, row) => sum + row.fully, 0);
+        const partialSubjectInstancesForShare = levelRowsForShare.reduce((sum, row) => sum + row.partially, 0);
+        const notSubjectInstancesForShare = levelRowsForShare.reduce((sum, row) => sum + row.not, 0);
+        const subjectCompletionForShare = totalSubjectInstancesForShare > 0
+            ? Math.round((fullySubjectInstancesForShare / totalSubjectInstancesForShare) * 100) : 0;
+        const gradeEmojiForShare = grade => {
+            const n = typeof getGradeNumber === "function" ? getGradeNumber(grade) : Number(String(grade).match(/\d+/)?.[0]);
+            return n >= 1 && n <= 3 ? "📕" : n >= 4 && n <= 6 ? "📘" : n >= 7 && n <= 9 ? "📗" : n >= 10 && n <= 12 ? "📙" : "📚";
+        };
+        const gradeSectionsForShare = levelRowsForShare.map(row => {
+            const fullySubjects = row.rows.filter(subject => subject.status === "Fully recorded");
+            const partialSubjects = row.rows.filter(subject => subject.status === "Partially recorded");
+            const notSubjects = row.rows.filter(subject => subject.status === "Not recorded");
+            const followUpSubjects = row.rows.filter(subject => subject.status !== "Fully recorded");
+            const lines = [
+                `${gradeEmojiForShare(row.grade)} *GRADE ${String(row.grade).toUpperCase()} — ${row.learners} LEARNERS*`,
+                row.fully === row.loadedSubjects && row.loadedSubjects > 0
+                    ? `✅ *${row.fully}/${row.loadedSubjects} subjects fully recorded*`
+                    : `⚠️ *${row.fully} fully recorded | ${row.partially} partially recorded | ${row.not} not recorded*`
+            ];
+            if (row.loadedSubjects === 0) {
+                lines.push("⚠️ No subjects were found in Loaded Marks for this grade and examination period.");
+            } else if (!followUpSubjects.length) {
+                lines.push("All subjects are fully recorded. Thank you for ensuring complete assessment records.");
+                lines.push("*Subjects recorded:*", ...fullySubjects.map(subject => `- ${subject.name}`));
+            } else {
+                if (fullySubjects.length) {
+                    lines.push(`✅ *All other ${fullySubjects.length} subject(s) are fully recorded:*`);
+                    lines.push(...fullySubjects.map(subject => `- ${subject.name}`));
+                }
+                if (partialSubjects.length || notSubjects.length) {
+                    lines.push("⚠️ *SUBJECTS REQUIRING FOLLOW-UP:*", ...followUpSubjects.map((subject, index) =>
+                        `${index + 1}. ${subject.name} — ${subject.count}/${row.learners} learners have marks recorded${subject.status === "Not recorded" ? " (none recorded)" : ""}`
+                    ));
+                    lines.push("📌 *ACTION:* Kindly follow up with the relevant teachers and record the missing marks for the affected subjects.");
+                }
+            }
+            return lines.join("\n");
+        });
+        const followUpGradeRows = levelRowsForShare.filter(row => row.partially > 0 || row.not > 0 || row.loadedSubjects === 0);
+        const fullyCompleteGradeRows = levelRowsForShare.filter(row => row.loadedSubjects > 0 && row.fully === row.loadedSubjects);
+        const levelTitleForShare = selectedLevelRange
+            ? (selectedLevelRange[0] === 1 ? "LOWER PRIMARY: GRADES 1–3" : selectedLevelRange[0] === 4 ? "UPPER PRIMARY: GRADES 4–6" : selectedLevelRange[0] === 7 ? "JUNIOR SCHOOL: GRADES 7–9" : "SENIOR SCHOOL: GRADES 10–12")
+            : "ALL GRADES";
+        // Keep the per-grade WhatsApp buttons consistent with the same format.
+        window.__rasmMarksStatusGradeMessages = (window.__rasmMarksStatusGradeMessages || []).map(entry => {
+            const row = gradeSubjectSummaries.find(item => String(item.grade) === String(entry.grade));
+            if (!row) return entry;
+            const fullySubjects = row.rows.filter(subject => subject.status === "Fully recorded");
+            const followUpSubjects = row.rows.filter(subject => subject.status !== "Fully recorded");
+            const gradeLines = [
+                "📢 *SUBJECT RECORDING SUMMARY*",
+                `📚 *GRADE ${String(row.grade).toUpperCase()}*`,
+                `🏫 *${schoolNameForShare}*`,
+                `📝 Examination period: *${examPeriod}*`,
+                "",
+                "Dear Teachers,",
+                "",
+                `Please find below the subject recording status for Grade ${row.grade} for the selected examination period.`,
+                "",
+                `${gradeEmojiForShare(row.grade)} *GRADE ${String(row.grade).toUpperCase()} — ${row.learners} LEARNERS*`,
+                row.loadedSubjects > 0 && row.fully === row.loadedSubjects
+                    ? `✅ *${row.fully}/${row.loadedSubjects} subjects fully recorded*`
+                    : `⚠️ *${row.fully} fully recorded | ${row.partially} partially recorded | ${row.not} not recorded*`
+            ];
+            if (!row.loadedSubjects) {
+                gradeLines.push("⚠️ No subjects were found in Loaded Marks for this grade and examination period.");
+            } else if (!followUpSubjects.length) {
+                gradeLines.push("All subjects are fully recorded. Thank you for ensuring complete assessment records.", "", "*Subjects recorded:*", ...fullySubjects.map(subject => `- ${subject.name}`));
+            } else {
+                if (fullySubjects.length) gradeLines.push("", `✅ *${fullySubjects.length} subject(s) are fully recorded:*`, ...fullySubjects.map(subject => `- ${subject.name}`));
+                gradeLines.push("", "⚠️ *SUBJECTS REQUIRING FOLLOW-UP:*", ...followUpSubjects.map((subject, index) => `${index + 1}. ${subject.name} — ${subject.count}/${row.learners} learners have marks recorded`), "", "📌 *ACTION:* Kindly follow up with the relevant teachers and record the missing marks.");
+            }
+            gradeLines.push("", "Thank you for your cooperation.", "", `*${schoolNameForShare} — School Administration*`);
+            return { ...entry, message: gradeLines.join("\n") };
+        });
+
+        const overallStatusLinesForShare = [
+            `👥 Total learners: *${levelLearnerCountForShare}*`,
+            `✅ Fully recorded subjects: *${fullySubjectInstancesForShare}*`,
+            `⚠️ Partially recorded subjects: *${partialSubjectInstancesForShare}*`,
+            `❌ Not recorded subjects: *${notSubjectInstancesForShare}*`,
+            `📈 Subject recording completion: *${subjectCompletionForShare}%*`
+        ];
+        const actionLinesForShare = followUpGradeRows.length
+            ? followUpGradeRows.map(row => {
+                const issues = row.rows.filter(subject => subject.status !== "Fully recorded");
+                const details = issues.length
+                    ? issues.map(subject => `${subject.name} (${subject.count}/${row.learners})`).join(", ")
+                    : "No loaded subjects detected";
+                return `🔴 *Grade ${row.grade}:* Follow up on ${details}.`;
+            })
+            : ["🟢 All grades in this level have complete subject recording. Maintain accurate records."];
         window.__rasmMarksStatusShareText = [
-            "MARKS RECORDING STATUS SUMMARY",
-            (window.currentSchool?.name || "RASM 360 SCHOOL"),
-            `Level: ${shareLevelLabel}`,
-            `Exam Period: ${examPeriod}`,
+            "📢 *SUBJECT RECORDING SUMMARY*",
+            `📚 *${levelTitleForShare}*`,
+            `🏫 *${schoolNameForShare}*`,
+            `📝 Examination period: *${examPeriod}*`,
             "",
-            `TOTAL LEARNERS: ${reportTotals.total}`,
-            `FULLY RECORDED: ${reportTotals.fully}`,
-            `PARTIALLY RECORDED: ${reportTotals.partially}`,
-            `NOT RECORDED: ${reportTotals.not}`,
-            `Marks Recording Completion: ${overallCompletion}%`,
+            "Dear Teachers,",
             "",
-            "SUBJECT RECORDING STATUS BY GRADE:",
-            ...gradeSubjectSummaries.map(row => `${row.grade}: ${row.loadedSubjects} loaded subjects | Fully recorded: ${row.fully} | Partially recorded: ${row.partially} | Not recorded: ${row.not}`),
+            `Please find below the subject recording status for ${levelTitleForShare.toLowerCase()} for the selected examination period.`,
             "",
-            reportTotals.partially + reportTotals.not === 0 ? "✔ All learners have their marks fully recorded." : `⚠ Follow-up required: ${reportTotals.partially} partially recorded learner(s); ${reportTotals.not} learner(s) have no marks recorded (names omitted from the list).`,
+            "━━━━━━━━━━━━━━",
+            ...gradeSectionsForShare.flatMap((section, index) => index === 0 ? [section, ""] : ["━━━━━━━━━━━━━━", section, ""]),
+            "━━━━━━━━━━━━━━",
+            `📊 *OVERALL RECORDING SUMMARY: ${levelTitleForShare}*`,
+            ...overallStatusLinesForShare,
+            "",
+            "━━━━━━━━━━━━━━",
+            "📌 *ACTION POINTS FOR TEACHERS*",
+            ...actionLinesForShare,
+            "",
+            "Thank you for your continued cooperation and commitment to complete and accurate assessment records.",
+            "",
+            "*LET US ENSURE ALL MARKS ARE RECORDED BEFORE FINAL REPORT GENERATION.*",
+            "",
+            `*${schoolNameForShare} — School Administration*`,
             "Generated by RASM TECH 360 KENYA"
         ].join("\n");
 
@@ -69193,6 +68910,13 @@ function meritCanonicalSubject(rawKey) {
     const raw = String(rawKey || "").trim();
     const display = String(window.subjectDisplayNames?.[raw] || raw).trim();
     const aliases = {
+        "creative arts": "Creative Arts",
+        "creative art": "Creative Arts",
+        "creativearts": "Creative Arts",
+        "creativeart": "Creative Arts",
+        "creative arts & sports": isGrade1To3Value(grade) ? "Creative Arts" : "Creative Arts & Sports",
+        "creative arts and sports": isGrade1To3Value(grade) ? "Creative Arts" : "Creative Arts & Sports",
+        "creativeartsandsports": isGrade1To3Value(grade) ? "Creative Arts" : "Creative Arts & Sports",
         "cre": "Christian Religious Education",
         "religious education": "Christian Religious Education",
         "christian religious education": "Christian Religious Education",
@@ -69307,7 +69031,11 @@ learners.forEach(learner => {
     Object.keys(marks).forEach(rawKey => {
         const value = marks[rawKey];
         if (!rawKey || (typeof isMarksMetadataField === "function" && isMarksMetadataField(rawKey))) return;
-        if (value === undefined || value === null || String(value).trim() === "" || !Number.isFinite(Number(value))) return;
+        if (/^\d+$/.test(String(rawKey).trim())) return;
+        // Object-shaped marks are valid in some older records, e.g. {score: 72}.
+        // Keep them when the shared numeric resolver can read a saved score.
+        if (value && typeof value === "object" &&
+            (typeof getNumericRecordedValue !== "function" || getNumericRecordedValue(value) === null)) return;
         const fullName = meritCanonicalSubject(rawKey);
         if (!fullName) return;
         const bucketKey = fullName.toLowerCase();
@@ -69327,10 +69055,58 @@ function meritValue(learner, subject) {
     const marks = learner?.marks || {};
     for (const key of (subject.aliases || [subject.key])) {
         const value = marks[key];
-        if (value !== undefined && value !== null && String(value).trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+        if (typeof getNumericRecordedValue === "function") {
+            const numeric = getNumericRecordedValue(value);
+            if (numeric !== null) return numeric;
+        } else if (value !== undefined && value !== null && String(value).trim() !== "" && Number.isFinite(Number(value))) {
+            return Number(value);
+        }
     }
     const direct = marks[subject.key];
+    if (typeof getNumericRecordedValue === "function") {
+        const numeric = getNumericRecordedValue(direct);
+        return numeric !== null ? numeric : "";
+    }
     return direct !== undefined && direct !== null && String(direct).trim() !== "" && Number.isFinite(Number(direct)) ? Number(direct) : "";
+}
+
+// Grades 1–3: display every recorded subject, but compute learner totals,
+// averages and merit ranking from only the five required learning areas.
+function meritNormalizeSubjectName(value) {
+    return String(value || "").toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[–—-]/g, " ").replace(/[^a-z0-9]+/g, " ")
+        .trim().replace(/\s+/g, " ");
+}
+const grade13ComputationNames = new Set([
+    "english", "eng",
+    "kiswahili", "kiswa", "kisw",
+    "environmental and cre", "environmental and c r e",
+    "mathematics", "math", "maths",
+    "creative arts", "creative art"
+]);
+function meritIsGrade13ComputationSubject(subject) {
+    const candidates = [subject?.name, subject?.key, ...(subject?.aliases || [])];
+    return candidates.some(candidate => {
+        const normalized = meritNormalizeSubjectName(candidate);
+        return grade13ComputationNames.has(normalized);
+    });
+}
+const computationSubjects = isGrade1To3Value(grade)
+    ? subjects.filter(meritIsGrade13ComputationSubject)
+    : subjects.slice();
+
+function meritComputedTotal(learner) {
+    return computationSubjects.reduce((sum, subject) => {
+        const mark = meritValue(learner, subject);
+        return sum + (mark === "" ? 0 : Number(mark));
+    }, 0);
+}
+
+// Rank Grades 1–3 by the allowed five subjects, not by stale stored totals.
+if (isGrade1To3Value(grade)) {
+    learners.sort((a, b) => meritComputedTotal(b) - meritComputedTotal(a) ||
+        String(a?.name || "").localeCompare(String(b?.name || "")));
 }
 // ================= TOTALS =================
   updateProgress(40, "Calculating totals...");
@@ -69364,7 +69140,7 @@ function meritValue(learner, subject) {
 
 });
 
-    totals.totalMarks += subjects.reduce((sum, subject) => { const mark = meritValue(l, subject); return sum + (mark === "" ? 0 : Number(mark)); }, 0);
+    totals.totalMarks += meritComputedTotal(l);
   });
 
   const avg = v =>
@@ -69629,7 +69405,7 @@ subjects.forEach(s => {
 
   learners.forEach((l, i) => {
 
-  const enteredSubjects = subjects.filter(s => {
+  const enteredSubjects = computationSubjects.filter(s => {
 
   const value = meritValue(l, s);
 
@@ -69639,7 +69415,7 @@ subjects.forEach(s => {
 
 }).length;
 
-const learnerTotal = subjects.reduce((sum, subject) => { const mark = meritValue(l, subject); return sum + (mark === "" ? 0 : Number(mark)); }, 0);
+const learnerTotal = meritComputedTotal(l);
 const average = enteredSubjects ? (learnerTotal / enteredSubjects).toFixed(1) : "0.0";
 
     html += `
@@ -69726,11 +69502,17 @@ const score =
     const grade13SubArea = isGrade1To3Value(grade) && isReportSubLearningArea(s.key);
     const scoreOnly = grade13SubArea && !rasmGrade13SubHasLevel(s.key);
     const scoreAndLevelOnly = grade13SubArea && rasmGrade13SubHasLevel(s.key);
+    // Grade 1–3: show subject means only for the five computation subjects.
+    // The other recorded subject columns remain visible, but are not included
+    // in the merit-list mean/average calculation.
+    const subjectMean = isGrade1To3Value(grade) && !computationSubjects.some(cs => cs.key === s.key)
+      ? "-"
+      : avg(totals[s.key]);
     html += scoreOnly
-      ? `<td class="merit-score-cell">${avg(totals[s.key])}</td>`
+      ? `<td class="merit-score-cell">${subjectMean}</td>`
       : scoreAndLevelOnly
-        ? `<td class="merit-score-cell">${avg(totals[s.key])}</td><td class="merit-level-cell">-</td>`
-        : `<td class="merit-score-cell">${avg(totals[s.key])}</td><td class="merit-points-cell">-</td><td class="merit-level-cell">-</td>`;
+        ? `<td class="merit-score-cell">${subjectMean}</td><td class="merit-level-cell">-</td>`
+        : `<td class="merit-score-cell">${subjectMean}</td><td class="merit-points-cell">-</td><td class="merit-level-cell">-</td>`;
   });
 
   html += `
@@ -70962,39 +70744,37 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 /* COUNT HELPERS */
 function bindCount(path, elementId) {
-  window.fastOnValue(ref(db, `schools/${schoolId}/${path}`), snap => {
-    document.getElementById(elementId).innerText = snap.size || 0;
+  const sid = window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId");
+  if (!sid) return;
+  window.__rasmDashboardCountBindings = window.__rasmDashboardCountBindings || new Set();
+  const key = `${sid}:${path}:${elementId}`;
+  if (window.__rasmDashboardCountBindings.has(key)) return;
+  window.__rasmDashboardCountBindings.add(key);
+  window.fastOnValue(ref(db, `schools/${sid}/${path}`), snap => {
+    const el = document.getElementById(elementId);
+    if (el) el.innerText = snap?.exists?.() ? (snap.size || Object.keys(snap.val() || {}).length) : 0;
   });
 }
-/* INIT DASHBOARD */
+/* INIT DASHBOARD — single live listeners per school/session */
 function loadDashboard() {
-
   updateClock();
-
+  const sid = window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId");
+  if (!sid) return;
+  if (window.__rasmDashboardBoundSchool === sid) return;
+  window.__rasmDashboardBoundSchool = sid;
   bindCount("notifications", "unreadCount");
-
-  // 🔥 NEW
   updateTeachersCount();
 }
 
 function updateTeachersCount() {
-
+  const sid = window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId");
+  if (!sid) return;
+  if (window.__rasmTeacherCountBoundSchool === sid) return;
+  window.__rasmTeacherCountBoundSchool = sid;
   window.fastOnValue(schoolRef("teachers"), snap => {
-
-    let total = 0;
-
-    if (snap.exists()) {
-      total = snap.size || Object.keys(snap.val()).length;
-    }
-
+    const value = snap?.exists?.() ? (snap.size || Object.keys(snap.val() || {}).length) : 0;
     const el = document.getElementById("totalTeachers");
-
-    if (el) {
-      el.innerText = total;
-    }
-
-    console.log("👩‍🏫 Teachers count updated:", total);
-
+    if (el) el.innerText = value;
   });
 }
 // ============================================================
@@ -74057,8 +73837,11 @@ document.addEventListener("keydown", function (e) {
 
   const active = document.activeElement;
 
-  // Only apply to inputs, selects, textareas
-  if (!["INPUT", "SELECT", "TEXTAREA"].includes(active.tagName)) return;
+  // The learner-name box is intentionally multiline: Enter inserts a new line.
+  if (active.id === "studentName" || active.isContentEditable) return;
+
+  // Keep Enter-to-next-field for ordinary single-line controls only.
+  if (!["INPUT", "SELECT"].includes(active.tagName)) return;
 
   e.preventDefault();
 
@@ -118659,164 +118442,38 @@ window.addEventListener("load", async () => {
 
 window.__rasmLoadAllPromise = window.__rasmLoadAllPromise || null;
 
+window.__rasmLoadAllPromise = window.__rasmLoadAllPromise || null;
+
+/* RASM 360 lazy bootstrap: login loads the school profile only. Feature data
+   is loaded by the section the user opens; concurrent calls share a promise. */
 window.loadAll = async function () {
-
-  if (window.__rasmLoadAllPromise) {
-    return window.__rasmLoadAllPromise;
-  }
-
-  if (!window.schoolId) {
-    console.warn("⏳ loadAll waiting for schoolId");
-    return;
-  }
-
-  const run = (async () => {
-
-  console.time("loadAll");
-
-  try {
-
-    console.log(
-      "🚀 Loading school data for:",
-      window.schoolId
-    );
-
-    const loaders = [
-
-      typeof loadSchoolProfile === "function"
-        ? loadSchoolProfile()
-        : Promise.resolve(),
-
-      typeof loadStudents === "function"
-        ? loadStudents()
-        : Promise.resolve(),
-
-      typeof loadTeachers === "function"
-        ? loadTeachers()
-        : Promise.resolve(),
-
-      typeof loadSupportStaff === "function"
-        ? loadSupportStaff()
-        : Promise.resolve(),
-
-      typeof loadFees === "function"
-        ? loadFees()
-        : Promise.resolve(),
-
-      typeof loadFinanceSummary === "function"
-        ? loadFinanceSummary()
-        : Promise.resolve(),
-
-      typeof loadTransport === "function"
-        ? loadTransport()
-        : Promise.resolve(),
-
-      typeof loadInventory === "function"
-        ? loadInventory()
-        : Promise.resolve(),
-
-typeof loadUsersTable === "function"
-  ? Promise.resolve(loadUsersTable())
-  : Promise.resolve(),
-
-      typeof loadICT === "function"
-        ? loadICT()
-        : Promise.resolve(),
-
-      typeof loadLibrary === "function"
-        ? loadLibrary()
-        : Promise.resolve(),
-
-      typeof loadHostel === "function"
-        ? loadHostel()
-        : Promise.resolve(),
-
-      // =====================================
-      // E-LEARNING
-      // =====================================
-
-      typeof loadCourses === "function"
-        ? loadCourses()
-        : Promise.resolve(),
-
-      typeof loadAssignments === "function"
-        ? loadAssignments()
-        : Promise.resolve(),
-
-      // School-defined subjects must be loaded after the verified school context exists.
-      typeof window.loadCustomSubjects === "function"
-        ? Promise.resolve().then(() => window.loadCustomSubjects())
-        : Promise.resolve()
-
-    ];
-
-    const results =
-      await Promise.allSettled(loaders);
-
-    results.forEach((result, index) => {
-
-      if (result.status === "rejected") {
-
-        console.error(
-          `❌ Loader ${index} failed:`,
-          result.reason
-        );
-
+  if (window.__rasmLoadAllPromise) return window.__rasmLoadAllPromise;
+  const sid = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "").trim();
+  if (!sid) { console.warn("⏳ RASM 360 bootstrap waiting for verified school context."); return false; }
+  window.schoolId = sid;
+  const run = (async function () {
+    console.time("RASM360 lazy bootstrap");
+    try {
+      if (typeof window.loadSchoolProfile === "function") await window.loadSchoolProfile();
+      if (typeof window.configureELearningPermissions === "function") window.configureELearningPermissions();
+      // The visible section is the only feature allowed to load during login bootstrap.
+      if (typeof window.RASM360_LOAD_SECTION_DATA === "function") {
+        const visible = [...document.querySelectorAll(".main > div[id], .main > section[id]")].find(el => {
+          const style = window.getComputedStyle ? getComputedStyle(el) : null;
+          return style && style.display !== "none" && el.id;
+        });
+        if (visible) await window.RASM360_LOAD_SECTION_DATA(visible.id);
       }
-
-    });
-
-    if (
-      typeof loadDashboardCharts ===
-      "function"
-    ) {
-
-      await loadDashboardCharts();
-
-    }
-
-    // =====================================
-    // APPLY E-LEARNING VISIBILITY
-    // =====================================
-
-    if (
-      typeof configureELearningPermissions ===
-      "function"
-    ) {
-
-      configureELearningPermissions();
-
-    }
-
-    console.log(
-      "✅ All school data loaded"
-    );
-
-  } catch (err) {
-
-    console.error(
-      "❌ loadAll Error:",
-      err
-    );
-
-  } finally {
-
-    console.timeEnd("loadAll");
-
-  }
-
+      console.info("✅ RASM 360 bootstrap complete; only the visible section was loaded.");
+      return true;
+    } catch (error) {
+      console.error("❌ RASM 360 bootstrap failed:", error);
+      throw error;
+    } finally { console.timeEnd("RASM360 lazy bootstrap"); }
   })();
-
   window.__rasmLoadAllPromise = run;
-
-  try {
-    return await run;
-  } finally {
-    if (window.__rasmLoadAllPromise === run) {
-      window.__rasmLoadAllPromise = null;
-    }
-  }
-
+  try { return await run; }
+  finally { if (window.__rasmLoadAllPromise === run) window.__rasmLoadAllPromise = null; }
 };
 
 window.resetPassword = async function () {
@@ -136435,51 +136092,22 @@ function getCBCGradeResult(score, grade) {
         Object.keys(marks).forEach(p=>periods.add(p));
         students.push({id:ch.key,name:data.name||"Unknown",grade:data.grade||"",marks});
       });
-      const groups={};
-      periods.forEach(p=>{
-        const k=termKey(p);
-        if(k){
-          if(!groups[k]) groups[k]=[];
-          groups[k].push(p);
-        }
-      });
-
-      const keys=Object.keys(groups).sort(
-        (a,b)=>Number(a.replace(/\D/g,""))-Number(b.replace(/\D/g,""))
-      );
-
-      // Match the ACTUAL loaded exam period first.
-      // This supports one loaded exam such as:
-      // 2026-Term2-Midterm
-      // and automatically selects the two exams immediately before it.
-      const normalizedSelected=normalizeExamPeriod(selected);
-      const exactPeriod=periods.has(normalizedSelected)
-        ? normalizedSelected
-        : [...periods].find(p=>normalizeExamPeriod(p)===normalizedSelected);
-
-      let targetKey=exactPeriod ? termKey(exactPeriod) : "";
-      let targetPeriod=exactPeriod || "";
-
-      // Fallback only if the current loaded exam is unavailable.
-      if(!targetKey && keys.length){
-        targetKey=keys[keys.length-1];
-        targetPeriod=chooseTermExam(groups[targetKey]);
-      }
-
-      if(!targetKey) throw new Error("No loaded examination was found. Please load one examination first.");
-
-      const ti=keys.indexOf(targetKey);
-      if(ti<0) throw new Error("The loaded examination could not be matched to the school's recorded examination history.");
-
-      const selectedKeys=keys.slice(Math.max(0,ti-2),ti+1);
-
-      const termData=selectedKeys.map(k=>{
-        const period =
-          k===targetKey && targetPeriod
-            ? targetPeriod
-            : chooseTermExam(groups[k]);
-        return {key:k,label:termLabel(k),period,stats:null};
-      });
+      // Work with distinct, actual exam-period keys—not just year/term.
+      // Midterm and Endterm in the same term are different assessments.
+      const periodList=[...periods].filter(p=>termKey(p)).sort((a,b)=>examOrder(a)-examOrder(b));
+      const canonical=p=>String(p||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      const normalizedSelected=canonical(selected);
+      let targetPeriod=periodList.find(p=>canonical(p)===normalizedSelected)||"";
+      if(!targetPeriod && periodList.length) targetPeriod=periodList[periodList.length-1];
+      if(!targetPeriod) throw new Error("No loaded examination was found. Please load one examination first.");
+      const ti=periodList.findIndex(p=>canonical(p)===canonical(targetPeriod));
+      const selectedKeys=periodList.slice(Math.max(0,ti-2),ti+1);
+      const termData=selectedKeys.map((period,index)=>({
+        key:period,
+        label:period,
+        period,
+        stats:null
+      }));
       termData.forEach(t=>{t.stats=overallStats(students,t.period);});
       const current=termData[termData.length-1];
       const previous=termData.length>1?termData[termData.length-2]:null;
@@ -136717,7 +136345,11 @@ function rasmCanonicalSubjectName(value, gradeValue = ""){
     const m = String(v || "").match(/\d{1,2}/);
     return m ? Number(m[0]) : null;
   };
-  const gradeSortX = (a,b) => (gradeNoX(a) ?? 999) - (gradeNoX(b) ?? 999);
+  // Treat common equivalent labels ("Grade 4A", "4A", "4,A") as the same class.
+  const gradeKeyX = v => String(v ?? "").normalize("NFKC").trim().toLowerCase()
+    .replace(/^grade\s*/i, "").replace(/[^a-z0-9]/g, "");
+  const gradeSortX = (a,b) => (gradeNoX(a) ?? 999) - (gradeNoX(b) ?? 999) ||
+    String(a).localeCompare(String(b), undefined, {numeric:true, sensitivity:"base"});
 
   function isG13X(g){ const n=gradeNoX(g); return n>=1 && n<=3; }
   function isG16X(g){ const n=gradeNoX(g); return n>=1 && n<=6; }
@@ -136787,7 +136419,7 @@ function rasmCanonicalSubjectName(value, gradeValue = ""){
     students.forEach(s=>{
       const marks=s.marks?.[period]; if(!marks) return;
       const grade=marks.grade||s.grade||"-";
-      if(gradeFilter && String(grade)!==String(gradeFilter)) return;
+      if(gradeFilter && gradeKeyX(grade)!==gradeKeyX(gradeFilter)) return;
       Object.keys(marks).forEach(rawSubject=>{
         if(META.has(rawSubject) || !isMainSubjectX(rawSubject,grade)) return;
         const n=numX(marks[rawSubject]); if(n===null || n<0 || n>100) return;
@@ -136858,35 +136490,87 @@ function rasmCanonicalSubjectName(value, gradeValue = ""){
     if(!schoolId) throw new Error("School ID is missing. Please login again.");
     const snap=await window.fastGet(window.schoolRef("students"));
     if(!snap?.exists?.()) throw new Error("No learners were found for this school.");
-    const students=[], periods=new Set();
+
+    const students=[];
+    const periodAliases=new Map();
+    const canonicalPeriod=value=>String(value||"").normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g,"");
     snap.forEach(ch=>{
       const data=ch.val()||{}, marks=data.marks||{};
-      Object.keys(marks).forEach(p=>periods.add(p));
-      students.push({id:ch.key,name:data.name||"Unknown",grade:data.grade||"",marks});
+      Object.keys(marks).forEach(period=>{
+        const key=canonicalPeriod(period);
+        if(!key) return;
+        if(!periodAliases.has(key)) periodAliases.set(key,[]);
+        if(!periodAliases.get(key).includes(period)) periodAliases.get(key).push(period);
+      });
+      students.push({id:ch.key,name:data.name||"Unknown",grade:data.grade||data.gradeName||data.className||"",marks});
     });
-    // Compare the latest TWO individual examination periods, not merely one
-    // examination per term. Opener, Midterm and End-Term are all eligible.
-    const orderedPeriods=[...periods].sort((a,b)=>examOrderX(a)-examOrderX(b) || String(a).localeCompare(String(b)));
-    const normalized=String(selected).trim();
-    let targetPeriod=orderedPeriods.find(p=>String(p).trim()===normalized) ||
-      orderedPeriods.find(p=>String(p).replace(/[\s,\-]+/g,"").toUpperCase()===normalized.replace(/[\s,\-]+/g,"").toUpperCase());
-    if(!targetPeriod) targetPeriod=orderedPeriods[orderedPeriods.length-1];
-    if(!targetPeriod) throw new Error("No examination was found. Please load an examination first.");
-    const targetOrder=examOrderX(targetPeriod);
-    const eligible=orderedPeriods.filter(p=>examOrderX(p)<=targetOrder);
-    const selectedPeriods=eligible.slice(-2);
-    const termData=selectedPeriods.map(p=>({
-      key:termKeyX(p)||p,
-      label:String(p),
-      period:p
+
+    // Firebase data may contain several spelling variants for the SAME exam
+    // (for example, "2026-Term3-MidtermExam" and "2026, Term 3, Midterm Exam").
+    // Treat these as one period, merge their learner subject records, and never
+    // compare an alias of an examination against another alias of itself.
+    const selectedCanonical=canonicalPeriod(selected);
+    const orderedGroups=[...periodAliases.entries()].map(([key,aliases])=>{
+      const display=(aliases.find(a=>String(a).trim()===String(selected).trim()) ||
+        aliases.slice().sort((a,b)=>b.length-a.length)[0] || key);
+      return {key,aliases,display,order:examOrderX(display)};
+    }).sort((a,b)=>a.order-b.order || String(a.display).localeCompare(String(b.display),undefined,{numeric:true,sensitivity:"base"}));
+
+    // Merge records for aliases per learner. The selected/display alias is
+    // applied last so its value wins only where duplicate subject keys exist;
+    // subjects present in any alias remain available to all report sections.
+    students.forEach(student=>{
+      orderedGroups.forEach(group=>{
+        const aliases=group.aliases.slice().sort((a,b)=>a===group.display?1:b===group.display?-1:0);
+        const merged={};
+        aliases.forEach(alias=>{
+          const record=student.marks?.[alias];
+          if(record && typeof record==="object") Object.assign(merged,record);
+        });
+        if(Object.keys(merged).length) student.marks[group.display]=merged;
+      });
+    });
+
+    const orderedPeriods=orderedGroups.map(g=>g.display);
+    let targetGroup=orderedGroups.find(g=>g.key===selectedCanonical);
+    if(!targetGroup) targetGroup=orderedGroups[orderedGroups.length-1];
+    if(!targetGroup) throw new Error("No examination was found. Please load an examination first.");
+
+    // Keep every grade in the school in these reports. Grade selectors elsewhere
+    // in the app must never filter the whole-school analysis roster.
+    const gradeCandidates = [
+      document.getElementById("gradeFilter")?.value,
+      document.getElementById("filterGrade")?.value,
+      document.getElementById("checkResultsGrade")?.value,
+      window.reportContext?.grade,
+      document.getElementById("gradeSelect")?.value
+    ].map(value => String(value || "").trim()).filter(Boolean);
+    const selectedGrade = gradeCandidates.find(value => {
+      const n = gradeNoX(value);
+      return n !== null && n >= 1 && n <= 12;
+    }) || "";
+    const selectedGradeNo = gradeNoX(selectedGrade);
+    let activeBand = "All Grades";
+    if (selectedGradeNo !== null && selectedGradeNo >= 1 && selectedGradeNo <= 3) activeBand = "Grades 1–3";
+    else if (selectedGradeNo !== null && selectedGradeNo >= 4 && selectedGradeNo <= 6) activeBand = "Grades 4–6";
+    else if (selectedGradeNo !== null && selectedGradeNo >= 7 && selectedGradeNo <= 9) activeBand = "Grades 7–9";
+    else if (selectedGradeNo !== null && selectedGradeNo >= 10 && selectedGradeNo <= 12) activeBand = "Grades 10–12";
+
+    const targetIndex=orderedGroups.findIndex(g=>g.key===targetGroup.key);
+    // Select the target exam and at most one genuinely earlier distinct exam.
+    const selectedGroups=orderedGroups.slice(Math.max(0,targetIndex-1),targetIndex+1);
+    const termData=selectedGroups.map(g=>({
+      key:g.key,
+      label:g.display,
+      period:g.display
     }));
     termData.forEach(t=>t.stats=overallX(students,t.period));
     const current=termData[termData.length-1], previous=termData.length>1?termData[termData.length-2]:null;
-    return {students,termData,current,previous,old:null};
+    return {students,termData,current,previous,old:null,activeBand,selectedGrade,periodAliasGroups:orderedGroups.map(g=>({period:g.display,aliases:g.aliases.slice()}))};
   }
 
   function buildSeparateAnalysisX(data){
-    const {students,termData,current,previous}=data;
+    const {students,termData,current,previous,activeBand="All Grades",selectedGrade=""}=data;
     const allRows=current.stats.rows;
     const prevRows=previous?previous.stats.rows:[];
     const prevMap=Object.fromEntries(prevRows.map(x=>[x.id,x]));
@@ -136895,35 +136579,49 @@ function rasmCanonicalSubjectName(value, gradeValue = ""){
 
     /* WHOLE SCHOOL */
     const wholeBody=`
-      <div class="rasm-report-meta"><b>Current examination:</b> ${escX(current.period)} &nbsp; | &nbsp; <b>Previous:</b> ${escX(previous?.period||"Not available")}</div>
+      <div class="rasm-report-meta"><b>Report scope:</b> All grades (grade-wise breakdowns included)${selectedGrade ? " · selected grade filter: "+escX(selectedGrade)+" (not used to hide other grades)" : ""}<br><b>Current examination:</b> ${escX(current.period)} &nbsp; | &nbsp; <b>Previous:</b> ${escX(previous?.period||"Not available")}</div>
       <div class="rasm-report-cards">
-        <div><b>Current School Average</b><strong>${pctX(current.stats.avg)}</strong></div>
-        <div><b>Learners Analysed</b><strong>${current.stats.count}</strong><small>of ${enrolled}</small></div>
-        <div><b>School Deviation</b><strong>${schoolDeviation===null?"—":devHtmlX(schoolDeviation)}</strong><small>${statusX(schoolDeviation)}</small></div>
-        <div><b>Coverage</b><strong>${enrolled?pctX(current.stats.count/enrolled*100):"—"}</strong></div>
+        <div><b>Current Whole-School Average</b><strong>${current.stats.count?pctX(current.stats.avg):"No current marks"}</strong><small>${current.stats.count} learners with recorded marks</small></div>
+        <div><b>Previous Whole-School Average</b><strong>${previous && previous.stats.count ? pctX(previous.stats.avg) : "No previous marks"}</strong><small>${previous ? escX(previous.period) + " · " + previous.stats.count + " learners" : "No earlier examination found"}</small></div>
+        <div><b>Learners Analysed</b><strong>${current.stats.count}</strong><small>of ${enrolled} learners in this report scope</small></div>
+        <div><b>Deviation</b><strong>${schoolDeviation===null?"—":devHtmlX(schoolDeviation)}</strong><small>${statusX(schoolDeviation)}</small></div>
       </div>
       <table class="rasm-report-table"><thead><tr><th>Examination</th><th>Learners</th><th>Average</th><th>Deviation</th><th>Interpretation</th></tr></thead><tbody>
         ${termData.map((t,i)=>{
           const prev= i>0?termData[i-1].stats:null;
           const d=prev?t.stats.avg-prev.avg:null;
-          return `<tr><td><b>${escX(t.label)}</b><br><small>${escX(t.period)}</small></td><td>${t.stats.count}</td><td>${pctX(t.stats.avg)}</td><td>${devHtmlX(d)}</td><td>${escX(statusX(d))}</td></tr>`;
+          return `<tr><td><b>${escX(t.label)}</b><br><small>${escX(t.period)}</small></td><td>${t.stats.count}</td><td>${t.stats.count ? pctX(t.stats.avg) : "— (no recorded marks)"}</td><td>${devHtmlX(d)}</td><td>${escX(statusX(d))}</td></tr>`;
         }).join("")}
       </tbody></table>
       <div class="rasm-analysis-note"><b>Whole-school interpretation:</b> ${schoolDeviation===null?"A previous comparable examination is not available.":schoolDeviation>0.05?`The school average has improved by ${schoolDeviation.toFixed(1)} percentage points.`:schoolDeviation<-0.05?`The school average has declined by ${Math.abs(schoolDeviation).toFixed(1)} percentage points.`:"The school average shows no significant change."}</div>
     `;
 
     /* GRADE COMPARISON */
-    const gradeSet=[...new Set(students.map(s=>String(s.grade||"").trim()).filter(Boolean))].sort(gradeSortX);
+    const gradeLabels = new Map();
+    // Build the grade list from the actual current-period mark records, not
+    // only from learners whose overall average passed a separate calculation.
+    students.forEach(student=>{
+      const marks=student.marks?.[current.period];
+      if(!marks || typeof marks!=="object") return;
+      const g=String(marks.grade||student.grade||"").trim();
+      const key=gradeKeyX(g);
+      if(key && !gradeLabels.has(key)) gradeLabels.set(key,g);
+    });
+    const gradeSet=[...gradeLabels.values()].sort(gradeSortX);
     const gradeRows=gradeSet.map(g=>{
-      const c=learnerRowsX(students,current.period).filter(x=>String(x.grade)===String(g));
-      const p=previous?learnerRowsX(students,previous.period).filter(x=>String(x.grade)===String(g)):[];
+      const c=learnerRowsX(students,current.period).filter(x=>gradeKeyX(x.grade)===gradeKeyX(g));
+      const p=previous?learnerRowsX(students,previous.period).filter(x=>gradeKeyX(x.grade)===gradeKeyX(g)):[];
       const ca=c.length?c.reduce((a,b)=>a+b.avg,0)/c.length:null;
       const pa=p.length?p.reduce((a,b)=>a+b.avg,0)/p.length:null;
+      const recordedLearners=students.filter(student=>{
+        const marks=student.marks?.[current.period];
+        return marks && gradeKeyX(marks.grade||student.grade||"")===gradeKeyX(g);
+      }).length;
       const d=ca!==null&&pa!==null?ca-pa:null;
-      return {g,c,p,ca,pa,d};
-    }).filter(x=>x.ca!==null);
+      return {g,c,p,ca,pa,d,recordedLearners};
+    });
     const gradeBody=`<table class="rasm-report-table"><thead><tr><th>Grade</th><th>Current Average</th><th>Previous Average</th><th>Deviation</th><th>Direction</th><th>Learners</th></tr></thead><tbody>
-      ${gradeRows.map(x=>`<tr><td><b>${escX(x.g)}</b></td><td>${pctX(x.ca)}</td><td>${pctX(x.pa)}</td><td>${devHtmlX(x.d)}</td><td class="${x.d>0.05?"dev-positive":x.d<-0.05?"dev-negative":""}">${escX(statusX(x.d))}</td><td>${x.c.length}</td></tr>`).join("") || `<tr><td colspan="6">No grade data available.</td></tr>`}
+      ${gradeRows.map(x=>`<tr><td><b>${escX(x.g)}</b></td><td>${pctX(x.ca)}</td><td>${pctX(x.pa)}</td><td>${devHtmlX(x.d)}</td><td class="${x.d>0.05?"dev-positive":x.d<-0.05?"dev-negative":""}">${escX(statusX(x.d))}</td><td>${x.recordedLearners || x.c.length}</td></tr>`).join("") || `<tr><td colspan="6">No grade data available.</td></tr>`}
     </tbody></table>
     <div class="rasm-analysis-note"><b>Deviation rule:</b> Positive = improvement; Negative = decline; 0.0 = no change. Deviation is calculated as Current Average − Previous Average.</div>`;
 
@@ -142534,147 +142232,90 @@ html,body,#app,.main{
   };
 
   window.deleteSelectedLearnersMarks=async function(){
-    const examPeriod=document.getElementById("resultsExamPeriod")?.value;
+    const examPeriod=String(document.getElementById("resultsExamPeriod")?.value||"").trim();
     if(!examPeriod) return Swal.fire("Select Exam Period","Please select an exam period first.","warning");
     const selected=[...document.querySelectorAll(".learnerCheckbox:checked")];
     if(!selected.length) return Swal.fire("No learners selected","Select one or more learners first.","info");
-    const ok=await Swal.fire({title:"Delete selected learner marks now?",html:`<b>${selected.length}</b> learner(s)' marks for this exam period will be removed immediately from active records and saved individually to the Recycle Bin.`,icon:"warning",showCancelButton:true,confirmButtonText:"Delete selected marks",cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"});
-    if(!ok.isConfirmed) return;
     const schoolId=getSchoolId();
-    const requested=typeof normalizeExamPeriod==="function"?normalizeExamPeriod(examPeriod):String(examPeriod).trim();
-    try{
-      Swal.fire({title:"Deleting Selected Marks...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
-      let removedCount=0;
-      for(const cb of selected){
-        const studentId=String(cb.value||""); if(!studentId) continue;
-        const studentPath=`schools/${schoolId}/students/${studentId}`;
-        const studentSnap=await fastGet(ref(db,studentPath));
-        const periods=studentSnap.exists()?Object.keys(studentSnap.val()?.marks||{}):[];
-        const matching=periods.filter(key=>{
-          const normalized=typeof normalizeExamPeriod==="function"?normalizeExamPeriod(key):String(key).trim();
-          return normalized.toLowerCase()===requested.toLowerCase();
-        });
-        for(const periodKey of matching){
-          const path=`${studentPath}/marks/${periodKey}`;
-          const snap=await fastGet(ref(db,path));
-          if(snap.exists()) await saveRecycleRecord("examResults",path,snap.val(),`${studentId}_${periodKey}`);
-          await remove(ref(db,path)); removedCount++;
+    if(!schoolId) return Swal.fire("School ID Missing","Please sign in again and retry.","error");
+    const normalizePeriodKey=value=>String(typeof normalizeExamPeriod==="function"?normalizeExamPeriod(value):value||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    const requested=normalizePeriodKey(examPeriod);
+    const metadataKeys=new Set(["schoolid","name","grade","updatedat","createdat","timestamp","average","total","points","rank","position","examperiod","createdby","recordedby","id","uid","studentid","learnerid"]);
+    const hasRecordedScores=marks=>{
+      if(!marks || typeof marks!=="object") return false;
+      return Object.entries(marks).some(([key,value])=>{
+        const k=String(key).toLowerCase().replace(/[^a-z0-9]/g,"");
+        if(metadataKeys.has(k) || /^\d+$/.test(k)) return false;
+        if(value===null || value===undefined || value==="") return false;
+        if(typeof value==="object"){
+          for(const field of ["score","mark","marks","value","percentage"]){
+            const v=value[field];
+            if(v!==null && v!==undefined && String(v).trim()!=="" && Number.isFinite(Number(v))) return true;
+          }
+          return false;
         }
+        return Number.isFinite(Number(value)) && String(value).trim()!=="";
+      });
+    };
+    const confirm=await Swal.fire({title:"Delete selected learner marks?",html:`Check the <b>${selected.length}</b> selected learner(s) and delete only those who have recorded scores for <b>${examPeriod.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</b>. Learners without scores will be skipped.`,icon:"warning",showCancelButton:true,confirmButtonText:"Delete Existing Marks",cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"});
+    if(!confirm.isConfirmed) return;
+    try{
+      Swal.fire({title:"Checking selected marks...",html:`<div id="rasmSelectedMarksDeleteProgress">Checking 0 of ${selected.length} learners...</div>`,allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+      const updates={};
+      const recycleTasks=[];
+      let learnersWithMarks=0, skipped=0, markValueCount=0, checked=0;
+      for(const cb of selected){
+        const studentId=String(cb.value||"");
+        if(!studentId){skipped++;continue;}
+        const studentPath=`schools/${schoolId}/students/${studentId}`;
+        const studentSnap=await window.fastGet(ref(db,studentPath));
+        const student=studentSnap.exists()?(studentSnap.val()||{}):null;
+        const marksByPeriod=student?.marks||{};
+        const matchingPeriods=Object.keys(marksByPeriod).filter(key=>normalizePeriodKey(key)===requested);
+        let learnerHasMarks=false;
+        for(const periodKey of matchingPeriods){
+          const periodMarks=marksByPeriod[periodKey];
+          if(!hasRecordedScores(periodMarks)) continue;
+          learnerHasMarks=true;
+          const count=Object.entries(periodMarks).filter(([key,value])=>{
+            const k=String(key).toLowerCase().replace(/[^a-z0-9]/g,"");
+            return !metadataKeys.has(k) && !/^\d+$/.test(k) && value!==null && value!==undefined && value!=="";
+          }).length;
+          markValueCount+=count;
+          const path=`${studentPath}/marks/${periodKey}`;
+          updates[`schools/${schoolId}/students/${studentId}/marks/${periodKey}`]=null;
+          if(typeof window.saveRecycleRecord==="function"){
+            recycleTasks.push(Promise.resolve().then(()=>window.saveRecycleRecord("examResults",path,periodMarks,`${studentId}_${periodKey}`)).catch(err=>console.warn("Marks recycle backup failed; deletion continues",err)));
+          }
+        }
+        if(learnerHasMarks) learnersWithMarks++; else skipped++;
+        checked++;
+        const progress=document.getElementById("rasmSelectedMarksDeleteProgress");
+        if(progress) progress.textContent=`Checked ${checked} of ${selected.length} learners — ${learnersWithMarks} with marks found`;
       }
-      try{await window.loadMarksUnifiedClean?.();}catch(_){}
+      if(!Object.keys(updates).length){
+        Swal.close();
+        return Swal.fire({icon:"info",title:"No Existing Marks Found",html:`None of the <b>${selected.length}</b> selected learners has recorded scores for <b>${examPeriod.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</b>. Nothing was deleted. If scores are visible, refresh Loaded Marks and try again.`});
+      }
+      const progress=document.getElementById("rasmSelectedMarksDeleteProgress");
+      if(progress) progress.textContent=`Deleting ${learnersWithMarks} learner mark record(s)...`;
+      if(typeof window.update!=="function") throw new Error("Firebase update helper is unavailable. Please reload the page and try again.");
+      await window.update(ref(db),updates);
+      // Recycle backups are secondary; don't make the UI wait on them.
+      Promise.allSettled(recycleTasks).catch(()=>{});
+      try{await window.loadMarksUnifiedClean?.();}catch(e){console.warn("Marks refresh failed after deletion",e);}
       Swal.close();
-      await Swal.fire("Marks Deleted",`${removedCount} learner exam-mark record(s) have been removed from active records.`,"success");
+      await Swal.fire({icon:"success",title:"Existing Marks Deleted",html:`Deleted marks for <b>${learnersWithMarks}</b> learner(s).<br>Skipped learners without scores: <b>${skipped}</b>.<br>Recorded mark values found: <b>${markValueCount}</b>.`,confirmButtonColor:"#15803d"});
     }catch(error){
       Swal.close();
-      Swal.fire("Delete Failed",error.message||"Selected learner marks were not deleted.","error");
+      console.error("Selected learner marks deletion failed",error);
+      Swal.fire("Delete Failed",error?.message||"Selected learner marks were not deleted.","error");
     }
   };
 
   // Subject deletion: preserves the subject only, for each learner
   // in the selected grade and exam. It does NOT restore/delete other subjects.
-  window.deleteClassSubjectMarks=async function(){
-    const examPeriod=typeof normalizeExamPeriod==="function"
-      ? normalizeExamPeriod(document.getElementById("resultsExamPeriod")?.value)
-      : String(document.getElementById("resultsExamPeriod")?.value||"").trim();
-    if(!examPeriod) return Swal.fire("Select Exam Period","Please select an exam period first.","warning");
-
-    const learners=window.currentFilteredLearners||[];
-    if(!learners.length) return Swal.fire("No Learners Loaded","Please load marks first.","info");
-
-    const grades=[...new Set(learners.map(l=>String(l.grade||"").trim()).filter(Boolean))].sort();
-    const gradeOptions=grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("");
-
-    let subjects=[...(window.schoolSubjects||[])].filter(Boolean).sort();
-    if(!subjects.length){
-      const setSubjects=new Set();
-      learners.forEach(l=>{
-        Object.keys(l.marks?.[examPeriod]||{}).forEach(k=>{
-          if(!["total","average","mean","grade","points","position","rank","stream"].includes(k)) setSubjects.add(k);
-        });
-      });
-      subjects=[...setSubjects].sort();
-    }
-    if(!subjects.length) return Swal.fire("No Subjects","No recorded subjects found.","info");
-
-    const subjectOptions=subjects.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
-
-    const {value}=await Swal.fire({
-      title:"🗑 Move Subject Marks to Recycle Bin",
-      html:`<div style="text-align:left">
-        <label><b>Select Grade</b></label>
-        <select id="rasmRBGrade" class="swal2-select" style="width:100%">${gradeOptions}</select>
-        <label><b>Select Subject</b></label>
-        <select id="rasmRBSubject" class="swal2-select" style="width:100%">${subjectOptions}</select>
-      </div>`,
-      showCancelButton:true,confirmButtonText:"Continue",
-      cancelButtonText:"Cancel",confirmButtonColor:"#f59e0b",
-      preConfirm:()=>({
-        grade:document.getElementById("rasmRBGrade")?.value,
-        subject:document.getElementById("rasmRBSubject")?.value
-      })
-    });
-    if(!value) return;
-
-    const gradeLearners=learners.filter(l=>String(l.grade||"").trim()===value.grade);
-    const confirm=await Swal.fire({
-      title:"Move subject marks?",
-      html:`<b>${esc(value.subject)}</b> marks for <b>${gradeLearners.length}</b> learner(s) in <b>${esc(value.grade)}</b> will be moved to the Recycle Bin.<br>
-            <span style="color:#16a34a;font-weight:700">Each learner's subject mark will be restored separately.</span>`,
-      icon:"warning",showCancelButton:true,
-      confirmButtonText:"🗑 Move to Recycle Bin",
-      cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"
-    });
-    if(!confirm.isConfirmed) return;
-
-    const schoolId=getSchoolId();
-    try{
-      Swal.fire({title:"Moving Subject Marks...",allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
-      let moved=0;
-      const normalizeSub = raw => String(raw||"").trim().toLowerCase().replace(/[^a-z0-9]/g,"");
-      const canonicalSub = raw => {
-        const key=normalizeSub(raw);
-        const aliases={eng:"english",english:"english",math:"mathematics",maths:"mathematics",mathematics:"mathematics",kiswa:"kiswahili",kisw:"kiswahili",kiswahili:"kiswahili",cre:"christianreligiouseducation",religiouseducation:"christianreligiouseducation",christianreligiouseducation:"christianreligiouseducation",agric:"agriculture",agriculture:"agriculture",integratedscience:"integratedscience",science:"integratedscience",social:"socialstudies",socialstudies:"socialstudies",creativeart:"creativearts",creativearts:"creativearts",pretech:"pretechnicalstudies",pretechnical:"pretechnicalstudies",pretechnicalstudies:"pretechnicalstudies"};
-        return aliases[key]||key;
-      };
-      for(const learner of gradeLearners){
-        if(!learner.id) continue;
-        const studentPath=`schools/${schoolId}/students/${learner.id}`;
-        const studentSnap=await fastGet(ref(db,studentPath));
-        const periods=studentSnap.exists()?Object.keys(studentSnap.val()?.marks||{}):[];
-        const matchingPeriods=periods.filter(periodKey=>{
-          const normalized=typeof normalizeExamPeriod==="function"?normalizeExamPeriod(periodKey):String(periodKey).trim();
-          return normalized.toLowerCase()===String(examPeriod).toLowerCase();
-        });
-        for(const periodKey of matchingPeriods){
-          const periodPath=`${studentPath}/marks/${periodKey}`;
-          const periodSnap=await fastGet(ref(db,periodPath));
-          if(!periodSnap.exists()) continue;
-          const periodMarks=periodSnap.val()||{};
-          const target=canonicalSub(value.subject);
-          const keysToDelete=Object.keys(periodMarks).filter(key=>{
-            if(isMarksMetadataField(key)) return false;
-            const exact=canonicalSub(key)===target;
-            // Support legacy compound keys that explicitly store CRE as a component.
-            const creComponent=target==="christianreligiouseducation" && /(?:^|[—–-])\s*(?:cre|religious\s*education|christian\s*religious\s*education)\s*$/i.test(key);
-            return exact || creComponent;
-          });
-          for(const subjectKey of keysToDelete){
-            const path=`${periodPath}/${subjectKey}`;
-            const snap=await fastGet(ref(db,path));
-            if(snap.exists()) await saveRecycleRecord("examResults",path,snap.val(),`${learner.id}_${periodKey}_${subjectKey}`);
-            await remove(ref(db,path)); moved++;
-          }
-        }
-      }
-      Swal.close();
-      // Reload from Firebase so deleted values disappear from Loaded Marks and reports immediately.
-      try{await window.loadMarksUnifiedClean?.();}catch(_){}
-      Swal.fire("Subject Marks Deleted",`${moved} subject mark record(s) have been removed from active marks and placed in the Recycle Bin.`,"success");
-    }catch(error){
-      Swal.close();
-      Swal.fire("Delete Failed",error.message||"Subject marks were not deleted.","error");
-    }
-  };
+  /* Older duplicate deleteClassSubjectMarks implementation removed; the final implementation is defined at the end of this file. */
 
   // ---------------------------------------------------------
   // 4. Recycle Bin access buttons in every requested section.
@@ -152661,8 +152302,15 @@ ${headerHtml}
   }
   function isGrade13(grade) { const n = gradeNumber(grade); return n >= 1 && n <= 3; }
   function normalizedPeriod() {
-    const raw = $("examPeriod")?.value || "";
-    return typeof window.normalizeExamPeriod === "function" ? window.normalizeExamPeriod(raw) : raw.trim();
+    const select = $("examPeriod");
+    const raw = String(select?.value || select?.selectedOptions?.[0]?.textContent || "").trim();
+    return typeof window.normalizeExamPeriod === "function" ? window.normalizeExamPeriod(raw) : raw;
+  }
+  function periodMatchKey(value) {
+    return String(typeof window.normalizeExamPeriod === "function" ? window.normalizeExamPeriod(value) : (value || "")).toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+  function gradeMatchKey(value) {
+    return String(value || "").trim().replace(/^GRADE\s*/i, "").replace(/\s+/g, " ").toLowerCase();
   }
   function paperMaximum() {
     const select = $("marksPaperOutOf");
@@ -152718,10 +152366,21 @@ ${headerHtml}
     const seen = new Set();
     if (isGrade13(grade)) {
       const grade13 = [
-        ["English — Listening","English · Listening"],["English — Reading","English · Reading"],["English — Writing","English · Writing"],["English — Grammar","English · Grammar"],
-        ["Kiswahili — Kusikiliza","Kiswahili · Kusikiliza"],["Kiswahili — Kusoma","Kiswahili · Kusoma"],["Kiswahili — Kuandika","Kiswahili · Kuandika"],["Kiswahili — Sarufi","Kiswahili · Sarufi"],
-        ["Environmental and CRE — Environmental","Environmental and CRE · Environmental"],["Environmental and CRE — CRE","Environmental and CRE · CRE"],
-        ["Mathematics","Mathematics"],["Creative Arts","Creative Arts"]
+        ["English","English"],
+        ["English — Listening","English · Listening"],
+        ["English — Reading","English · Reading"],
+        ["English — Writing","English · Writing"],
+        ["English — Grammar","English · Grammar"],
+        ["Kiswahili","Kiswahili"],
+        ["Kiswahili — Kusikiliza","Kiswahili · Kusikiliza"],
+        ["Kiswahili — Kusoma","Kiswahili · Kusoma"],
+        ["Kiswahili — Kuandika","Kiswahili · Kuandika"],
+        ["Kiswahili — Sarufi","Kiswahili · Sarufi"],
+        ["Environmental and CRE","Environmental and CRE"],
+        ["Environmental and CRE — Environmental","Environmental and CRE · Environmental"],
+        ["Environmental and CRE — CRE","Environmental and CRE · CRE"],
+        ["Mathematics","Mathematics"],
+        ["Creative Arts","Creative Arts"]
       ];
       grade13.forEach(([value,label]) => { if (!seen.has(value)) { seen.add(value); options.push({value,label}); } });
       if (select) [...select.options].forEach(option => {
@@ -152769,11 +152428,14 @@ ${headerHtml}
   }
   function updateStats() {
     const wrap = $("rasmBulkStats"); if (!wrap) return;
-    let filled = 0, saved = 0;
+    let filled = 0, saved = 0, missing = 0, learnersWithMissing = new Set();
     panel().querySelectorAll(".rasm-score-input").forEach(input => { if (input.value.trim() !== "") filled++; });
-    state.learners.forEach(learner => state.subjects.forEach(subject => { if (currentMark(learner, subject.value) !== null) saved++; }));
+    state.learners.forEach(learner => state.subjects.forEach(subject => {
+      if (currentMark(learner, subject.value) !== null) saved++;
+      else { missing++; learnersWithMissing.add(learner.key); }
+    }));
     wrap.innerHTML = [
-      ["Learners in class",state.learners.length],["Selected subjects",state.subjects.length],["Scores entered",filled],["Existing marks",saved]
+      ["Learners in class",state.learners.length],["Selected subjects",state.subjects.length],["Scores entered",filled],["Existing marks",saved],["Missing learner-subject marks",missing],["Learners with missing marks",learnersWithMissing.size]
     ].map(([label,value]) => `<div class="rasm-excel-stat"><span>${label}</span><b>${value}</b></div>`).join("");
     state.subjects.forEach(subject => {
       const tab = panel().querySelector(`[data-bulk-tab="${CSS.escape(subject.value)}"] .rasm-tab-count`);
@@ -152795,7 +152457,7 @@ ${headerHtml}
     panels.innerHTML = state.subjects.map(subject => {
       const rows = state.learners.map((learner,index) => {
         const existing = currentMark(learner,subject.value);
-        return `<tr><td>${index+1}</td><td><b>${esc(learner.name || "Unknown Learner")}</b></td><td>${esc(learner.grade || state.grade)}</td><td class="${existing===null?'rasm-current-empty':'rasm-current-mark'}">${existing===null?'—':`${existing}% saved`}</td><td><input type="number" class="rasm-score-input" data-bulk-score="1" data-learner-key="${esc(learner.key)}" data-subject-key="${esc(subject.value)}" min="1" max="100" step="1" inputmode="numeric" autocomplete="off" aria-label="${esc(subject.label)} score for ${esc(learner.name)}" placeholder="1–100" ${subject.value!==state.activeSubject?'tabindex="-1"':''}></td></tr>`;
+        return `<tr><td>${index+1}</td><td><b>${esc(learner.name || "Unknown Learner")}</b></td><td>${esc(learner.grade || state.grade)}</td><td class="${existing===null?'rasm-current-empty':'rasm-current-mark'}">${existing===null?'<b style="color:#b45309">Missing</b>':`${existing}% saved`}</td><td><input type="number" class="rasm-score-input" data-bulk-score="1" data-learner-key="${esc(learner.key)}" data-subject-key="${esc(subject.value)}" min="1" max="100" step="1" inputmode="numeric" autocomplete="off" aria-label="${esc(subject.label)} score for ${esc(learner.name)}" placeholder="1–100" ${subject.value!==state.activeSubject?'tabindex="-1"':''}></td></tr>`;
       }).join("");
       return `<section class="rasm-excel-tab-panel" data-bulk-panel="${esc(subject.value)}" ${subject.value!==state.activeSubject?'hidden':''}><div class="rasm-excel-table-scroll"><table class="rasm-excel-entry-table"><thead><tr><th style="width:60px">No.</th><th>Learner Name</th><th>Grade</th><th>Previously Saved</th><th>Score / ${max}</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No learners found for this grade.</td></tr>'}</tbody></table></div></section>`;
     }).join("");
@@ -152828,13 +152490,11 @@ ${headerHtml}
     try {
       const snapshot = await fastGet(ref(db, `schools/${schoolId}/students`));
       const learners = [];
-      const normalizeGradeForMarks = value => String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
-      const normalizePeriodForMarks = value => (typeof window.normalizeExamPeriod === "function" ? window.normalizeExamPeriod(value) : String(value || "").trim().replace(/\s+/g, "")).toLowerCase();
       snapshot.forEach(child => {
         const data = child.val() || {};
-        if (normalizeGradeForMarks(data.grade) !== normalizeGradeForMarks(grade)) return;
+        if (gradeMatchKey(data.grade) !== gradeMatchKey(grade)) return;
         const marksByPeriod = data.marks && typeof data.marks === "object" ? data.marks : {};
-        const matchingPeriodKeys = Object.keys(marksByPeriod).filter(key => normalizePeriodForMarks(key) === normalizePeriodForMarks(examPeriod));
+        const matchingPeriodKeys = Object.keys(marksByPeriod).filter(key => periodMatchKey(key) === periodMatchKey(examPeriod));
         // Merge every stored key that normalizes to the selected exam. Older records
         // may use a different spacing/punctuation form, and selecting only the first
         // match can hide recorded scores from the loaded table.
@@ -152870,6 +152530,7 @@ ${headerHtml}
     if ($("rasmBulkWorkspace")) $("rasmBulkWorkspace").style.display = "none";
     syncContext();
   }
+  window.refreshRasmMarksSubjectChoices = renderSubjectChoices;
   function clearGrid() {
     panel().querySelectorAll(".rasm-score-input").forEach(input => { input.value = ""; input.classList.remove("invalid"); });
     updateStats();
@@ -152917,34 +152578,25 @@ ${headerHtml}
     }
     const totalScores = [...byLearner.values()].reduce((n,item)=>n+Object.keys(item.values).length,0);
 
-    // Preflight the exact grade/period records before writing. If a score
-    // already exists for any entered subject, require explicit overwrite consent.
+    // Reuse the exact grade/exam-period marks already loaded for this class.
+    // Do not issue one extra Firebase read per learner before saving.
     const existingMarks = [];
-    try {
-      for (const [learnerKey, item] of byLearner.entries()) {
-        const path = `schools/${schoolId}/students/${learnerKey}/marks/${examPeriod}`;
-        const snap = await fastGet(ref(db, path));
-        const saved = snap && typeof snap.val === "function" ? (snap.val() || {}) : {};
-        Object.keys(item.values).forEach(subjectKey => {
-          const oldValue = saved[subjectKey];
-          if (oldValue !== undefined && oldValue !== null && String(oldValue).trim() !== "" && Number.isFinite(Number(oldValue))) {
-            existingMarks.push({
-              learner: item.learner?.name || learnerKey,
-              subject: subjectKey,
-              oldValue,
-              newValue: item.values[subjectKey]
-            });
-          }
-        });
-      }
-    } catch (checkError) {
-      console.error("Could not verify existing marks before saving:", checkError);
-      if (window.Swal) await Swal.fire({
-        icon: "error",
-        title: "Could not check existing marks",
-        text: "No marks were saved. Please check your connection and try again so existing scores are not overwritten accidentally."
+    for (const [learnerKey, item] of byLearner.entries()) {
+      const saved = item.learner?.marks && typeof item.learner.marks === "object" ? item.learner.marks : {};
+      Object.keys(item.values).forEach(subjectKey => {
+        const targetNorm = subjectKeyNorm(subjectKey);
+        const existingKey = Object.keys(saved).find(key =>
+          subjectKeyNorm(key) === targetNorm &&
+          !(typeof window.isMarksMetadataField === "function" && window.isMarksMetadataField(key))
+        );
+        const oldValue = existingKey === undefined ? undefined : saved[existingKey];
+        const oldNumeric = oldValue && typeof oldValue === "object"
+          ? (typeof window.getNumericRecordedValue === "function" ? window.getNumericRecordedValue(oldValue) : null)
+          : Number(oldValue);
+        if (existingKey !== undefined && oldValue !== null && oldValue !== undefined && String(oldValue).trim() !== "" && (Number.isFinite(oldNumeric) || typeof oldValue === "object")) {
+          existingMarks.push({ learnerKey, learner: item.learner?.name || learnerKey, subject: subjectKey, existingKey, oldValue, newValue: item.values[subjectKey] });
+        }
       });
-      return;
     }
 
     if (existingMarks.length) {
@@ -152983,24 +152635,41 @@ ${headerHtml}
     let savedLearners = 0, failedLearners = 0, savedScores = 0; const failures = [];
     const items = [...byLearner.entries()];
     try {
-      for (let i=0;i<items.length;i++) {
-        const [learnerKey,item] = items[i];
-        try {
-          const path = `schools/${schoolId}/students/${learnerKey}/marks/${examPeriod}`;
-          const payload = {...item.values,schoolId,name:item.learner?.name || "Unknown Learner",grade:item.learner?.grade || grade,updatedAt:Date.now()};
-          await update(ref(db,path),payload);
-          savedLearners++; savedScores += Object.keys(item.values).length;
-          // Update local marks immediately so saved status and counters are accurate.
+      // Build a single multi-location update so the browser does not wait for
+      // one Firebase round-trip per learner. Each marks record remains at its
+      // existing path and includes the same values/metadata as before.
+      const batchUpdates = {};
+      items.forEach(([learnerKey, item], index) => {
+        const path = `${learnerKey}/marks/${examPeriod}`;
+        const payload = {...item.values,schoolId,name:item.learner?.name || "Unknown Learner",grade:item.learner?.grade || grade,updatedAt:Date.now()};
+        existingMarks.filter(mark => String(mark.learnerKey) === String(learnerKey)).forEach(mark => {
+          if (mark.existingKey && mark.existingKey !== mark.subject && Object.prototype.hasOwnProperty.call(payload, mark.subject)) {
+            payload[mark.existingKey] = null;
+          }
+        });
+        batchUpdates[path] = payload;
+        const percent = Math.round(((index+1)/items.length)*100);
+        if (progressBar) progressBar.style.width = percent + "%";
+        if (status) status.textContent = `Preparing marks for learner ${index+1} of ${items.length} · ${percent}%`;
+      });
+
+      if (status) status.textContent = `Saving ${totalScores} scores for ${items.length} learners…`;
+      try {
+        await window.update(ref(db, `schools/${schoolId}/students`), batchUpdates);
+        savedLearners = items.length;
+        savedScores = totalScores;
+        items.forEach(([learnerKey, item]) => {
           item.learner.marks = {...(item.learner.marks || {}),...item.values};
           panel().querySelectorAll(`.rasm-score-input[data-learner-key="${CSS.escape(learnerKey)}"]`).forEach(input => {
             if (input.value.trim() !== "") { input.dataset.justSaved = "1"; input.classList.remove("invalid"); }
           });
-        } catch (error) {
-          failedLearners++; failures.push(`${item.learner?.name || learnerKey}: ${error?.message || "write failed"}`);
-        }
-        const percent = Math.round(((i+1)/items.length)*100);
-        if (progressBar) progressBar.style.width = percent+"%";
-        if (status) status.textContent = `Saving learner ${i+1} of ${items.length} · ${percent}%`;
+        });
+        if (progressBar) progressBar.style.width = "100%";
+        if (status) status.textContent = `Saved ${savedScores} scores for ${savedLearners} learners · 100%`;
+      } catch (error) {
+        failedLearners = items.length;
+        failures.push(error?.message || "Firebase batch update failed");
+        console.error("RASM bulk marks batch save failed:", error);
       }
       // Clear only cells confirmed saved; leave failed learner entries available for retry.
       panel().querySelectorAll('.rasm-score-input[data-just-saved="1"]').forEach(input => { input.value=""; delete input.dataset.justSaved; });
@@ -153011,9 +152680,7 @@ ${headerHtml}
         const resultsPeriod = $("resultsExamPeriod");
         if (resultsPeriod) {
           const matchingPeriodOption = [...resultsPeriod.options].find(option =>
-            typeof window.normalizeExamPeriod === "function"
-              ? window.normalizeExamPeriod(option.value) === examPeriod
-              : String(option.value || "").trim() === examPeriod
+            periodMatchKey(option.value) === periodMatchKey(examPeriod) || periodMatchKey(option.textContent) === periodMatchKey(examPeriod)
           );
           if (matchingPeriodOption) resultsPeriod.value = matchingPeriodOption.value;
           else if (resultsPeriod.options.length) {
@@ -153079,24 +152746,41 @@ ${headerHtml}
       const checkbox = event.target;
       const value = checkbox.value;
       const candidate = subjectCandidates().find(item => item.value === value);
-      if (checkbox.checked && candidate && !state.subjects.some(item => item.value === value)) {
-        const savedCount = state.lastLoaded ? savedScoreCount(value) : 0;
-        if (savedCount > 0) {
+      if (checkbox.checked && candidate) {
+        const requestedGrade = $("gradeSelect")?.value || "";
+        const requestedPeriod = normalizedPeriod();
+        if (!requestedGrade || !requestedPeriod) {
           checkbox.checked = false;
-          const choice = window.Swal ? await Swal.fire({
-            icon:"warning", title:"Subject scores already exist",
-            html:`<b>${esc(candidate.label)}</b> already has recorded scores for <b>${esc(state.grade)}</b> in this exam period (<b>${savedCount}</b> learner score(s)).<br><br>To avoid entering duplicates, select another subject to proceed. If you need to reuse these records, choose <b>Copy previously saved scores</b>.`,
-            showCancelButton:true, confirmButtonText:"Copy saved scores", cancelButtonText:"Select another subject", confirmButtonColor:"#1d4ed8", reverseButtons:true
-          }) : {isConfirmed:confirm(`${candidate.label} already has ${savedCount} saved scores. Copy them into the current score cells?`)};
-          if (choice.isConfirmed) {
-            state.subjects.push(candidate); state.activeSubject = value;
-            renderSubjectChoices(); renderTabs(); copySavedScoresToCurrent(value);
-            return;
-          }
-          renderSubjectChoices();
+          if (window.Swal) await Swal.fire({icon:"warning",title:"Select grade and examination period",text:"Choose the grade and examination period first. RASM 360 will check saved marks for that exact class and exam."});
           return;
         }
+        const contextIsCurrent = state.lastLoaded && gradeMatchKey(state.grade) === gradeMatchKey(requestedGrade) && periodMatchKey(state.examPeriod) === periodMatchKey(requestedPeriod);
+        if (!contextIsCurrent) {
+          await loadClass();
+          const loadedCurrentContext = state.lastLoaded && gradeMatchKey(state.grade) === gradeMatchKey(requestedGrade) && periodMatchKey(state.examPeriod) === periodMatchKey(requestedPeriod);
+          if (!loadedCurrentContext) { checkbox.checked = false; return; }
+        }
+      }
+      if (checkbox.checked && candidate && !state.subjects.some(item => item.value === value)) {
+        // Existing subject marks must not block the teacher from entering marks
+        // for learners whose cells are blank. Existing values remain visible in
+        // the "Previously Saved" column; saveAll() asks for explicit overwrite
+        // confirmation only if a non-empty entry targets an existing score.
+        const savedCount = savedScoreCount(value);
         state.subjects.push(candidate);
+        if (window.Swal) {
+          const missingLearners = state.learners.filter(learner => currentMark(learner, value) === null);
+          const names = missingLearners.slice(0, 24).map(learner => esc(learner.name || "Unknown Learner")).join("<br>");
+          const more = missingLearners.length > 24 ? `<br>…and ${missingLearners.length - 24} more learner(s)` : "";
+          const gradeLabel = state.grade || $("gradeSelect")?.value || "Selected grade";
+          const periodLabel = $("examPeriod")?.selectedOptions?.[0]?.textContent?.trim() || state.examPeriod || normalizedPeriod() || "Selected examination period";
+          Swal.fire({
+            icon: missingLearners.length ? "warning" : (savedCount ? "info" : "success"),
+            title: missingLearners.length ? "Learners missing marks" : "Subject loaded",
+            html: `<b>${esc(candidate.label)}</b><br><br><b>Class:</b> ${esc(gradeLabel)} &nbsp; <b>Exam:</b> ${esc(periodLabel)}<br><br><b>${savedCount}</b> learner score(s) already recorded; <b>${missingLearners.length}</b> learner(s) have no score for this subject in the selected examination period.<br><br>${missingLearners.length ? `<div style="max-height:180px;overflow:auto;text-align:left;padding:8px;border:1px solid #ddd;border-radius:6px">${names}${more}</div>` : "All learners in this class have a recorded score for this subject in this examination period."}<br><br>Marks from other examination periods are kept separate. Enter scores for learners with missing marks; existing scores in this same period require explicit overwrite confirmation.`,
+            confirmButtonText:"View entry grid",confirmButtonColor:"#1d4ed8",width:600
+          });
+        }
       }
       if (!checkbox.checked) state.subjects = state.subjects.filter(item => item.value !== value);
       if (!state.subjects.some(s => s.value === state.activeSubject)) state.activeSubject = state.subjects[0]?.value || "";
@@ -153127,8 +152811,14 @@ ${headerHtml}
         if (typeof next.select === "function") next.select();
       }
     });
-    $("gradeSelect")?.addEventListener("change",refreshSubjectListAfterGradeChange);
-    $("examPeriod")?.addEventListener("change",() => { state.lastLoaded=false; syncContext(); });
+    $("gradeSelect")?.addEventListener("change",() => {
+      refreshSubjectListAfterGradeChange();
+      if ($("gradeSelect")?.value && normalizedPeriod()) loadClass();
+    });
+    $("examPeriod")?.addEventListener("change",() => {
+      state.lastLoaded=false; syncContext();
+      if ($("gradeSelect")?.value && normalizedPeriod()) loadClass();
+    });
     const refreshPaperMaximum = () => {
       const max = paperMaximum(); syncContext();
       panel().querySelectorAll(".rasm-score-input").forEach(input => { input.max=max; input.placeholder=`0–${max}`; });
@@ -153192,101 +152882,390 @@ ${headerHtml}
     try{ if(typeof window.renderAverages==="function") window.renderAverages(filtered); }catch(e){console.warn(e);}
   }
   window.deleteClassSubjectMarks=async function(){
-    if(typeof window.rasmIsAdmin==="function" && !window.rasmIsAdmin()) return window.Swal?.fire("Admin Only","Only an administrator can delete marks.","warning");
-    const periodEl=document.getElementById("resultsExamPeriod");
-    const period=String(periodEl?.value||"").trim();
+    if(typeof window.rasmIsAdmin==="function" && !window.rasmIsAdmin())
+      return window.Swal?.fire("Admin Only","Only an administrator can delete marks.","warning");
+    const period=String(document.getElementById("resultsExamPeriod")?.value||"").trim();
     if(!period) return window.Swal?.fire("Select Exam Period","Please select an exam period first.","warning");
     const schoolId=getSchool();
     if(!schoolId) return window.Swal?.fire("School ID Missing","Please sign in again and retry.","error");
     let root;
-    try{root=await window.fastGet(ref(db,`schools/${schoolId}/students`));}
-    catch(e){return window.Swal?.fire("Could not read marks",e.message||"Check your connection and permissions.","error");}
-    const students=root?.val?.()||{};
-    const gradeMap=new Map();
-    const subjects=new Set();
-    for(const [id,st] of Object.entries(students)){
-      const grade=String(st?.grade||"").trim().toUpperCase();
+    try { root=await window.fastGet(ref(db,`schools/${schoolId}/students`)); }
+    catch(e){ return window.Swal?.fire("Could not read marks",e.message||"Check your connection and permissions.","error"); }
+    const students=root?.val?.()||{}, gradeMap=new Map(), subjects=new Set();
+    for(const [id,student] of Object.entries(students)){
+      const grade=String(student?.grade||"").trim().toUpperCase();
       if(!grade) continue;
-      const periods=currentPeriodKeys(st?.marks,period);
+      const periods=currentPeriodKeys(student?.marks,period);
       if(!periods.length) continue;
       if(!gradeMap.has(grade)) gradeMap.set(grade,[]);
-      gradeMap.get(grade).push({id,student:st,periods});
-      periods.forEach(pk=>Object.keys(st.marks?.[pk]||{}).forEach(k=>{if(!ignored.has(normSubject(k)) && !/^\d+$/.test(k)) subjects.add(k);}));
+      gradeMap.get(grade).push({id,student,periods});
+      periods.forEach(pk=>Object.keys(student.marks?.[pk]||{}).forEach(k=>{
+        if(!ignored.has(normSubject(k)) && !/^\d+$/.test(k)) subjects.add(k);
+      }));
     }
     if(!gradeMap.size) return window.Swal?.fire("No Saved Marks Found",`No learner records with marks were found for ${esc(period)}.`,"info");
     const grades=[...gradeMap.keys()].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
     const gradeOptions=grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("");
-    const subjectOptions=[...subjects].sort((a,b)=>a.localeCompare(b)).map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
-    const selected=await window.Swal.fire({title:"🗑 Delete Subject Marks",html:`<div style="text-align:left"><p><b>Exam Period</b><br>${esc(period)}</p><label for="rasmInstantDeleteGrade"><b>Select Grade</b></label><select id="rasmInstantDeleteGrade" class="swal2-select" style="width:100%">${gradeOptions}</select><label for="rasmInstantDeleteSubject"><b>Select Subject</b></label><select id="rasmInstantDeleteSubject" class="swal2-select" style="width:100%">${subjectOptions}</select><p style="font-size:12px;color:#555">Deletes saved marks for the selected grade and exam period, then refreshes Loaded Marks without requiring logout.</p></div>`,showCancelButton:true,confirmButtonText:"Continue",cancelButtonText:"Cancel",focusConfirm:false,preConfirm:()=>({grade:document.getElementById("rasmInstantDeleteGrade")?.value,subject:document.getElementById("rasmInstantDeleteSubject")?.value})});
+    const subjectOptions=[...subjects].sort((a,b)=>a.localeCompare(b)).map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+    const selected=await window.Swal.fire({
+      title:"🗑 Delete Subject Marks",
+      html:`<div style="text-align:left"><p><b>Exam Period</b><br>${esc(period)}</p><label for="rasmInstantDeleteGrade"><b>Select Grade</b></label><select id="rasmInstantDeleteGrade" class="swal2-select" style="width:100%">${gradeOptions}</select><label for="rasmInstantDeleteSubject"><b>Select Subject</b></label><select id="rasmInstantDeleteSubject" class="swal2-select" style="width:100%">${subjectOptions}</select><p style="font-size:12px;color:#555">Removes the selected subject from saved marks for this grade and period, then refreshes Loaded Marks.</p></div>`,
+      showCancelButton:true,confirmButtonText:"Continue",cancelButtonText:"Cancel",focusConfirm:false,
+      preConfirm:()=>({grade:document.getElementById("rasmInstantDeleteGrade")?.value,subject:document.getElementById("rasmInstantDeleteSubject")?.value})
+    });
     if(!selected.isConfirmed||!selected.value) return;
-    const {grade,subject}=selected.value;
-    const roster=gradeMap.get(String(grade||"").toUpperCase())||[];
+    const {grade,subject}=selected.value, roster=gradeMap.get(String(grade||"").toUpperCase())||[];
     let matches=0;
+    for(const entry of roster) for(const pk of entry.periods) matches+=subjectKeysFor(entry.student?.marks?.[pk]||{},subject).length;
+    if(!matches) return window.Swal?.fire("No Matching Marks",`No saved marks for ${esc(subject)} were found in ${esc(grade)} for ${esc(period)}.`,"info");
+    const confirm=await window.Swal.fire({
+      icon:"warning",title:"Delete these subject marks?",
+      html:`Remove <b>${esc(subject)}</b> marks for grade <b>${esc(grade)}</b>, exam period <b>${esc(period)}</b>?<br><br><b>${matches}</b> stored subject value(s) will be removed.`,
+      showCancelButton:true,confirmButtonText:"Delete Now",cancelButtonText:"Keep Marks",confirmButtonColor:"#dc2626"
+    });
+    if(!confirm.isConfirmed) return;
+    const updates={}, deletedKeys=new Set();
     for(const entry of roster){
       for(const pk of entry.periods){
-        const marks=entry.student?.marks?.[pk]||{};
-        matches+=subjectKeysFor(marks,subject).length;
-      }
-    }
-    if(!matches) return window.Swal?.fire("No Matching Marks",`No saved marks for ${esc(subject)} were found in ${esc(grade)} for ${esc(period)}.`,"info");
-    const confirm=await window.Swal.fire({icon:"warning",title:"Delete these subject marks?",html:`Remove <b>${esc(subject)}</b> marks for grade <b>${esc(grade)}</b>, exam period <b>${esc(period)}</b>?<br><br><b>${matches}</b> stored subject value(s) will be removed from active marks and the Loaded Marks table will update immediately.`,showCancelButton:true,confirmButtonText:"Delete marks now",cancelButtonText:"Cancel",confirmButtonColor:"#dc2626"});
-    if(!confirm.isConfirmed) return;
-    const loader=typeof window.showLoader==="function";
-    try{
-      if(loader) window.showLoader();
-      let deleted=0; const errors=[];
-      for(const entry of roster){
-        for(const pk of entry.periods){
-          const periodPath=`schools/${schoolId}/students/${entry.id}/marks/${pk}`;
-          let snap;
-          try{snap=await window.fastGet(ref(db,periodPath));}catch(e){errors.push(`${entry.id}: ${e.message}`);continue;}
-          if(!snap?.exists()) continue;
-          const marks=snap.val()||{}; const keys=subjectKeysFor(marks,subject);
-          for(const key of keys){
-            const path=`${periodPath}/${key}`;
-            try{
-              const valSnap=await window.fastGet(ref(db,path));
-              if(!valSnap?.exists()) continue;
-              if(typeof window.saveRecycleRecord==="function"){
-                try{await window.saveRecycleRecord("examResults",path,valSnap.val(),`${entry.id}_${pk}_${key}`);}catch(re){console.warn("Recycle Bin copy failed; continuing delete",re);}
-              }
-              await remove(ref(db,path));
-              const verify=await window.fastGet(ref(db,path));
-              if(verify?.exists()) throw new Error("Firebase still reports this mark as present after deletion.");
-              deleted++;
-              // Immediately remove the subject alias from both live table arrays.
-              [window.currentFilteredLearners,(typeof allLoadedLearners!=="undefined"?allLoadedLearners:window.allLoadedLearners)].forEach(list=>{
-                if(!Array.isArray(list)) return;
-                const learner=list.find(l=>String(l.id)===String(entry.id));
-                if(learner?.marks){
-                  const target=canonicalSubject(subject);
-                  Object.keys(learner.marks).forEach(k=>{
-                    if(canonicalSubject(k)===target || (target==="cre" && /(?:^|[—–-])\s*(?:cre|religious\s*education|christian\s*religious\s*education)\s*$/i.test(k))) delete learner.marks[k];
-                  });
-                }
-              });
-            }catch(e){errors.push(`${entry.student?.name||entry.id} / ${key}: ${e.message||e}`);}
+        const marks=entry.student?.marks?.[pk]||{}, keys=subjectKeysFor(marks,subject);
+        keys.forEach(key=>{
+          updates[`schools/${schoolId}/students/${entry.id}/marks/${pk}/${key}`]=null;
+          deletedKeys.add(normSubject(key));
+          // Recycle Bin backup is best-effort and must not delay the actual deletion.
+          if(typeof window.saveRecycleRecord==="function"){
+            Promise.resolve().then(()=>window.saveRecycleRecord("examResults",`schools/${schoolId}/students/${entry.id}/marks/${pk}/${key}`,marks[key],`${entry.id}_${pk}_${key}`)).catch(err=>console.warn("Recycle Bin copy failed; marks deletion continues",err));
           }
-        }
+        });
       }
-      // Render cached state first, then re-read Firebase in the background; no logout/relogin needed.
-      renderInstant();
-      if(loader) window.hideLoader?.();
-      if(typeof window.loadMarksUnifiedClean==="function"){
-        try{await window.loadMarksUnifiedClean();}catch(e){console.error("Post-delete marks refresh failed:",e);}
-      }
-      if(errors.length){
-        console.error("Some subject marks could not be deleted:",errors);
-        await window.Swal.fire({icon:"warning",title:"Deletion partly completed",html:`Deleted <b>${deleted}</b> mark value(s). <b>${errors.length}</b> item(s) could not be confirmed; see the browser console for details.`,confirmButtonColor:"#b45309"});
-      }else{
-        await window.Swal.fire({icon:"success",title:"Subject marks deleted",html:`Deleted <b>${deleted}</b> saved mark value(s) for <b>${esc(subject)}</b> in <b>${esc(grade)}</b>.<br><br>The Loaded Marks table has been refreshed from Firebase.`,confirmButtonColor:"#15803d"});
-      }
-    }catch(e){
-      if(loader) window.hideLoader?.();
-      console.error("Instant subject deletion failed",e);
-      await window.Swal.fire({icon:"error",title:"Delete failed",text:e?.message||"Firebase did not confirm the deletion. Please retry."});
     }
-  };
+    try{
+      // A single root-level multi-location update is atomic and avoids 29 sequential
+      // writes/read-backs that can fail on stale snapshots or take a long time.
+      if (typeof window.update !== "function") throw new Error("Firebase update helper is unavailable. Please reload the page and try again.");
+      await window.update(ref(db),updates);
+      [window.currentFilteredLearners,window.allLoadedLearners,(typeof allLoadedLearners!=="undefined"?allLoadedLearners:null)].forEach(list=>{
+        if(!Array.isArray(list)) return;
+        list.forEach(learner=>{
+          if(!learner?.marks) return;
+          Object.keys(learner.marks).forEach(k=>{
+            if(deletedKeys.has(normSubject(k)) || (normSubject(subject)==="cre" && /(?:^|[—–-])\s*(?:cre|religious\s*education|christian\s*religious\s*education)\s*$/i.test(k))) delete learner.marks[k];
+          });
+        });
+      });
+      try{ if(typeof window.loadMarksUnifiedClean==="function") await window.loadMarksUnifiedClean(); }catch(e){console.warn("Marks refresh failed after confirmed deletion",e);}
+      if(typeof renderInstant==="function") renderInstant();
+      await window.Swal.fire({icon:"success",title:"Subject marks deleted",html:`Deleted <b>${matches}</b> saved mark value(s) for <b>${esc(subject)}</b> in <b>${esc(grade)}</b>.<br><br>Loaded Marks has been refreshed.`,confirmButtonColor:"#15803d"});
+    }catch(e){
+      console.error("Atomic subject marks deletion failed",e);
+      await window.Swal.fire({icon:"error",title:"Delete failed",text:e?.message||"Firebase rejected the deletion. Check your connection and database permissions, then retry."});
+    }
+  };;
 })();
 </script>
+
+<script id="rasm360-marks-coverage-and-safe-save-fixes">
+(function(){
+  "use strict";
+  if(window.__RASM360_MARKS_COVERAGE_FIX_INSTALLED) return;
+  window.__RASM360_MARKS_COVERAGE_FIX_INSTALLED = true;
+  const norm = value => String(value == null ? "" : value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const metadata = new Set(["schoolid","name","grade","updatedat","createdat","timestamp","average","total","points","rank","examperiod","createdby","recordedby","id","uid","studentid","learnerid"]);
+  function numeric(value){
+    if(value && typeof value === "object") {
+      if(typeof window.getNumericRecordedValue === "function") return window.getNumericRecordedValue(value);
+      for(const k of ["score","mark","marks","value","percentage"]) if(value[k] !== undefined && value[k] !== null && value[k] !== "" && Number.isFinite(Number(value[k]))) return Number(value[k]);
+      return null;
+    }
+    if(value === null || value === undefined || String(value).trim() === "" || !Number.isFinite(Number(value))) return null;
+    return Number(value);
+  }
+  function currentLearners(){
+    const gradeEl = document.getElementById("gradeFilter");
+    const gradeRaw = String(gradeEl?.value || "").trim().toUpperCase().replace(/^GRADE\s*/, "");
+    let learners = Array.isArray(window.allLoadedLearners) ? window.allLoadedLearners.slice() : [];
+    if(gradeRaw && gradeRaw !== "ALL GRADES") learners = learners.filter(l => String(l.grade || "").trim().toUpperCase().replace(/^GRADE\s*/, "") === gradeRaw);
+    return learners;
+  }
+  function expectedSubjects(learners){
+    const found = new Map();
+    learners.forEach(l => Object.keys(l?.marks || {}).forEach(k => {
+      if(metadata.has(norm(k)) || (typeof window.isMarksMetadataField === "function" && window.isMarksMetadataField(k))) return;
+      if(learners.some(person => numeric(person?.marks?.[k]) !== null)) found.set(norm(k),k);
+    }));
+    // Include the grade-aware subject options so a subject missing for every
+    // learner is still counted when it exists in the Marks Form's subject list.
+    const grade = document.getElementById("gradeFilter")?.value || document.getElementById("gradeSelect")?.value || "";
+    const gradeNumMatch = String(grade).match(/(?:GRADE\s*)?(\d{1,2})/i);
+    const gradeNum = gradeNumMatch ? Number(gradeNumMatch[1]) : null;
+    if(gradeNum >= 1 && gradeNum <= 3){
+      ["English","English · Listening","English · Reading","English · Writing","English · Grammar","Kiswahili","Kiswahili · Kusikiliza","Kiswahili · Kusoma","Kiswahili · Kuandika","Kiswahili · Sarufi","Environmental and CRE","Environmental and CRE · Environmental","Environmental and CRE · CRE","Mathematics","Creative Arts"].forEach(s=>{if(!found.has(norm(s))) found.set(norm(s),s);});
+    } else {
+      const select = document.getElementById("subject");
+      [...(select?.options || [])].forEach(o=>{
+        const value=String(o.value || "").trim(), label=String(o.textContent || "").trim();
+        if(!value || /^--/.test(label) || metadata.has(norm(value))) return;
+        if(!found.has(norm(value))) found.set(norm(value),value);
+      });
+    }
+    return [...found.entries()].map(([key,label])=>({key,label}));
+  }
+  function update(){
+    const wrap=document.getElementById("rasmLoadedMarksCoverageSummary"); if(!wrap) return;
+    const learners=currentLearners();
+    const subjects=expectedSubjects(learners);
+    let recordedSubjects=0, partialSubjects=0, missingCells=0;
+    subjects.forEach(subject=>{
+      let count=0;
+      learners.forEach(learner=>{
+        const keys=Object.keys(learner?.marks || {});
+        const key=keys.find(k=>norm(k)===subject.key);
+        if(key !== undefined && numeric(learner.marks[key]) !== null) count++;
+      });
+      if(count>0) recordedSubjects++;
+      if(learners.length && count<learners.length) {
+        partialSubjects++;
+        missingCells += learners.length-count;
+      }
+    });
+    const set=(id,value)=>{const el=document.getElementById(id); if(el) el.textContent=String(value);};
+    set("rasmLoadedRecordedSubjectCount",recordedSubjects);
+    set("rasmLoadedPartialSubjectCount",partialSubjects);
+    set("rasmLoadedLearnerCount",learners.length);
+    set("rasmLoadedMissingCellCount",missingCells);
+    wrap.style.display="grid";
+    const grade=document.getElementById("gradeFilter")?.value || "All grades";
+    const period=document.getElementById("resultsExamPeriod")?.selectedOptions?.[0]?.textContent || document.getElementById("resultsExamPeriod")?.value || "selected exam";
+    wrap.setAttribute("aria-label",`Marks coverage for ${grade}, ${period}`);
+  }
+  window.RASM360_UPDATE_MARKS_COVERAGE=update;
+  const oldLoad=window.loadMarksUnifiedClean;
+  if(typeof oldLoad === "function" && !oldLoad.__rasmCoverageWrapped){
+    const wrapped=async function(){
+      const result=await oldLoad.apply(this,arguments);
+      update();
+      return result;
+    };
+    wrapped.__rasmCoverageWrapped=true; wrapped.__rasmOriginal=oldLoad;
+    window.loadMarksUnifiedClean=wrapped;
+  }
+  ["gradeFilter","resultsExamPeriod"].forEach(id=>document.getElementById(id)?.addEventListener("change",()=>{
+    // Counts describe the currently loaded data; automatically reload if a period is selected.
+    if(id === "resultsExamPeriod" && document.getElementById(id)?.value && typeof window.loadMarksUnifiedClean === "function"){
+      window.loadMarksUnifiedClean().catch(e=>console.error("Marks coverage refresh failed:",e));
+    } else update();
+  }));
+  document.addEventListener("DOMContentLoaded",update);
+  setTimeout(update,0);
+})();
+</script>
+
 </html>
+
+<script id="rasm360-on-demand-data-loading">
+(function () {
+  "use strict";
+  if (window.__RASM360_DEMAND_LOADING_INSTALLED) return;
+  window.__RASM360_DEMAND_LOADING_INSTALLED = true;
+  const state = { schoolId: "", loaded: new Set(), pending: new Map() };
+  const sectionLoaders = {
+    dashboard: ["loadStudents", "loadFees", "loadFinanceSummary", "loadDashboardCharts"],
+    dashboardSection: ["loadStudents", "loadFees", "loadFinanceSummary", "loadDashboardCharts"],
+    students: ["loadStudents"], studentsSection: ["loadStudents"], registeredLearnersSection: ["loadStudents"], learnersSection: ["loadStudents"],
+    teachers: ["loadTeachers"], teachersSection: ["loadTeachers"], registeredTeachersSection: ["loadTeachers"],
+    supportStaff: ["loadSupportStaff"], supportStaffSection: ["loadSupportStaff"], registeredSupportStaffSection: ["loadSupportStaff"],
+    fees: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"], feesSection: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"],
+    feeManagementSection: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"], feeBalanceSection: ["loadFeeBalanceStudents"],
+    teacherWalletSection: ["loadTeacherWallet", "loadMyWithdrawals"],
+    transportSection: ["loadTransport"], transportDashboard: ["loadTransport"], transport: ["loadTransport"],
+    inventorySection: ["loadInventory"], inventory: ["loadInventory"],
+    librarySection: ["loadLibrary"], returnsDashboard: ["loadLibrary"], library: ["loadLibrary"], libraryManagementSection: ["loadLibrary"],
+    hostelSection: ["loadHostel"], hostel: ["loadHostel"],
+    attendanceSection: ["loadAttendanceDashboard", "loadAttendanceGrades"], attendanceDashboardSection: ["loadAttendanceDashboard"],
+    usersSection: ["loadUsersTable"], adminUsersPanel: ["loadUsersTable"],
+    payrollSection: ["loadPayrollDashboard"], payrollDashboardSection: ["loadPayrollDashboard"],
+    withdrawRequestsSection: ["loadWithdrawalRequests"], withdrawalHistorySection: ["loadWithdrawalRequests"], registrationRequestsSection: ["loadRegistrationRequests"],
+    checkResultsSection: ["loadResultsFilters"], resultsSection: ["loadResultsFilters"],
+    coursesSection: ["loadCourses"], eLearningSection: ["loadCourses"], assignmentsSection: ["loadAssignments"],
+    assignmentHelpSection: ["loadAssignmentHelp"], recordMarksSection: ["loadGradesFromStudents", "loadLearnersFromStudents"],
+    meritListSection: ["loadStudents"], subjectChampions: ["loadStudents"], subjectPerformance: ["loadStudents"],
+    genderPerformance: ["loadStudents"], levelSummary: ["loadStudents"], combineMarksByGrade: ["loadStudents"],
+    marksStatus: ["loadStudents"], generateAssessmentReports: ["loadStudents"], subjectRankingReport: ["loadStudents"],
+    generateBlankMerit: ["loadStudents"], generateSubjectRank: ["loadStudents"], performanceSection: ["loadStudents"],
+    topGradeSection: ["loadStudents"], topStudentsSection: ["loadStudents"], termPerformanceSection: ["loadStudents"],
+    certificatesSection: ["loadStudents"]
+  };
+  const reportSections = new Set(["meritListSection", "subjectChampions", "subjectPerformance", "genderPerformance", "levelSummary", "combineMarksByGrade", "marksStatus", "generateAssessmentReports", "subjectRankingReport", "generateBlankMerit", "generateSubjectRank", "performanceSection", "topGradeSection", "topStudentsSection", "termPerformanceSection", "certificatesSection"]);
+  function schoolId() { return String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "").trim(); }
+  function resetSchool() { const sid=schoolId(); if(sid!==state.schoolId){state.schoolId=sid;state.loaded.clear();state.pending.clear();} return sid; }
+  function loginReady() { return window.__RASM_LOGIN_COMPLETE===true || (!!schoolId() && !!(window.currentUser || window.currentUserRole || window.userRole)); }
+  function invoke(name) { const fn=window[name]; if(typeof fn!=="function") return Promise.resolve(); try{return Promise.resolve(fn());}catch(e){return Promise.reject(e);} }
+  async function loadForSection(sectionId) {
+    const sid=resetSchool(); if(!sid || !loginReady()) return;
+    const names=sectionLoaders[sectionId]; if(!names || !names.length) return;
+    const key=sid+"::"+sectionId;
+    if(state.loaded.has(key)) return;
+    if(state.pending.has(key)) return state.pending.get(key);
+    const task=(async()=>{
+      const unique=[...new Set(names)];
+      const results=await Promise.allSettled(unique.map(invoke));
+      results.forEach((r,i)=>{if(r.status==="rejected") console.error("RASM360 on-demand loader failed:",unique[i],r.reason);});
+      state.loaded.add(key);
+      if(reportSections.has(sectionId) && typeof window.runSectionLogic==="function") {
+        try { window.runSectionLogic(sectionId); } catch(e) { console.error("RASM360 report render after loading failed:",e); }
+      }
+    })();
+    state.pending.set(key,task);
+    try { await task; } finally { if(state.pending.get(key)===task) state.pending.delete(key); }
+  }
+  window.RASM360_LOAD_SECTION_DATA=loadForSection;
+  const oldShow=window.show;
+  if(typeof oldShow==="function" && !oldShow.__rasmDemandLoadWrapped) {
+    const wrapped=function(sectionId) {
+      const result=oldShow.apply(this,arguments);
+      requestAnimationFrame(()=>{
+        const target=document.getElementById(sectionId);
+        if(!target || target.style.display==="none") return;
+        loadForSection(sectionId).catch(e=>console.error("RASM360 on-demand loading failed for "+sectionId+":",e));
+      });
+      return result;
+    };
+    wrapped.__rasmDemandLoadWrapped=true; wrapped.__rasmOriginal=oldShow; window.show=wrapped;
+  }
+  function loadVisibleSection() {
+    if(!loginReady()) return;
+    const visible=[...document.querySelectorAll(".main > div[id], .main > section[id]")].find(el=>{
+      const style=window.getComputedStyle?getComputedStyle(el):null; return style && style.display!=="none" && el.id;
+    });
+    if(visible) loadForSection(visible.id).catch(e=>console.error("RASM360 initial visible-section load failed:",e));
+  }
+  document.addEventListener("rasm360:login-complete",()=>{resetSchool();loadVisibleSection();});
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",loadVisibleSection,{once:true});
+  else Promise.resolve().then(loadVisibleSection);
+  console.info("⚡ RASM 360 demand-loading enabled: module data loads when its section is opened.");
+})();
+</script>
+
+
+
+<script id="rasm360-marks-grade-dropdown-recovery">
+(function () {
+  "use strict";
+  if (window.__RASM360_MARKS_GRADE_RECOVERY) return;
+  window.__RASM360_MARKS_GRADE_RECOVERY = true;
+
+  const $ = id => document.getElementById(id);
+  let pending = null;
+  let loadedForSchool = "";
+
+  function getSchoolId() {
+    return String(window.schoolId || sessionStorage.getItem("schoolId") ||
+      localStorage.getItem("schoolId") || sessionStorage.getItem("currentSchoolId") ||
+      localStorage.getItem("currentSchoolId") || "").trim();
+  }
+  function loginReady() {
+    return window.__RASM_LOGIN_COMPLETE === true ||
+      (!!getSchoolId() && !!(window.currentUser || window.currentUserRole || window.userRole));
+  }
+  function normalize(value) { return String(value || "").trim().replace(/\s+/g, " "); }
+  function escapeHtml(value) {
+    return String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+  async function readStudents(sid) {
+    if (typeof ref !== "function" || typeof db === "undefined") {
+      throw new Error("Firebase database is not ready yet.");
+    }
+    const firebaseRef = ref(db, "schools/" + sid + "/students");
+    if (typeof window.fastGet === "function") return await window.fastGet(firebaseRef);
+    if (typeof fastGet === "function") return await fastGet(firebaseRef);
+    if (typeof get === "function") return await get(firebaseRef);
+    if (typeof window.get === "function") return await window.get(firebaseRef);
+    throw new Error("No supported Firebase read function is available.");
+  }
+  async function populateMarksGrades(force) {
+    const select = $("gradeSelect");
+    if (!select || !loginReady()) return false;
+    const sid = getSchoolId();
+    if (!sid) return false;
+    if (!force && loadedForSchool === sid && select.options.length > 1) return true;
+    if (pending) return pending;
+
+    pending = (async function () {
+      const previous = normalize(select.value);
+      const placeholder = '<option value="">Select Grade</option>';
+      select.disabled = true;
+      select.innerHTML = placeholder;
+      try {
+        const snapshot = await readStudents(sid);
+        const gradeMap = new Map();
+        if (snapshot && typeof snapshot.forEach === "function") {
+          snapshot.forEach(child => {
+            const learner = child.val() || {};
+            const grade = normalize(learner.grade || learner.gradeName || learner.gradeLevel || learner.className || learner.class);
+            if (grade) gradeMap.set(grade.toLowerCase(), grade);
+          });
+        } else {
+          const values = snapshot && typeof snapshot === "object" ? Object.values(snapshot) : [];
+          values.forEach(learner => {
+            learner = learner || {};
+            const grade = normalize(learner.grade || learner.gradeName || learner.gradeLevel || learner.className || learner.class);
+            if (grade) gradeMap.set(grade.toLowerCase(), grade);
+          });
+        }
+        const grades = [...gradeMap.values()].sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
+        select.innerHTML = placeholder + grades.map(grade => '<option value="' + escapeHtml(grade) + '">' + escapeHtml(grade) + '</option>').join("");
+        if (grades.includes(previous)) select.value = previous;
+        loadedForSchool = sid;
+        select.dataset.rasmGradesLoadedFor = sid;
+        select.disabled = false;
+        if (typeof window.refreshRasmMarksSubjectChoices === "function") window.refreshRasmMarksSubjectChoices();
+        console.info("✅ Marks Form grades loaded on demand:", grades.length);
+        if (!grades.length) console.warn("RASM 360 Marks Form: no grade values found under schools/" + sid + "/students.");
+        return grades.length > 0;
+      } catch (error) {
+        select.innerHTML = placeholder;
+        select.disabled = false;
+        console.error("RASM 360 Marks Form could not populate grades:", error);
+        const status = $("rasmBulkSaveStatus");
+        if (status) status.textContent = "Could not load grades. Check login, school access and connection, then reopen Marks Form.";
+        return false;
+      } finally {
+        pending = null;
+      }
+    })();
+    return pending;
+  }
+
+  window.RASM360_REFRESH_MARKS_GRADES = populateMarksGrades;
+
+  // When the Marks Form opens, populate only its grade dropdown from the
+  // authenticated school's learner records; do not load unrelated modules.
+  const originalShow = window.show;
+  if (typeof originalShow === "function" && !originalShow.__rasmMarksGradeRecovery) {
+    const wrappedShow = function (sectionId) {
+      const result = originalShow.apply(this, arguments);
+      if (String(sectionId || "") === "recordMarksSection") {
+        Promise.resolve().then(() => populateMarksGrades(false));
+      }
+      return result;
+    };
+    wrappedShow.__rasmMarksGradeRecovery = true;
+    wrappedShow.__rasmMarksGradeOriginal = originalShow;
+    window.show = wrappedShow;
+  }
+  document.addEventListener("rasm360:login-complete", () => {
+    loadedForSchool = "";
+    if ($("recordMarksSection") && $("recordMarksSection").style.display !== "none") populateMarksGrades(true);
+  });
+  document.addEventListener("focusin", event => {
+    if (event.target && event.target.id === "gradeSelect" && loginReady()) populateMarksGrades(false);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && $("recordMarksSection") && $("recordMarksSection").style.display !== "none") populateMarksGrades(false);
+  });
+  // If this script is evaluated after login and the marks section is already open.
+  if (loginReady() && $("recordMarksSection") && $("recordMarksSection").style.display !== "none") {
+    Promise.resolve().then(() => populateMarksGrades(false));
+  }
+})();
+</script>
+
