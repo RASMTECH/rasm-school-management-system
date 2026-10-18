@@ -36697,6 +36697,9 @@ function loadStudents() {
   if (!tbody) return;
 
   window.fastOnValue(schoolRef("students"), snap => {
+    window.__RASM_STUDENTS_READY = true;
+    const bootCover = document.getElementById("rasmDashboardBootLoader");
+    if (bootCover) bootCover.remove();
 
     allStudents = [];
 
@@ -89615,8 +89618,10 @@ window.addDevice = async function addDevice() {
 
 window.loadICT = function () {
 
-  const schoolId = window.schoolId;
+  const schoolId = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || "").trim();
+  const ictList = document.getElementById("ictList");
 
+  if (!ictList) { console.error("ICT list container #ictList was not found."); return; }
   if (!schoolId) {
     ictList.innerHTML = `
       <div style="padding:20px;color:#dc2626;">
@@ -90581,7 +90586,8 @@ window.loadInventory = function () {
       return;
   }
 
-  const schoolId = window.schoolId;
+  const schoolId = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || "").trim();
+  if (!schoolId) { inventoryList.innerHTML = `<div style="padding:20px;color:#dc2626;">School ID is missing. Please sign in again.</div>`; return; }
   window.fastOnValue(
     ref(db, `inventory/${schoolId}`),
     (snap) => {
@@ -153059,6 +153065,178 @@ ${headerHtml}
 })();
 </script>
 
+
+<style id="rasm360-dashboard-boot-loader-style">
+#rasmDashboardBootLoader{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.72);backdrop-filter:blur(4px)}
+#rasmDashboardBootLoader .rasm-boot-card{width:min(440px,100%);padding:30px 24px;background:#fff;border-radius:18px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.28);font-family:Arial,sans-serif}
+#rasmDashboardBootLoader .rasm-boot-spinner{width:46px;height:46px;margin:0 auto 18px;border:4px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:rasmBootSpin .75s linear infinite}
+#rasmDashboardBootLoader h3{margin:0 0 10px;color:#0f172a;font-size:20px}
+#rasmDashboardBootLoader p{margin:0;color:#475569;line-height:1.6;font-size:14px}
+@keyframes rasmBootSpin{to{transform:rotate(360deg)}}
+</style>
+<div id="rasmDashboardBootLoader" role="status" aria-live="polite">
+  <div class="rasm-boot-card">
+    <div class="rasm-boot-spinner"></div>
+    <h3>Preparing your school dashboard…</h3>
+    <p>Please be patient as we load your learners and prepare your school information. You can proceed as soon as the dashboard is ready.</p>
+  </div>
+</div>
+<script id="rasm360-dashboard-and-management-reliability-patch">
+(function () {
+  "use strict";
+  if (window.__RASM360_DASHBOARD_MANAGEMENT_PATCH__) return;
+  window.__RASM360_DASHBOARD_MANAGEMENT_PATCH__ = true;
+
+  function getSchoolId() {
+    return String(window.schoolId || sessionStorage.getItem("schoolId") ||
+      localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || "").trim();
+  }
+  function loginReady() {
+    return !!getSchoolId() && (window.__RASM_LOGIN_COMPLETE === true ||
+      !!(window.currentUser || window.currentUserRole || window.userRole));
+  }
+  function startDashboardLoad() {
+    if (!loginReady()) return;
+    const cover = document.getElementById("rasmDashboardBootLoader");
+    if (cover && !window.__RASM_STUDENTS_READY) cover.style.display = "flex";
+    // loadAll/on-demand section loading starts the learner request. Avoid
+    // starting a second Firebase listener here; the listener removes this cover
+    // as soon as the first learner snapshot arrives.
+  }
+  document.addEventListener("rasm360:login-complete", startDashboardLoad);
+  if (window.__RASM_LOGIN_COMPLETE === true) {
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(startDashboardLoad);
+    else setTimeout(startDashboardLoad, 0);
+  }
+
+
+})();
+</script>
+
+
+<script id="rasm360-management-data-reliability-final">
+(function () {
+  "use strict";
+  if (window.__RASM360_MANAGEMENT_DATA_RELIABILITY_FINAL) return;
+  window.__RASM360_MANAGEMENT_DATA_RELIABILITY_FINAL = true;
+
+  const modules = {
+    supportStaff: "loadSupportStaff",
+    transport: "loadTransport",
+    inventory: "loadInventory",
+    ict: "loadICT"
+  };
+  const running = Object.create(null);
+  const lastStarted = Object.create(null);
+
+  function getSchoolId() {
+    return String(
+      window.schoolId ||
+      sessionStorage.getItem("schoolId") ||
+      localStorage.getItem("schoolId") ||
+      sessionStorage.getItem("currentSchoolId") ||
+      localStorage.getItem("currentSchoolId") ||
+      ""
+    ).trim();
+  }
+
+  function isVisible(el) {
+    if (!el) return false;
+    const style = window.getComputedStyle ? getComputedStyle(el) : null;
+    return !!style && style.display !== "none" &&
+      style.visibility !== "hidden" && el.getClientRects().length > 0;
+  }
+
+  function runLoader(sectionId, force) {
+    const loaderName = modules[sectionId];
+    if (!loaderName || !getSchoolId()) return;
+    const section = document.getElementById(sectionId);
+    if (!section || !isVisible(section)) return;
+    const loader = window[loaderName];
+    if (typeof loader !== "function") {
+      console.error("[RASM 360] Management loader is missing:", loaderName);
+      return;
+    }
+
+    const now = Date.now();
+    if (running[sectionId]) return;
+    if (!force && lastStarted[sectionId] && now - lastStarted[sectionId] < 1500) return;
+
+    running[sectionId] = true;
+    lastStarted[sectionId] = now;
+    try {
+      // These functions establish Firebase live listeners; don't await their return value.
+      const result = loader();
+      if (result && typeof result.catch === "function") {
+        result.catch(error => console.error("[RASM 360] " + loaderName + " failed:", error));
+      }
+    } catch (error) {
+      console.error("[RASM 360] " + loaderName + " failed:", error);
+    } finally {
+      window.setTimeout(() => { running[sectionId] = false; }, 800);
+    }
+  }
+
+  function checkVisibleModules(force) {
+    Object.keys(modules).forEach(id => runLoader(id, !!force));
+  }
+
+  // Observe section visibility directly. This also works when navigation does not
+  // use the global show() function that the earlier patch attempted to wrap.
+  function observeSections() {
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        const el = record.target;
+        if (el && el.id && modules[el.id] && isVisible(el)) {
+          runLoader(el.id, false);
+        }
+      }
+    });
+
+    Object.keys(modules).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el, { attributes: true, attributeFilter: ["style", "class", "hidden"] });
+    });
+
+    // Fallback for section navigation that replaces or toggles nested containers.
+    document.addEventListener("click", () => {
+      window.setTimeout(() => checkVisibleModules(false), 80);
+      window.setTimeout(() => checkVisibleModules(false), 500);
+    }, true);
+
+    document.addEventListener("rasm360:login-complete", () => {
+      window.setTimeout(() => checkVisibleModules(true), 150);
+      window.setTimeout(() => checkVisibleModules(true), 900);
+    });
+
+    window.addEventListener("load", () => {
+      window.setTimeout(() => checkVisibleModules(true), 250);
+    }, { once: true });
+
+    // Recheck after school context becomes available, without starting duplicate
+    // Firebase listeners continuously.
+    let tries = 0;
+    const waitForSession = window.setInterval(() => {
+      tries++;
+      if (getSchoolId()) {
+        checkVisibleModules(true);
+        window.clearInterval(waitForSession);
+      } else if (tries >= 40) {
+        window.clearInterval(waitForSession);
+      }
+    }, 500);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", observeSections, { once: true });
+  } else {
+    observeSections();
+  }
+
+  console.info("[RASM 360] Management data auto-load reliability patch active.");
+})();
+</script>
+
 </html>
 
 <script id="rasm360-on-demand-data-loading">
@@ -153068,10 +153246,11 @@ ${headerHtml}
   window.__RASM360_DEMAND_LOADING_INSTALLED = true;
   const state = { schoolId: "", loaded: new Set(), pending: new Map() };
   const sectionLoaders = {
-    dashboard: ["loadStudents", "loadFees", "loadFinanceSummary", "loadDashboardCharts"],
-    dashboardSection: ["loadStudents", "loadFees", "loadFinanceSummary", "loadDashboardCharts"],
+    dashboard: ["loadStudents"],
+    dashboardSection: ["loadStudents"],
     students: ["loadStudents"], studentsSection: ["loadStudents"], registeredLearnersSection: ["loadStudents"], learnersSection: ["loadStudents"],
     teachers: ["loadTeachers"], teachersSection: ["loadTeachers"], registeredTeachersSection: ["loadTeachers"],
+    ict: ["loadICT"], ictSection: ["loadICT"], ictManagementSection: ["loadICT"],
     supportStaff: ["loadSupportStaff"], supportStaffSection: ["loadSupportStaff"], registeredSupportStaffSection: ["loadSupportStaff"],
     fees: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"], feesSection: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"],
     feeManagementSection: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"], feeBalanceSection: ["loadFeeBalanceStudents"],
