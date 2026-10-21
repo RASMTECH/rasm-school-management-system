@@ -17633,8 +17633,15 @@ import {
   set as firebaseSet,
   push as firebasePush,
   onValue as firebaseSdkOnValue,
+  onChildAdded as firebaseSdkOnChildAdded,
+  onChildChanged as firebaseSdkOnChildChanged,
+  onChildRemoved as firebaseSdkOnChildRemoved,
+  query,
+  orderByChild,
+  equalTo,
+  limitToLast,
   get as firebaseSdkGet,
-runTransaction,
+  runTransaction,
   remove as firebaseRemove,
   update as firebaseUpdate
 
@@ -17742,9 +17749,61 @@ window.rasmGet = firebaseGet;
   const CACHE_PREFIX = "rasm360_cache_v1:";
   const MAX_ITEM_BYTES = 850000;
   const MAX_TOTAL_BYTES = 4200000;
+  const MAX_CACHEABLE_CHILDREN = 200;
+  const CACHE_SWEEP_INTERVAL_MS = 30000;
+  let lastCacheSweepAt = 0;
+
+  // Large, frequently changing collections should not be JSON-serialized into
+  // localStorage on every live update. They are loaded through their module
+  // loaders and should use in-memory data while the authenticated session runs.
+  const LARGE_COLLECTIONS = new Set([
+    "students", "teachers", "supportStaff", "fees", "feePayments", "payments",
+    "marks", "attendance", "attendanceRecords", "auditLogs", "users",
+    "books", "bookCopies", "borrowings", "circulation", "issuedBooks", "lostBooks",
+    "library", "libraryBorrowings", "inventory", "assets", "devices", "ict",
+    "transport", "transportRecords", "hostel", "assignments", "submissions",
+    "examResults", "salaryPayments", "supportPayroll", "supportSalaryPayments",
+    "supportAttendance", "supportAdvances", "teacherAttendance", "teacherTrash",
+    "deletedFees", "customSubjects", "courseViews", "receipts", "payroll",
+    "leaveRequests", "withdrawals", "transactions", "financeRecords"
+  ]);
+  const PERIOD_SCOPED_SUBTREES = new Set([
+    "supportPayroll", "supportSalaryPayments", "supportAttendance",
+    "teacherAttendance", "supportAdvances", "payroll", "financeRecords", "transactions"
+  ]);
+
+  function referencePath(firebaseRef){
+    try {
+      const raw = firebaseRef?.path?.toString?.() || firebaseRef?._path?.toString?.() || "";
+      return String(raw).replace(/^\/+|\/+$/g, "");
+    } catch (_) { return ""; }
+  }
+
+  function bypassCacheForPath(firebaseRef){
+    const path = referencePath(firebaseRef);
+    const parts = path.split("/").filter(Boolean);
+    if (!parts.length) return true;
+    // A school root contains multiple modules; the global users root may
+    // contain all school accounts. Never cache either whole root.
+    if (parts.length === 1 && (parts[0] === "users" || parts[0] === "schools")) return true;
+    if (parts[0] === "schools" && parts.length === 2) return true;
+    // Legacy modules also store a whole collection below /module/{schoolId}
+    // or /module/{year}; bypass cache for those roots as well. Keep individual
+    // legacy learner, teacher, and staff records cacheable when addressed by ID.
+    if (parts.length === 2 && LARGE_COLLECTIONS.has(parts[0]) &&
+        !["students", "teachers", "supportStaff", "users"].includes(parts[0])) return true;
+    // Payroll/finance paths often use /module/{year}/{month} as a collection root.
+    if (parts.length === 3 && PERIOD_SCOPED_SUBTREES.has(parts[0])) return true;
+    return LARGE_COLLECTIONS.has(parts[parts.length - 1]);
+  }
+
+  function addCacheMetric(name, amount = 1){
+    const metrics = window.__RASM_FAST_READ_METRICS;
+    if (metrics) metrics[name] = Number(metrics[name] || 0) + amount;
+  }
 
   function cacheKey(firebaseRef){
-    try { return CACHE_PREFIX + String(firebaseRef?.toString?.() || firebaseRef?.path || ""); }
+    try { return CACHE_PREFIX + String(firebaseRef?.toString?.() || firebaseRef?.path || "unknown"); }
     catch (_) { return CACHE_PREFIX + "unknown"; }
   }
 
@@ -17774,6 +17833,7 @@ window.rasmGet = firebaseGet;
   }
 
   function readCache(firebaseRef){
+    if (bypassCacheForPath(firebaseRef)) return null;
     try {
       const raw = localStorage.getItem(cacheKey(firebaseRef));
       if (!raw) return null;
@@ -17784,24 +17844,57 @@ window.rasmGet = firebaseGet;
     } catch (_) { return null; }
   }
 
-  function writeCache(firebaseRef, snapshot){
+  function sweepCache(force = false){
+    const now = Date.now();
+    if (!force && now - lastCacheSweepAt < CACHE_SWEEP_INTERVAL_MS) return;
+    lastCacheSweepAt = now;
+    const started = (typeof performance !== "undefined" && performance.now) ? performance.now() : now;
     try {
-      const value = snapshot?.val?.();
-      const payload = JSON.stringify({ value, key: snapshot?.key ?? null, path: String(firebaseRef?.path || ""), savedAt: Date.now() });
-      if (payload.length > MAX_ITEM_BYTES) return;
-      localStorage.setItem(cacheKey(firebaseRef), payload);
       let total = 0, entries = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (!k || !k.startsWith(CACHE_PREFIX)) continue;
         const v = localStorage.getItem(k) || "";
         total += v.length;
-        try { entries.push({ k, t: JSON.parse(v).savedAt || 0, n: v.length }); } catch (_) {}
+        try { entries.push({ k, t: JSON.parse(v).savedAt || 0, n: v.length }); } catch (_) { entries.push({ k, t: 0, n: v.length }); }
       }
       entries.sort((a,b) => a.t - b.t);
       while (total > MAX_TOTAL_BYTES && entries.length) {
-        const e = entries.shift(); localStorage.removeItem(e.k); total -= e.n;
+        const e = entries.shift();
+        localStorage.removeItem(e.k);
+        total -= e.n;
       }
+      addCacheMetric("cacheSweeps");
+    } catch (_) {}
+    finally {
+      const ended = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      addCacheMetric("cacheSweepMs", Math.max(0, ended - started));
+    }
+  }
+
+  function writeCache(firebaseRef, snapshot){
+    try {
+      // Decide before snapshot.val()/JSON.stringify(): those operations become
+      // expensive when snapshots contain thousands of records.
+      if (bypassCacheForPath(firebaseRef)) {
+        addCacheMetric("cacheSkippedLarge");
+        return;
+      }
+      const childCount = Number(snapshot?.numChildren?.() ?? snapshot?.size ?? 0);
+      if (childCount > MAX_CACHEABLE_CHILDREN) {
+        addCacheMetric("cacheSkippedLarge");
+        return;
+      }
+      const value = snapshot?.val?.();
+      const payload = JSON.stringify({ value, key: snapshot?.key ?? null, path: referencePath(firebaseRef), savedAt: Date.now() });
+      if (payload.length > MAX_ITEM_BYTES) {
+        addCacheMetric("cacheSkippedLarge");
+        return;
+      }
+      localStorage.setItem(cacheKey(firebaseRef), payload);
+      // Sweep at most once every 30 seconds instead of walking every localStorage
+      // entry after each tiny live update.
+      sweepCache(false);
     } catch (_) {}
   }
 
@@ -18034,7 +18127,9 @@ window.rasmGet = firebaseGet;
   const FAST_CACHE_REFRESH_COOLDOWN_MS = 2500;
   const FAST_READ_MAP_MAX_KEYS = 1200;
   window.__RASM_FAST_READ_METRICS = window.__RASM_FAST_READ_METRICS || {
-    cacheHits: 0, networkReads: 0, deduplicatedReads: 0, backgroundRefreshes: 0
+    cacheHits: 0, networkReads: 0, deduplicatedReads: 0, backgroundRefreshes: 0,
+    cacheSkippedLarge: 0, cacheSweeps: 0, cacheSweepMs: 0,
+    studentChildUpdates: 0, studentRenderBatches: 0
   };
 
   function rememberRefresh(key, time) {
@@ -18086,7 +18181,7 @@ window.rasmGet = firebaseGet;
       path.includes("/teacherTrash") ||
       path.includes("/deletedFees");
 
-    if(liveRecyclePath){
+    if(liveRecyclePath || bypassCacheForPath(firebaseRef)){
       return sharedFreshRead(firebaseRef, key);
     }
 
@@ -18116,7 +18211,7 @@ window.rasmGet = firebaseGet;
       (window.__RASM_NATIVE_PENDING_LISTENERS || (window.__RASM_NATIVE_PENDING_LISTENERS = [])).push(entry);
       return function(){ entry.active = false; if (typeof entry.unsubscribe === 'function') entry.unsubscribe(); };
     }
-    const cached = readCache(firebaseRef);
+    const cached = bypassCacheForPath(firebaseRef) ? null : readCache(firebaseRef);
     if (cached) {
       setTimeout(() => {
         try { callback(cached); } catch (error) { console.error("Cached listener error:", error); }
@@ -19016,6 +19111,20 @@ window.logout = async function () {
   if (!result.isConfirmed) return;
 
   window.__loggingOut = true;
+
+  // Stop the school roster stream first. This avoids lingering Firebase child
+  // listeners and prevents late snapshots from touching the next session.
+  try {
+    if (typeof window.__RASM_STUDENTS_UNSUBSCRIBE === "function") window.__RASM_STUDENTS_UNSUBSCRIBE();
+  } catch (error) { console.warn("Learner listener cleanup during logout failed:", error); }
+  window.__RASM_LOGIN_COMPLETE = false;
+  window.__RASM_AUTH_BOOT_READY = false;
+  window.__RASM_STUDENTS_READY = false;
+  window.__RASM_STUDENTS_LOADED_SCHOOL_ID = "";
+  window.__RASM_STUDENTS_LISTENER_SCHOOL = "";
+  allStudents = [];
+  filtersReady = false;
+  window.allStudents = [];
 
   try {
 
@@ -25816,12 +25925,18 @@ async function getLiveRasmLearnerCount(
 
   try {
 
-    const studentsRef =
-      schoolRef("students");
+    const cachedStudents = window.rasmGetLoadedStudentsForSchool?.(schoolId);
+    if (Array.isArray(cachedStudents)) {
+      const cachedCount = cachedStudents.filter(student =>
+        student && student.active === true && student.deleted !== true
+      ).length;
+      cache.learnerCount = cachedCount;
+      cache.lastLearnerFetch = Date.now();
+      return cachedCount;
+    }
 
-
-    const snapshot =
-      await fastGet(studentsRef);
+    const studentsRef = schoolRef("students");
+    const snapshot = await fastGet(studentsRef);
 
 
     if (!snapshot.exists()) {
@@ -28128,39 +28243,12 @@ window.startSubscriptionUI = startSubscriptionUI;
    🚀 AUTO START
 ================================================================ */
 
-if (
-  document.readyState ===
-  "loading"
-) {
-
-  document.addEventListener(
-
-    "DOMContentLoaded",
-
-    () => {
-
-      startSubscriptionWatcher();
-
-      startSubscriptionUI();
-
-    },
-
-    {
-      once: true
-    }
-
-  );
-
-}
-
-else {
-
+if (window.__RASM_LOGIN_COMPLETE === true) {
   startSubscriptionWatcher();
-
   startSubscriptionUI();
-
 }
 
+// Login starts these only after authentication and subscription verification.
 
 /* ================================================================
    🔥 RASM TECH 360 — SUBSCRIPTION WATCHER LOADED
@@ -29647,38 +29735,12 @@ window.login = async function () {
 
 
 
-        /* ====================================================
-           WATCHERS
-        ==================================================== */
-
-        if (
-            typeof window.startSubscriptionWatcher ===
-            "function"
-        ) {
-
-            try {
-
-                window.startSubscriptionWatcher();
-
-            }
-
-            catch (error) {
-
-                console.warn(
-                    "Subscription watcher:",
-                    error
-                );
-
-            }
-
-        }
-
-
         // Mark the authenticated app session before starting any school modules.
         // Startup listeners are gated until this point so the login screen stays light.
         window.__RASM_LOGIN_COMPLETE = true;
         window.__RASM_AUTH_BOOT_READY = true;
         window.__RASM_LOGIN_IN_PROGRESS = false;
+        document.dispatchEvent(new Event("rasm360:login-complete"));
 
         // Release school-module Firebase work only after authentication,
         // school verification, and subscription checks have all succeeded.
@@ -36862,26 +36924,20 @@ ${rows.join("")}
 
 };
 document.addEventListener("DOMContentLoaded", async () => {
+    // Do not enqueue dozens of school-data reads/listeners on the login screen.
+    // The authenticated section loader starts only the module the user opens.
+    if (window.__RASM_LOGIN_COMPLETE !== true) return;
 
-  loadTeachers();
-
-  // Load fee years only after a valid school context exists.
-  if (window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId")) {
-    await loadFeeYears();
-  }
-
-  loadFeeFormYears();
-
-  loadFeeFilterGrades();
-
-  loadFees();
-
-  loadFinanceSummary();
-initializeFeeFilters();
-  loadStudents();
-
-
-
+    loadTeachers();
+    if (window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId")) {
+      await loadFeeYears();
+    }
+    loadFeeFormYears();
+    loadFeeFilterGrades();
+    loadFees();
+    loadFinanceSummary();
+    initializeFeeFilters();
+    loadStudents();
 });
 let filtersReady = false;
 let allStudents = [];
@@ -36891,89 +36947,275 @@ let currentEditData = null;
 // ================= LOAD STUDENTS — PRIORITY / DEDUPLICATED =================
 function loadStudents() {
   const tbody = document.getElementById("learnersList");
-  if (!tbody) return;
+  if (!tbody) return Promise.resolve([]);
+
+  if (window.__RASM_LOGIN_COMPLETE !== true) return Promise.resolve([]);
 
   const activeSchoolId = String(
     window.schoolId || sessionStorage.getItem("schoolId") ||
     localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || ""
   ).trim();
-  if (!activeSchoolId) return;
+  if (!activeSchoolId) return Promise.resolve([]);
 
-  // Keep one live listener per school. Repeated startup hooks previously
-  // could attach duplicate listeners and repeat expensive dashboard work.
+  // Reuse the existing school listener and its first-load promise.
   if (window.__RASM_STUDENTS_LISTENER_SCHOOL === activeSchoolId &&
       typeof window.__RASM_STUDENTS_UNSUBSCRIBE === "function") {
-    return;
+    return window.__RASM_STUDENTS_LOAD_PROMISE || Promise.resolve(allStudents);
   }
+
   if (typeof window.__RASM_STUDENTS_UNSUBSCRIBE === "function") {
     try { window.__RASM_STUDENTS_UNSUBSCRIBE(); } catch (_) {}
   }
+
+  const priorSchool = String(window.__RASM_STUDENTS_LOADED_SCHOOL_ID || "");
+  if (priorSchool && priorSchool !== activeSchoolId) {
+    allStudents = [];
+    window.allStudents = [];
+  }
+
   window.__RASM_STUDENTS_LISTENER_SCHOOL = activeSchoolId;
+  window.__RASM_STUDENTS_LOADED_SCHOOL_ID = "";
   window.__RASM_STUDENTS_READY = false;
+  window.filtersReady = false;
+
+  const studentsById = new Map();
+  const unsubscribers = [];
+  let disposed = false;
+  let initializing = true;
+  let initialQuietTimer = 0;
+  let emptyFallbackTimer = 0;
+  let commitTimer = 0;
+  let needsGradeRefresh = false;
+  let initialResolved = false;
+  let resolveInitialLoad;
+
+  const initialLoadPromise = new Promise(resolve => { resolveInitialLoad = resolve; });
+  window.__RASM_STUDENTS_LOAD_PROMISE = initialLoadPromise;
 
   const deferNonCritical = (task) => {
     if (typeof task !== "function") return;
-    const run = () => { try { task(); } catch (error) { console.warn("Deferred learner module task failed:", error); } };
-    if (typeof window.requestIdleCallback === "function") {
-      window.requestIdleCallback(run, { timeout: 1200 });
-    } else {
-      setTimeout(run, 60);
-    }
+    const run = () => {
+      if (disposed || window.__RASM_LOGIN_COMPLETE !== true ||
+          String(window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId") || "").trim() !== activeSchoolId) return;
+      try { task(); } catch (error) { console.warn("Deferred learner module task failed:", error); }
+    };
+    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(run, { timeout: 1200 });
+    else setTimeout(run, 60);
   };
 
-  window.__RASM_STUDENTS_UNSUBSCRIBE = window.fastOnValue(schoolRef("students"), snap => {
-    // Ignore late callbacks from a school that is no longer active.
+  function sortStudentKeys(a, b) {
+    const ak = String(a), bk = String(b);
+    const aInteger = /^(0|[1-9]\d*)$/.test(ak) && Number(ak) <= 2147483647;
+    const bInteger = /^(0|[1-9]\d*)$/.test(bk) && Number(bk) <= 2147483647;
+    if (aInteger && bInteger) return Number(ak) - Number(bk);
+    if (aInteger) return -1;
+    if (bInteger) return 1;
+    return ak.localeCompare(bk);
+  }
+
+  function currentSessionMatches() {
     const currentSchoolId = String(
       window.schoolId || sessionStorage.getItem("schoolId") ||
       localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || ""
     ).trim();
-    if (currentSchoolId !== activeSchoolId) return;
+    return !disposed && window.__RASM_LOGIN_COMPLETE === true && currentSchoolId === activeSchoolId;
+  }
 
-    const nextStudents = [];
-    if (snap && snap.exists()) {
-      snap.forEach(child => {
-        const data = child.val() || {};
-        nextStudents.push({
-          ...data,
-          id: child.key,
-          parentPhone: String(data.parentPhone || "").trim()
-        });
-      });
-    }
+  function renderCommit() {
+    if (!currentSessionMatches()) return;
+    const wasInitialCommit = initializing;
+    initializing = false;
+    const refreshGradeControls = needsGradeRefresh;
+    needsGradeRefresh = false;
+
+    const nextStudents = [...studentsById.entries()]
+      .sort((a, b) => sortStudentKeys(a[0], b[0]))
+      .map(([, student]) => student);
 
     allStudents = nextStudents;
     window.allStudents = nextStudents;
-    filtersReady = true;
+    window.__RASM_STUDENTS_LOADED_SCHOOL_ID = activeSchoolId;
     window.__RASM_STUDENTS_READY = true;
+    window.filtersReady = true;
+    filtersReady = true;
+    window.__RASM_FAST_READ_METRICS.studentRenderBatches =
+      Number(window.__RASM_FAST_READ_METRICS.studentRenderBatches || 0) + 1;
 
-    // Remove the boot cover immediately once the learner snapshot arrives.
+    // Keep learner-based subscription counts accurate without re-downloading
+    // the full students tree every minute.
+    if (window.rasm360SubscriptionCache) window.rasm360SubscriptionCache.lastLearnerFetch = 0;
+
     const bootCover = document.getElementById("rasmDashboardBootLoader");
     if (bootCover) bootCover.remove();
 
-    // Priority work: update the dashboard and first learner-table page before
-    // kicking off other module loaders that also read Firebase.
-    if (typeof window.refreshRasmLearningGradeOptions === "function") {
-      deferNonCritical(() => window.refreshRasmLearningGradeOptions());
+    try {
+      if (typeof window.refreshRasmLearningGradeOptions === "function") {
+        if (wasInitialCommit) deferNonCritical(() => window.refreshRasmLearningGradeOptions());
+      }
+      bindFilterEvents();
+      bindInstantStudentFilterEvents();
+      loadGradeFilterOptions();
+      updateDashboardFromStudents();
+      applyStudentFilters();
+    } catch (error) {
+      console.warn("Learner interface refresh failed:", error);
     }
-    bindFilterEvents();
-    loadGradeFilterOptions();
-    updateDashboardFromStudents();
-    applyStudentFilters();
 
-    // Secondary modules run after the first dashboard paint so they do not
-    // compete with the initial learners/dashboard render.
-    deferNonCritical(() => {
-      loadGradesFromStudents();
-      loadAttendanceGrades();
-      loadFeeFilterGrades();
-      loadFeeFormYears();
-      loadDefaulterGrades();
-      initAllModules();
+    if (wasInitialCommit) {
+      if (!initialResolved) {
+        initialResolved = true;
+        resolveInitialLoad(nextStudents);
+      }
+      deferNonCritical(() => {
+        loadGradesFromStudents();
+        loadAttendanceGrades();
+        loadFeeFilterGrades();
+        loadFeeFormYears();
+        loadDefaulterGrades();
+        initAllModules();
+      });
+      console.log("✅ Students loaded using incremental Firebase child listeners:", nextStudents.length);
+    } else if (refreshGradeControls) {
+      deferNonCritical(() => {
+        loadGradesFromStudents();
+        loadAttendanceGrades();
+        loadFeeFilterGrades();
+        loadFeeFormYears();
+        loadFeeGradesFromStudents();
+        loadDefaulterGrades();
+      });
+    }
+  }
+
+  function scheduleStudentRender(changedGrade) {
+    if (disposed) return;
+    if (changedGrade) needsGradeRefresh = true;
+    if (initializing) {
+      clearTimeout(initialQuietTimer);
+      // Child events are delivered one record at a time during initial sync.
+      // Batch them and render once the initial stream has been quiet briefly.
+      initialQuietTimer = setTimeout(renderCommit, 700);
+      return;
+    }
+    if (commitTimer) return;
+    commitTimer = setTimeout(() => {
+      commitTimer = 0;
+      renderCommit();
+    }, 120);
+  }
+
+  function normalizeStudentSnapshot(child) {
+    const data = child?.val?.() || {};
+    return {
+      ...data,
+      id: String(child?.key ?? ""),
+      parentPhone: String(data.parentPhone || "").trim()
+    };
+  }
+
+  function handleChildAdded(child) {
+    if (!currentSessionMatches()) return;
+    clearTimeout(emptyFallbackTimer);
+    const id = String(child?.key ?? "");
+    if (!id) return;
+    const student = normalizeStudentSnapshot(child);
+    const prior = studentsById.get(id);
+    studentsById.set(id, student);
+    window.__RASM_FAST_READ_METRICS.studentChildUpdates =
+      Number(window.__RASM_FAST_READ_METRICS.studentChildUpdates || 0) + 1;
+    scheduleStudentRender(!prior || String(prior.grade || prior.class || "") !== String(student.grade || student.class || ""));
+  }
+
+  function handleChildChanged(child) {
+    if (!currentSessionMatches()) return;
+    const id = String(child?.key ?? "");
+    if (!id) return;
+    const prior = studentsById.get(id);
+    const student = normalizeStudentSnapshot(child);
+    studentsById.set(id, student);
+    window.__RASM_FAST_READ_METRICS.studentChildUpdates =
+      Number(window.__RASM_FAST_READ_METRICS.studentChildUpdates || 0) + 1;
+    scheduleStudentRender(!prior || String(prior.grade || prior.class || "") !== String(student.grade || student.class || ""));
+  }
+
+  function handleChildRemoved(child) {
+    if (!currentSessionMatches()) return;
+    const id = String(child?.key ?? "");
+    if (!id) return;
+    const prior = studentsById.get(id);
+    studentsById.delete(id);
+    window.__RASM_FAST_READ_METRICS.studentChildUpdates =
+      Number(window.__RASM_FAST_READ_METRICS.studentChildUpdates || 0) + 1;
+    scheduleStudentRender(!!prior);
+  }
+
+  function listenerError(error) {
+    console.error("RASM 360 learner listener failed:", error);
+    clearTimeout(initialQuietTimer);
+    clearTimeout(emptyFallbackTimer);
+    if (initializing) {
+      initializing = false;
+      if (!initialResolved) {
+        initialResolved = true;
+        resolveInitialLoad(allStudents);
+      }
+      const currentBody = document.getElementById("learnersList");
+      if (currentBody && !currentBody.children.length) {
+        currentBody.innerHTML = '<tr><td colspan="14" style="padding:16px;text-align:center;color:#b91c1c">Learners could not be loaded. Check your connection and account permissions, then retry.</td></tr>';
+      }
+    }
+  }
+
+  function unsubscribeStudents() {
+    if (disposed) return;
+    disposed = true;
+    clearTimeout(initialQuietTimer);
+    clearTimeout(emptyFallbackTimer);
+    clearTimeout(commitTimer);
+    unsubscribers.forEach(unsubscribe => {
+      try { if (typeof unsubscribe === "function") unsubscribe(); } catch (_) {}
     });
+    if (!initialResolved) {
+      initialResolved = true;
+      resolveInitialLoad([]);
+    }
+    if (window.__RASM_STUDENTS_UNSUBSCRIBE === unsubscribeStudents) {
+      window.__RASM_STUDENTS_UNSUBSCRIBE = null;
+      window.__RASM_STUDENTS_LISTENER_SCHOOL = "";
+    }
+  }
 
-    console.log("✅ Students loaded:", nextStudents.length);
-  });
+  window.__RASM_STUDENTS_UNSUBSCRIBE = unsubscribeStudents;
+
+  try {
+    const studentsRef = ref(db, `schools/${activeSchoolId}/students`);
+    unsubscribers.push(firebaseSdkOnChildAdded(studentsRef, handleChildAdded, listenerError));
+    unsubscribers.push(firebaseSdkOnChildChanged(studentsRef, handleChildChanged, listenerError));
+    unsubscribers.push(firebaseSdkOnChildRemoved(studentsRef, handleChildRemoved, listenerError));
+
+    // Empty classes don't produce child_added events. This bounded fallback
+    // marks them ready without a forever-polling loader.
+    emptyFallbackTimer = setTimeout(() => {
+      if (initializing && studentsById.size === 0) renderCommit();
+    }, 1800);
+  } catch (error) {
+    listenerError(error);
+  }
+
+  return initialLoadPromise;
 }
+
+// Public bridge for lazy loaders. Always returns the full in-memory school
+// roster, not the currently filtered/paginated rows shown in the table.
+window.loadStudents = loadStudents;
+window.rasmGetLoadedStudentsForSchool = function (schoolId) {
+  const requested = String(schoolId || "").trim();
+  if (!requested || window.__RASM_STUDENTS_READY !== true ||
+      String(window.__RASM_STUDENTS_LOADED_SCHOOL_ID || "") !== requested ||
+      !Array.isArray(allStudents)) return null;
+  return allStudents;
+};
+
 // ================= MODULE INITIALIZER =================
 function initAllModules() {
 
@@ -36982,16 +37224,23 @@ function initAllModules() {
   // Academic learner selector; grades are populated by the main loader.
   loadLearnersFromStudents();
 
-  // Fees
-  loadFeeGradesFromStudents();
+  // Fees — refresh the grade choices after the school roster is ready.
+  Promise.resolve(loadFeeGradesFromStudents()).catch(error => {
+    console.warn("Fee Form grade initialization failed:", error);
+  });
 
   const feeGrade = document.getElementById("feeGrade");
-
   if (feeGrade) {
-
-    // safe binding (no duplication)
+    // Bind once through the canonical loader; do not let a legacy handler
+    // override the cache-aware learner lookup.
     feeGrade.onchange = function () {
-      loadLearnersForFees();
+      if (typeof window.loadFeeLearners === "function") {
+        Promise.resolve(window.loadFeeLearners()).catch(error => {
+          console.warn("Fee Form learner loading failed:", error);
+        });
+      } else {
+        loadLearnersForFees();
+      }
     };
   }
 
@@ -38867,7 +39116,7 @@ window.triggerFeeAction = function (feeId, action) {
    🚀 NO LOADER ROW INSIDE <tbody>
    🚀 Headers remain stable
    🚀 O(1) learner lookup using Map
-   🚀 Loads 50 learners at a time
+   🚀 Renders 10 fee records per batch
    🚀 Loads next batch only when user scrolls
    🚀 Preserves fee actions
    🚀 Preserves Refund + Restore
@@ -38881,9 +39130,11 @@ window.triggerFeeAction = function (feeId, action) {
 window.__feesLoading = false;
 window.__feesRenderToken = 0;
 window.__feesScrollHandler = null;
+window.__feesWindowScrollHandler = null;
+window.__feesLoadingMore = false;
 window.__feesRecords = [];
 window.__feesRendered = 0;
-window.__feesBatchSize = 50;
+window.__feesBatchSize = 10;
 window.__feesFinished = false;
 window.__feesFooterAdded = false;
 window.__feesRawCache = window.__feesRawCache || null;
@@ -39028,25 +39279,23 @@ function feeTotalAll(feesObj) {
 
 function removeFeeScrollListener() {
 
+    const table = document.getElementById("feesTable");
     const container =
-        document.getElementById(
-            "feesTableScrollContainer"
-        );
+        document.getElementById("feesTableScrollContainer") ||
+        table?.closest(".table-responsive") ||
+        table?.parentElement || null;
 
-    if (
-        container &&
-        window.__feesScrollHandler
-    ) {
-
-        container.removeEventListener(
-            "scroll",
-            window.__feesScrollHandler
-        );
-
+    if (container && window.__feesScrollHandler) {
+        container.removeEventListener("scroll", window.__feesScrollHandler);
     }
 
-    window.__feesScrollHandler =
-        null;
+    if (window.__feesWindowScrollHandler) {
+        window.removeEventListener("scroll", window.__feesWindowScrollHandler);
+    }
+
+    window.__feesScrollHandler = null;
+    window.__feesWindowScrollHandler = null;
+    window.__feesLoadingMore = false;
 
 }
 
@@ -39246,29 +39495,33 @@ window.loadFees = async function (options = {}) {
            7. BUILD O(1) LEARNER MAP
            ==================================================== */
 
-        const studentMap =
-            new Map();
+        const studentMap = new Map();
+        const studentNameMap = new Map();
+        const indexedLearners = new Set();
+        const learnerSources = [window.allStudents, window.allLearners];
+        let learnerIndexCount = 0;
 
-
-        if (
-            Array.isArray(
-                window.allStudents
-            )
-        ) {
-
-            for (
-                const student
-                of window.allStudents
-            ) {
-
-                if (student && typeof student === "object") {
-                    [student.id, student.studentId, student.learnerId, student.key]
-                        .filter(value => value !== undefined && value !== null && String(value).trim() !== "")
-                        .forEach(value => studentMap.set(String(value), student));
+        for (const source of learnerSources) {
+            if (!Array.isArray(source)) continue;
+            for (const student of source) {
+                if (!student || typeof student !== "object" || indexedLearners.has(student)) continue;
+                indexedLearners.add(student);
+                const ids = [student.id, student.studentId, student.learnerId, student.key]
+                    .filter(value => value !== undefined && value !== null && String(value).trim() !== "");
+                for (const value of ids) studentMap.set(String(value), student);
+                const normalizedName = feeNormalizeSearch(
+                    student.name || student.studentName || student.fullName || student.learnerName || ""
+                );
+                // Preserve the previous .find() behavior for duplicate names by
+                // keeping the first matching learner in the name index.
+                if (normalizedName && !studentNameMap.has(normalizedName)) {
+                    studentNameMap.set(normalizedName, student);
                 }
-
+                if (++learnerIndexCount % 1200 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    if (renderToken !== window.__feesRenderToken) return;
+                }
             }
-
         }
 
 
@@ -39280,52 +39533,20 @@ window.loadFees = async function (options = {}) {
             new Set();
 
 
-        for (
-            const feeId in data
-        ) {
-
-            if (
-                !Object.prototype.hasOwnProperty.call(
-                    data,
-                    feeId
-                )
-            ) {
-
-                continue;
-
-            }
-
-
-            const fee =
-                data[feeId];
-
-
-            if (!fee) continue;
-
-
-            const feesObj =
-                fee.fees || {};
-
-
-            for (
-                const type in feesObj
-            ) {
-
-                if (
-                    Object.prototype.hasOwnProperty.call(
-                        feesObj,
-                        type
-                    )
-                ) {
-
-                    feeTypesSet.add(
-                        type
-                    );
-
+        let feeTypeScanCount = 0;
+        for (const feeId in data) {
+            if (!Object.prototype.hasOwnProperty.call(data, feeId)) continue;
+            const fee = data[feeId];
+            if (fee) {
+                const feesObj = fee.fees || {};
+                for (const type in feesObj) {
+                    if (Object.prototype.hasOwnProperty.call(feesObj, type)) feeTypesSet.add(type);
                 }
-
             }
-
+            if (++feeTypeScanCount % 300 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+                if (renderToken !== window.__feesRenderToken) return;
+            }
         }
 
 
@@ -39411,40 +39632,21 @@ window.loadFees = async function (options = {}) {
         const records = [];
 
 
-        for (
-            const feeId in data
-        ) {
-
-            if (
-                !Object.prototype.hasOwnProperty.call(
-                    data,
-                    feeId
-                )
-            ) {
-
-                continue;
-
+        let feeRecordScanCount = 0;
+        for (const feeId in data) {
+            if (!Object.prototype.hasOwnProperty.call(data, feeId)) continue;
+            // Yield based on scanned rows, not only matching rows, so a narrow
+            // filter cannot accidentally force one long uninterrupted loop.
+            if (++feeRecordScanCount % 300 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+                if (renderToken !== window.__feesRenderToken) return;
             }
-
-
-            const fee =
-                data[feeId];
-
-
+            const fee = data[feeId];
             if (!fee) continue;
 
-            const learnerLookupId = String(
-                fee.studentId ?? fee.learnerId ?? fee.student_id ?? feeId
-            );
-            let matchedLearner = studentMap.get(learnerLookupId) || null;
-            if (!matchedLearner && Array.isArray(window.allStudents)) {
-                const feeNameForLookup = feeNormalizeSearch(fee.studentName || fee.name || "");
-                if (feeNameForLookup) {
-                    matchedLearner = window.allStudents.find(item =>
-                        feeNormalizeSearch(item?.name || item?.studentName || item?.fullName || "") === feeNameForLookup
-                    ) || null;
-                }
-            }
+            const learnerLookupId = String(fee.studentId ?? fee.learnerId ?? fee.student_id ?? feeId);
+            const feeNameForLookup = feeNormalizeSearch(fee.studentName || fee.name || fee.learnerName || "");
+            const matchedLearner = studentMap.get(learnerLookupId) || studentNameMap.get(feeNameForLookup) || null;
 
             if (selectedLearnerSearch) {
                 const searchableValues = [
@@ -39477,14 +39679,7 @@ window.loadFees = async function (options = {}) {
             }
 
 
-            records.push({
-
-                feeId,
-
-                fee
-
-            });
-
+            records.push({ feeId, fee, matchedLearner });
         }
 
 
@@ -39547,39 +39742,34 @@ window.loadFees = async function (options = {}) {
            Does NOT require rendering every row.
            ==================================================== */
 
-        const categoryTotals =
-            {};
+        const categoryTotals = Object.create(null);
+        for (const type of feeTypes) categoryTotals[type] = 0;
+        const feeFooterSummary = {
+            totalPaid: 0,
+            totalBalance: 0,
+            statusCounts: { PAID: 0, PARTIAL: 0, OWING: 0 }
+        };
 
-
-        for (
-            const type of feeTypes
-        ) {
-
-            categoryTotals[type] =
-                0;
-
-        }
-
-
-        for (
-            const record of records
-        ) {
-
-            const feesObj =
-                record.fee?.fees || {};
-
-
-            for (
-                const type of feeTypes
-            ) {
-
-                categoryTotals[type] +=
-                    feeSum(
-                        feesObj[type]
-                    );
-
+        let totalsScanCount = 0;
+        for (const record of records) {
+            const fee = record.fee || {};
+            const feesObj = fee.fees || {};
+            for (const [type, value] of Object.entries(feesObj)) {
+                if (Object.prototype.hasOwnProperty.call(categoryTotals, type)) {
+                    categoryTotals[type] += feeSum(value);
+                }
             }
+            feeFooterSummary.totalPaid += Number(feeTotalAll(feesObj)) || 0;
+            feeFooterSummary.totalBalance += Number(fee.balance) || 0;
+            const balance = Number(fee.balance) || 0;
+            const paid = Number(fee.totalPaid) || 0;
+            const status = balance <= 0 ? "PAID" : (paid > 0 ? "PARTIAL" : "OWING");
+            feeFooterSummary.statusCounts[status]++;
 
+            if (++totalsScanCount % 300 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+                if (renderToken !== window.__feesRenderToken) return;
+            }
         }
 
 
@@ -39628,17 +39818,9 @@ window.loadFees = async function (options = {}) {
                    LEARNER LOOKUP
                    ============================================ */
 
-                let student = studentMap.get(String(
+                const student = record.matchedLearner || studentMap.get(String(
                     fee.studentId ?? fee.learnerId ?? fee.student_id ?? feeId
-                )) || null;
-                if (!student && Array.isArray(window.allStudents)) {
-                    const feeNameForLookup = feeNormalizeSearch(fee.studentName || fee.name || "");
-                    if (feeNameForLookup) {
-                        student = window.allStudents.find(item =>
-                            feeNormalizeSearch(item?.name || item?.studentName || item?.fullName || "") === feeNameForLookup
-                        ) || null;
-                    }
-                }
+                )) || studentNameMap.get(feeNormalizeSearch(fee.studentName || fee.name || fee.learnerName || "")) || null;
 
                 const studentName =
                     student?.name || student?.studentName || student?.fullName ||
@@ -40015,7 +40197,8 @@ window.loadFees = async function (options = {}) {
                         tbody,
                         feeTypes,
                         categoryTotals,
-                        records
+                        records,
+                        feeFooterSummary
                     );
 
                 }
@@ -40039,7 +40222,7 @@ window.loadFees = async function (options = {}) {
         /* ====================================================
            15. INITIAL BATCH
            
-           ONLY 50 LEARNERS ENTER THE DOM.
+           ONLY 10 FEE RECORDS ENTER THE DOM INITIALLY.
            ==================================================== */
 
         await renderNextFeeBatch();
@@ -40083,7 +40266,7 @@ window.loadFees = async function (options = {}) {
         /* ====================================================
            17. SCROLL-BASED LOADING
            
-           Load another 50 only when user approaches bottom.
+           Load another 10 only when user approaches bottom.
            ==================================================== */
 
         window.__feesScrollHandler =
@@ -40172,6 +40355,8 @@ window.loadFees = async function (options = {}) {
             table.parentElement
         ) {
 
+            // The prior page-scroll handler has already been detached by
+            // removeFeeScrollListener(); install only one handler per render.
             window.__feesWindowScrollHandler =
                 async function () {
 
@@ -40404,8 +40589,23 @@ window.loadFees = async function (options = {}) {
 ============================================================ */
 
 window.toggleAllFeeRecords = function (checked) {
-    document.querySelectorAll("#feesTable .fee-record-checkbox")
-        .forEach(checkbox => { checkbox.checked = !!checked; });
+    const checkboxes = document.querySelectorAll("#feesTable .fee-record-checkbox");
+    // Normal page batches are small; use animation-frame chunks if the user
+    // has scrolled through thousands of rows and rendered a very large table.
+    const batchSize = 250;
+    if (checkboxes.length <= batchSize) {
+        checkboxes.forEach(checkbox => { checkbox.checked = !!checked; });
+        window.syncFeeSelectAllState();
+        return;
+    }
+    let index = 0;
+    const processBatch = () => {
+        const end = Math.min(index + batchSize, checkboxes.length);
+        for (; index < end; index++) checkboxes[index].checked = !!checked;
+        if (index < checkboxes.length) requestAnimationFrame(processBatch);
+        else window.syncFeeSelectAllState();
+    };
+    requestAnimationFrame(processBatch);
 };
 
 window.syncFeeSelectAllState = function () {
@@ -40430,28 +40630,32 @@ function addFeeTotalsFooter(
     tbody,
     feeTypes,
     categoryTotals,
-    records = []
+    records = [],
+    precomputedSummary = null
 ) {
 
     if (window.__feesFooterAdded) return;
     window.__feesFooterAdded = true;
 
-    let totalPaid = 0;
-    let totalBalance = 0;
-    const statusCounts = { PAID: 0, PARTIAL: 0, OWING: 0 };
+    let totalPaid = Number(precomputedSummary?.totalPaid) || 0;
+    let totalBalance = Number(precomputedSummary?.totalBalance) || 0;
+    const statusCounts = precomputedSummary?.statusCounts
+        ? { ...precomputedSummary.statusCounts }
+        : { PAID: 0, PARTIAL: 0, OWING: 0 };
 
-    records.forEach(record => {
-        const fee = record?.fee || {};
-        const feesObj = fee.fees || {};
-        /* Match the values actually displayed in each row. */
-        totalPaid += Number(feeTotalAll(feesObj)) || 0;
-        totalBalance += Number(fee.balance) || 0;
-
-        const balance = Number(fee.balance) || 0;
-        const paid = Number(fee.totalPaid) || 0;
-        const status = balance <= 0 ? "PAID" : (paid > 0 ? "PARTIAL" : "OWING");
-        statusCounts[status]++;
-    });
+    // Backward-compatible fallback for any other callers.
+    if (!precomputedSummary) {
+        for (const record of records) {
+            const fee = record?.fee || {};
+            const feesObj = fee.fees || {};
+            totalPaid += Number(feeTotalAll(feesObj)) || 0;
+            totalBalance += Number(fee.balance) || 0;
+            const balance = Number(fee.balance) || 0;
+            const paid = Number(fee.totalPaid) || 0;
+            const status = balance <= 0 ? "PAID" : (paid > 0 ? "PARTIAL" : "OWING");
+            statusCounts[status]++;
+        }
+    }
 
     let footerRow = `
         <tr class="rasm-fee-total-row">
@@ -40554,354 +40758,101 @@ window.openFeeHistoryById =
 ⚙️ HANDLE FEE ACTION
 ========================================================= */
 
-window.handleFeeAction =
-function (
-  select
-) {
+window.handleFeeAction = async function (select) {
+  if (!select) {
+    console.warn("Fee action select not found.");
+    return;
+  }
+
+  const action = String(select.value || "");
+  if (!action) return;
+
+  // A guard on this row only prevents duplicate operations without
+  // disabling the rest of Fees Management.
+  if (select.dataset.feeActionBusy === "1") return;
+
+  const feeId = String(select.dataset.feeId || "");
+  const fee = window.feeActionData?.[feeId];
+  if (!feeId || !fee) {
+    select.value = "";
+    if (typeof Swal !== "undefined") {
+      await Swal.fire({
+        icon: "warning",
+        title: "Fee Record Unavailable",
+        text: "This fee record is not available in the current view. Refresh the fee register and try again."
+      });
+    }
+    return;
+  }
+
+  const year = String(
+    fee._year ||
+    document.getElementById("filterFeeYear")?.value ||
+    new Date().getFullYear()
+  );
+  const studentId = String(fee.studentId || fee.learnerId || fee.student_id || "");
+  const actionStartedAt = performance.now();
+
+  select.dataset.feeActionBusy = "1";
+  select.disabled = true;
+  select.setAttribute("aria-busy", "true");
+  select.title = "Processing this learner's fee action…";
 
   try {
-
-    if (!select) {
-
-      console.error(
-        "❌ Fee action select not found"
-      );
-
-      return;
-
+    // Await the operation so errors are caught here. The busy state is local
+    // to this dropdown; no section-wide overlay or lock is introduced here.
+    switch (action) {
+      case "edit":
+        if (typeof window.openEditFeeModal !== "function") throw new Error("Fee editing is unavailable.");
+        await window.openEditFeeModal(year, feeId);
+        break;
+      case "receipt":
+        if (typeof window.generateReceipt !== "function") throw new Error("Receipt generation is unavailable.");
+        await window.generateReceipt(fee);
+        break;
+      case "sms":
+        if (typeof window.sendSingleSMS !== "function") throw new Error("SMS reminders are unavailable.");
+        await window.sendSingleSMS(year, studentId || feeId);
+        break;
+      case "whatsapp":
+        if (typeof window.sendFeeWhatsAppReminder !== "function") throw new Error("WhatsApp reminders are unavailable.");
+        await window.sendFeeWhatsAppReminder(year, studentId || feeId);
+        break;
+      case "refund":
+        if (typeof window.openRefundModal !== "function") throw new Error("Fee refunds are unavailable.");
+        await window.openRefundModal(year, feeId);
+        break;
+      case "delete":
+        if (typeof window.deleteLearnerFee !== "function") throw new Error("Fee deletion is unavailable.");
+        await window.deleteLearnerFee(year, feeId, fee.studentName || fee.name || fee.learnerName || "");
+        break;
+      default:
+        console.warn("Unknown fee action:", action);
     }
-
-
-    // =====================================================
-    // GET SELECTED ACTION
-    // =====================================================
-
-    const action =
-      select.value;
-
-
-    // Nothing selected
-    if (!action) {
-
-      return;
-
+  } catch (error) {
+    console.error("Fee action failed:", { action, feeId, error });
+    if (typeof Swal !== "undefined") {
+      await Swal.fire({
+        icon: "error",
+        title: "Fee Action Failed",
+        text: error?.message || "Unable to complete this fee action. Please try again."
+      });
     }
-
-
-    // =====================================================
-    // GET FEE ID
-    // =====================================================
-
-    const feeId =
-      select.dataset.feeId;
-
-
-    if (!feeId) {
-
-      console.error(
-        "❌ Fee ID missing from action dropdown"
-      );
-
-      Swal.fire(
-        "Error",
-        "Unable to identify this fee record.",
-        "error"
-      );
-
+  } finally {
+    // If a successful edit re-rendered the table, this select may already be
+    // detached. New rows are created enabled; otherwise reset this one safely.
+    if (select.isConnected) {
+      select.disabled = false;
+      select.removeAttribute("aria-busy");
+      select.dataset.feeActionBusy = "0";
+      select.title = "Select an action for this fee record";
       select.value = "";
-
-      return;
-
     }
-
-
-    // =====================================================
-    // GET STORED FEE
-    // =====================================================
-
-    const fee =
-      window.feeActionData?.[feeId];
-
-
-    if (!fee) {
-
-      console.error(
-        "❌ Fee record not found:",
-        feeId
-      );
-
-      Swal.fire(
-        "Error",
-        "Fee record could not be found.",
-        "error"
-      );
-
-      select.value = "";
-
-      return;
-
-    }
-
-
-    // =====================================================
-    // GET YEAR
-    // =====================================================
-
-    const year =
-      fee._year ||
-      document.getElementById(
-        "filterFeeYear"
-      )?.value ||
-      new Date()
-        .getFullYear()
-        .toString();
-
-
-    // =====================================================
-    // GET STUDENT ID
-    // =====================================================
-
-    const studentId =
-      fee.studentId ||
-      "";
-
-
-    // =====================================================
-    // ✏️ EDIT FEE
-    // =====================================================
-
-    if (
-      action === "edit"
-    ) {
-
-      console.log(
-        "✏️ Editing fee:",
-        feeId
-      );
-
-
-      if (
-        typeof window.openEditFeeModal ===
-        "function"
-      ) {
-
-        window.openEditFeeModal(
-          year,
-          feeId
-        );
-
-      }
-
-      else {
-
-        throw new Error(
-          "openEditFeeModal function is not available."
-        );
-
-      }
-
-    }
-
-
-    // =====================================================
-    // 🧾 GENERATE RECEIPT
-    // =====================================================
-
-    else if (
-      action === "receipt"
-    ) {
-
-      console.log(
-        "🧾 Generating receipt:",
-        feeId
-      );
-
-
-      if (
-        typeof window.generateReceipt ===
-        "function"
-      ) {
-
-        window.generateReceipt(
-          fee
-        );
-
-      }
-
-      else {
-
-        throw new Error(
-          "generateReceipt function is not available."
-        );
-
-      }
-
-    }
-
-
-    // =====================================================
-    // 📩 SEND SMS
-    // =====================================================
-
-    else if (
-      action === "sms"
-    ) {
-
-      console.log(
-        "📩 Sending SMS:",
-        studentId
-      );
-
-
-      if (
-        typeof window.sendSingleSMS ===
-        "function"
-      ) {
-
-        window.sendSingleSMS(
-          year,
-          studentId
-        );
-
-      }
-
-      else {
-
-        throw new Error(
-          "sendSingleSMS function is not available."
-        );
-
-      }
-
-    }
-
-
-    // =====================================================
-    // 🟢 WHATSAPP FEE REMINDER
-    // =====================================================
-
-    else if (
-      action === "whatsapp"
-    ) {
-
-      if (typeof window.sendFeeWhatsAppReminder === "function") {
-        window.sendFeeWhatsAppReminder(year, studentId);
-      } else {
-        throw new Error("WhatsApp fee reminder is not available.");
-      }
-
-    }
-
-
-    // =====================================================
-    // 💸 REFUND
-    // =====================================================
-
-    else if (
-      action === "refund"
-    ) {
-
-      console.log(
-        "💸 Processing refund:",
-        feeId
-      );
-
-
-      if (
-        typeof window.openRefundModal ===
-        "function"
-      ) {
-
-        window.openRefundModal(
-          year,
-          feeId
-        );
-
-      }
-
-      else {
-
-        throw new Error(
-          "openRefundModal function is not available."
-        );
-
-      }
-
-    }
-
-
-    // =====================================================
-    // 🗑️ DELETE
-    // =====================================================
-
-    else if (
-      action === "delete"
-    ) {
-
-      console.log(
-        "🗑️ Deleting fee:",
-        feeId
-      );
-
-
-      if (
-        typeof window.deleteLearnerFee ===
-        "function"
-      ) {
-
-        window.deleteLearnerFee(
-          year,
-          feeId,
-          fee.studentName || ""
-        );
-
-      }
-
-      else {
-
-        throw new Error(
-          "deleteLearnerFee function is not available."
-        );
-
-      }
-
-    }
-
-
-    // =====================================================
-    // RESET DROPDOWN
-    // =====================================================
-
-    select.value = "";
-
-
+    console.debug("Fee action completed", {
+      action,
+      elapsedMs: Math.round(performance.now() - actionStartedAt)
+    });
   }
-
-  catch (error) {
-
-    console.error(
-      "❌ Fee action error:",
-      error
-    );
-
-
-    Swal.fire(
-      "Error",
-      error.message ||
-        "Unable to perform this action",
-      "error"
-    );
-
-
-    // Always reset dropdown
-    if (select) {
-
-      select.value = "";
-
-    }
-
-  }
-
 };
 /* =========================================================
 ⚙️ TOGGLE FEE ACTIONS DROPDOWN
@@ -45941,60 +45892,63 @@ function removeFeeRowFromUI(
 
 
 // ================= FEES: GRADES =================
+// Keep the Fee Form grade list synchronized with the authenticated school's
+// loaded learner roster. Some legacy learner records store grade in `class` or
+// `gradeName`, so normalize those aliases without changing database fields.
 function loadFeeGradesFromStudents() {
-
   const feeGrade = document.getElementById("feeGrade");
-  if (!feeGrade) return;
+  if (!feeGrade) return Promise.resolve([]);
 
-  const grades = [...new Set(
-    (allStudents || [])
-      .map(s => s.grade?.trim())
-      .filter(Boolean)
-  )];
+  if (typeof window.loadFeeGrades === "function") {
+    return Promise.resolve(window.loadFeeGrades()).catch(error => {
+      console.warn("Fee Form grade refresh failed:", error);
+      return [];
+    });
+  }
 
-  feeGrade.innerHTML = `<option value="">Select Grade</option>`;
+  const roster = Array.isArray(window.allStudents) ? window.allStudents :
+    (Array.isArray(allStudents) ? allStudents : []);
+  const currentValue = String(feeGrade.value || "");
+  const grades = [...new Set(roster.map(student => String(
+    student?.grade ?? student?.class ?? student?.gradeName ?? student?.currentGrade ?? ""
+  ).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"}));
 
-  grades.forEach(g => {
-    feeGrade.appendChild(new Option(g, g));
-  });
+  feeGrade.replaceChildren(new Option("-- Select Grade --", ""));
+  grades.forEach(grade => feeGrade.add(new Option(grade, grade)));
+  if (grades.includes(currentValue)) feeGrade.value = currentValue;
+  return Promise.resolve(grades);
 }
+
 window.loadLearnersForFees = function () {
+  if (typeof window.loadFeeLearners === "function") {
+    return Promise.resolve(window.loadFeeLearners()).catch(error => {
+      console.warn("Fee Form learner refresh failed:", error);
+    });
+  }
 
   const gradeEl = document.getElementById("feeGrade");
   const learnerSelect = document.getElementById("feeStudent");
-
   if (!gradeEl || !learnerSelect) return;
 
-  const grade = gradeEl.value.trim();
-
-  learnerSelect.innerHTML = `<option value="">Select Learner</option>`;
-
+  const grade = String(gradeEl.value || "").trim();
+  learnerSelect.replaceChildren(new Option("-- Select Learner --", ""));
   if (!grade) return;
 
-  if (!allStudents || !allStudents.length) return;
-
-  const learners = allStudents.filter(
-    s => (s.grade || "").trim() === grade
-  );
+  const roster = Array.isArray(window.allStudents) ? window.allStudents :
+    (Array.isArray(allStudents) ? allStudents : []);
+  const learners = roster.filter(student => String(
+    student?.grade ?? student?.class ?? student?.gradeName ?? student?.currentGrade ?? ""
+  ).trim() === grade);
 
   learners.forEach(student => {
-
-    const option = document.createElement("option");
-
-    option.value = student.id;
-
-    const phone = (student.parentPhone || "").trim();
-
-    option.textContent = phone
-      ? `${student.name} / ${phone}`
-      : student.name;
-
+    const id = String(student?.id ?? student?.studentId ?? student?.learnerId ?? student?.key ?? "");
+    if (!id) return;
+    const name = String(student?.name ?? student?.studentName ?? student?.fullName ?? "Unnamed learner").trim();
+    const phone = String(student?.parentPhone ?? student?.parent_phone ?? student?.parentPhoneNumber ?? student?.parentContact ?? student?.guardianPhone ?? "").trim();
+    const option = new Option(phone ? `${name} / ${phone}` : name, id);
     option.dataset.phone = phone;
-
-    learnerSelect.appendChild(option);
+    learnerSelect.add(option);
   });
-
-  console.log("✅ Learners loaded with phones:", learners);
 };
 
 function clearFeeForm() {
@@ -46052,6 +46006,7 @@ window.loadFeeFormYears = function () {
 };
 // ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => {
+  if (window.__RASM_LOGIN_COMPLETE !== true) return;
   loadFees();
 });
 /* ============================================================
@@ -48292,6 +48247,7 @@ const feeBreakdown = Object.entries(feesObj)
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (window.__RASM_LOGIN_COMPLETE !== true) return;
   loadFinanceSummary();
 });
 /* =========================================================
@@ -49636,6 +49592,7 @@ window.loadFeeFilterGrades = function () {
   const select = document.getElementById("filterFeeGrade");
   if (!select) return;
 
+  if (window.__RASM_FEE_FILTER_GRADE_WAIT_TIMER) return;
   let attempts = 0;
 
   const waitForStudents = setInterval(() => {
@@ -49647,6 +49604,7 @@ window.loadFeeFilterGrades = function () {
 
     if (students.length > 0) {
       clearInterval(waitForStudents);
+      window.__RASM_FEE_FILTER_GRADE_WAIT_TIMER = null;
 
       const currentValue = select.value || "";
 
@@ -49682,29 +49640,32 @@ window.loadFeeFilterGrades = function () {
 
     if (attempts >= 100) {
       clearInterval(waitForStudents);
+      window.__RASM_FEE_FILTER_GRADE_WAIT_TIMER = null;
       console.warn("⚠️ Fee grade filter: learners were not available.");
     }
   }, 200);
+  window.__RASM_FEE_FILTER_GRADE_WAIT_TIMER = waitForStudents;
 };
 
-function loadGradesFromStudents() {
+async function loadGradesFromStudents() {
 
-  const gradeSelect =
-    document.getElementById("gradeSelect");
+  const gradeSelect = document.getElementById("gradeSelect");
+  const filterGrade = document.getElementById("filterGrade");
+  if (!gradeSelect || window.__RASM_LOGIN_COMPLETE !== true) return;
 
-  const filterGrade =
-    document.getElementById("filterGrade");
+  const activeSchoolId = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "").trim();
+  if (activeSchoolId && (window.__RASM_STUDENTS_READY !== true ||
+      String(window.__RASM_STUDENTS_LOADED_SCHOOL_ID || "") !== activeSchoolId)) {
+    if (typeof window.loadStudents === "function") await window.loadStudents();
+  }
 
-  // ================= SAFETY CHECK =================
-  if (!gradeSelect) return;
-
-  // 🔥 WAIT UNTIL STUDENTS ARE READY
-  if (!allStudents || allStudents.length === 0) {
-
-    console.warn("⏳ Waiting for students before loading grades...");
-
-    setTimeout(loadGradesFromStudents, 300);
-
+  // Empty school rosters are a completed state, not a reason to poll forever.
+  if (!Array.isArray(allStudents) || allStudents.length === 0) {
+    if (window.__RASM_STUDENTS_READY === true &&
+        String(window.__RASM_STUDENTS_LOADED_SCHOOL_ID || "") === activeSchoolId) {
+      gradeSelect.innerHTML = '<option value="">Select Grade</option>';
+      if (filterGrade) filterGrade.innerHTML = '<option value="">All Grades</option>';
+    }
     return;
   }
 
@@ -49745,99 +49706,133 @@ function loadGradesFromStudents() {
   console.log("✅ Grades loaded:", grades);
 
   // ================= SAFE TRIGGER =================
-  setTimeout(() => {
-    if (typeof loadLearnersFromStudents === "function") {
-      loadLearnersFromStudents();
-    }
-  }, 200);
+  if (typeof loadLearnersFromStudents === "function") {
+    return loadLearnersFromStudents();
+  }
 }
+window.loadGradesFromStudents = loadGradesFromStudents;
 // ==============================
-// 💰 LOAD FEE GRADES
+// 💰 LOAD FEE GRADES — SCHOOL-SCOPED + CACHE-AWARE
 // ==============================
 window.loadFeeGrades = async function () {
-
   const feeGrade = document.getElementById("feeGrade");
+  if (!feeGrade) return [];
 
-  if (!feeGrade) return;
+  const schoolId = String(
+    window.schoolId || sessionStorage.getItem("schoolId") ||
+    localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || ""
+  ).trim();
+  if (!schoolId) {
+    feeGrade.replaceChildren(new Option("-- Select Grade --", ""));
+    return [];
+  }
 
-  feeGrade.innerHTML = `
-    <option value="">-- Select Grade --</option>
-  `;
+  const currentValue = String(feeGrade.value || "");
+  feeGrade.replaceChildren(new Option("-- Select Grade --", ""));
 
   try {
-
-    const snap = await fastGet(schoolRef("students"));
-
-    if (!snap.exists()) return;
-
+    const cachedStudents = window.rasmGetLoadedStudentsForSchool?.(schoolId);
     const grades = new Set();
+    const addStudentGrade = student => {
+      const grade = String(
+        student?.grade ?? student?.class ?? student?.gradeName ?? student?.currentGrade ?? ""
+      ).trim();
+      if (grade) grades.add(grade);
+    };
 
-    snap.forEach(child => {
-      const student = child.val();
-
-      if (student.grade) {
-        grades.add(student.grade);
+    if (Array.isArray(cachedStudents)) {
+      cachedStudents.forEach(addStudentGrade);
+    } else {
+      const snapshot = await fastGet(schoolRef("students"));
+      if (snapshot?.exists?.()) {
+        snapshot.forEach(child => addStudentGrade(child.val() || {}));
       }
-    });
+    }
 
-    [...grades]
-      .sort()
-      .forEach(grade => {
-
-        feeGrade.innerHTML += `
-          <option value="${grade}">
-            ${grade}
-          </option>
-        `;
-      });
-
-  } catch (err) {
-    console.error("Error loading fee grades:", err);
+    const sortedGrades = [...grades].sort((a, b) =>
+      a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"})
+    );
+    sortedGrades.forEach(grade => feeGrade.add(new Option(grade, grade)));
+    if (sortedGrades.includes(currentValue)) feeGrade.value = currentValue;
+    feeGrade.dataset.loadedSchoolId = schoolId;
+    feeGrade.dataset.loadedGrades = String(sortedGrades.length);
+    return sortedGrades;
+  } catch (error) {
+    console.error("Error loading Fee Form grades:", error);
+    // Keep any grades already available in-memory as a safe fallback.
+    const roster = Array.isArray(window.allStudents) ? window.allStudents : [];
+    const grades = [...new Set(roster.map(student => String(
+      student?.grade ?? student?.class ?? student?.gradeName ?? student?.currentGrade ?? ""
+    ).trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"})
+    );
+    grades.forEach(grade => feeGrade.add(new Option(grade, grade)));
+    if (grades.includes(currentValue)) feeGrade.value = currentValue;
+    return grades;
   }
 };
 
 // ==============================
-// 💰 LOAD FEE LEARNERS
+// 💰 LOAD FEE LEARNERS — MATCH SELECTED GRADE
 // ==============================
 window.loadFeeLearners = async function () {
-
   const feeGrade = document.getElementById("feeGrade");
   const feeStudent = document.getElementById("feeStudent");
+  if (!feeGrade || !feeStudent) return [];
 
-  if (!feeGrade || !feeStudent) return;
+  const selectedGrade = String(feeGrade.value || "").trim();
+  const priorLearner = String(feeStudent.value || "");
+  feeStudent.replaceChildren(new Option("-- Select Learner --", ""));
+  if (!selectedGrade) return [];
 
-  const selectedGrade = feeGrade.value;
-
-  feeStudent.innerHTML = `
-    <option value="">-- Select Learner --</option>
-  `;
-
-  if (!selectedGrade) return;
+  const schoolId = String(
+    window.schoolId || sessionStorage.getItem("schoolId") ||
+    localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || ""
+  ).trim();
+  if (!schoolId) return [];
 
   try {
-
-    const snap = await fastGet(schoolRef("students"));
-
-    if (!snap.exists()) return;
-
-    snap.forEach(child => {
-
-      const student = child.val();
-
-      if (student.grade === selectedGrade) {
-
-        feeStudent.innerHTML += `
-       <option value="${child.key}">
-  ${student.name}
-</option>
-        `;
+    const cachedStudents = window.rasmGetLoadedStudentsForSchool?.(schoolId);
+    let students = [];
+    if (Array.isArray(cachedStudents)) {
+      students = cachedStudents;
+    } else {
+      const snapshot = await fastGet(schoolRef("students"));
+      if (snapshot?.exists?.()) {
+        snapshot.forEach(child => students.push({...(child.val() || {}), id:String(child.key)}));
       }
+    }
+
+    const selected = students.filter(student => String(
+      student?.grade ?? student?.class ?? student?.gradeName ?? student?.currentGrade ?? ""
+    ).trim() === selectedGrade);
+
+    selected.sort((a, b) => String(a?.name ?? a?.studentName ?? a?.fullName ?? "")
+      .localeCompare(String(b?.name ?? b?.studentName ?? b?.fullName ?? ""), undefined, {sensitivity:"base"}));
+
+    selected.forEach(student => {
+      const id = String(student?.id ?? student?.studentId ?? student?.learnerId ?? student?.key ?? "").trim();
+      if (!id) return;
+      const name = String(student?.name ?? student?.studentName ?? student?.fullName ?? "Unnamed learner").trim();
+      const phone = String(
+        student?.parentPhone ?? student?.parent_phone ?? student?.parentPhoneNumber ??
+        student?.parentContact ?? student?.guardianPhone ?? student?.guardianPhoneNumber ?? ""
+      ).trim();
+      const option = new Option(phone ? `${name} / ${phone}` : name, id);
+      option.dataset.phone = phone;
+      feeStudent.add(option);
     });
 
-  } catch (err) {
-    console.error("Error loading fee learners:", err);
+    if (selected.some(student => String(student?.id ?? student?.studentId ?? student?.learnerId ?? student?.key ?? "") === priorLearner)) {
+      feeStudent.value = priorLearner;
+    }
+    return selected;
+  } catch (error) {
+    console.error("Error loading Fee Form learners:", error);
+    return [];
   }
 };
+
 async function loadLearnersFromStudents() {
 
   // 🔒 GLOBAL LOCK (THIS IS THE REAL FIX)
@@ -49874,7 +49869,18 @@ async function loadLearnersFromStudents() {
 
     if (!schoolId) return;
 
-    const snapshot = await fastGet(ref(db, `schools/${schoolId}/students`));
+    const cachedStudents = window.rasmGetLoadedStudentsForSchool?.(schoolId);
+    let studentEntries;
+    if (Array.isArray(cachedStudents)) {
+      studentEntries = cachedStudents.map(student => ({
+        key: String(student.id || ""),
+        val: () => student
+      }));
+    } else {
+      const snapshot = await fastGet(ref(db, `schools/${schoolId}/students`));
+      studentEntries = [];
+      if (snapshot?.exists?.()) snapshot.forEach(child => studentEntries.push(child));
+    }
 const recordedMap = {};
 
 const selectedSubject =
@@ -49890,7 +49896,7 @@ const selectedRecordedKey =
         ? getRecordedSubjectKey(selectedSubject, selectedSubLearningArea)
         : "";
 
-snapshot.forEach(child => {
+studentEntries.forEach(child => {
 
     const data = child.val();
 
@@ -49936,7 +49942,7 @@ let firstPending = null;
 // ==================================================
 const learners = [];
 
-snapshot.forEach(child => {
+studentEntries.forEach(child => {
 
   const data = child.val();
 
@@ -50055,6 +50061,9 @@ learners.forEach(item => {
   }
 }
 
+// This source lives in a module script, so explicitly expose the existing
+// function for the authenticated on-demand module loader.
+window.loadLearnersFromStudents = loadLearnersFromStudents;
 
 // =========================================================
 // 🚀 GLOBAL STATE
@@ -51536,87 +51545,106 @@ async function loadMarksUnifiedClean() {
     }
 
     // ===========================================
-    // FIND PREVIOUS EXAM
+    // FIND PREVIOUS EXAMS ACROSS THE ENTIRE SCHOOL,
+    // THEN SELECT THE MOST RECENT PRIOR PERIOD THAT
+    // ACTUALLY HAS MARKS FOR EACH LEARNER'S GRADE.
+    // This avoids choosing (for example) Grade 9's
+    // Term 3 Opener as Grade 8's previous exam when
+    // Grade 8 only has Term 2 End-Term marks.
     // ===========================================
-    let previousExamPeriod = null;
-
+    let previousExamPeriod = null; // compatibility/default for existing consumers
     const recordedExamPeriods = new Set();
+    const gradeExamPeriods = new Map();
 
-    snapshot.forEach(child=>{
+    function examOrder(period) {
+        const p = normalizeExamPeriod(period).toUpperCase();
+        const yearMatch = p.match(/\d{4}/);
+        const year = yearMatch ? Number(yearMatch[0]) : 0;
+        let term = 0;
+        if (p.includes("TERM1")) term = 1;
+        else if (p.includes("TERM2")) term = 2;
+        else if (p.includes("TERM3")) term = 3;
+        let exam = 0;
+        if (p.includes("OPENER")) exam = 1;
+        else if (p.includes("MID")) exam = 2;
+        else if (p.includes("END")) exam = 3;
+        // Keep unrecognized names discoverable, but do not let them
+        // outrank a clearly identified period without a usable date/order.
+        return year ? year * 100 + term * 10 + exam : 0;
+    }
 
-        const student = child.val();
+    function normalizeGradePeriodKey(value) {
+        return String(value || "").trim().toUpperCase()
+            .replace(/^GRADE\s*/i, "").replace(/\s+/g, " ");
+    }
 
-        if(!student?.marks) return;
-
-        Object.keys(student.marks).forEach(period=>{
-
-            recordedExamPeriods.add(
-                normalizeExamPeriod(period)
-            );
-
+    function periodContainsRealSubjectMarks(periodMarks) {
+        if (!periodMarks || typeof periodMarks !== "object") return false;
+        return Object.entries(periodMarks).some(([subject, value]) => {
+            if (isMarksMetadataField(subject)) return false;
+            return getNumericRecordedValue(value) !== null;
         });
+    }
 
+    function getStudentGradeForPeriodScan(student, marksByPeriod, preferredPeriod) {
+        const direct = student?.grade || student?.currentGrade || student?.gradeName;
+        if (direct) return direct;
+        const preferred = preferredPeriod ? getMarksForNormalizedPeriod(student, preferredPeriod) : null;
+        if (preferred?.grade) return preferred.grade;
+        for (const periodKey of Object.keys(marksByPeriod || {})) {
+            if (marksByPeriod[periodKey]?.grade) return marksByPeriod[periodKey].grade;
+        }
+        return "";
+    }
+
+    snapshot.forEach(child => {
+        const student = child.val() || {};
+        const marksByPeriod = student.marks;
+        if (!marksByPeriod || typeof marksByPeriod !== "object") return;
+        const gradeKey = normalizeGradePeriodKey(getStudentGradeForPeriodScan(student, marksByPeriod, examPeriod));
+        Object.keys(marksByPeriod).forEach(periodKey => {
+            const normalizedPeriod = normalizeExamPeriod(periodKey);
+            if (!normalizedPeriod) return;
+            recordedExamPeriods.add(normalizedPeriod);
+            if (!gradeKey || !periodContainsRealSubjectMarks(marksByPeriod[periodKey])) return;
+            if (!gradeExamPeriods.has(gradeKey)) gradeExamPeriods.set(gradeKey, new Set());
+            gradeExamPeriods.get(gradeKey).add(normalizedPeriod);
+        });
     });
 
-    const allExamPeriods =
-        [...recordedExamPeriods];
+    const allExamPeriods = [...recordedExamPeriods].sort((a, b) => {
+        const orderDiff = examOrder(a) - examOrder(b);
+        return orderDiff || a.localeCompare(b);
+    });
+    const currentOrder = examOrder(examPeriod);
+    const currentNormalized = normalizeExamPeriod(examPeriod).toLowerCase();
 
-    function examOrder(period){
+    // Find a school-wide fallback for consumers that do not have a grade.
+    const earlierSchoolPeriods = allExamPeriods.filter(period => {
+        const order = examOrder(period);
+        return order > 0 && currentOrder > 0 && order < currentOrder &&
+            normalizeExamPeriod(period).toLowerCase() !== currentNormalized;
+    });
+    if (earlierSchoolPeriods.length) previousExamPeriod = earlierSchoolPeriods[earlierSchoolPeriods.length - 1];
 
-        const p =
-            normalizeExamPeriod(period)
-            .toUpperCase();
+    // Per-grade previous-period lookup, based only on periods where that
+    // grade has actual numeric subject marks, never just a period key.
+    const previousExamPeriodByGrade = new Map();
+    gradeExamPeriods.forEach((periodSet, gradeKey) => {
+        const candidates = [...periodSet].filter(period => {
+            const order = examOrder(period);
+            return order > 0 && currentOrder > 0 && order < currentOrder &&
+                normalizeExamPeriod(period).toLowerCase() !== currentNormalized;
+        }).sort((a, b) => examOrder(a) - examOrder(b) || a.localeCompare(b));
+        if (candidates.length) previousExamPeriodByGrade.set(gradeKey, candidates[candidates.length - 1]);
+    });
 
-        const year =
-            Number(
-                (p.match(/\d{4}/)||[0])[0]
-            );
-
-        let term = 0;
-
-        if(p.includes("TERM1")) term=1;
-        else if(p.includes("TERM2")) term=2;
-        else if(p.includes("TERM3")) term=3;
-
-        let exam = 0;
-
-        if(p.includes("OPENER")) exam=1;
-        else if(p.includes("MID")) exam=2;
-        else if(p.includes("END")) exam=3;
-
-        return year*100+term*10+exam;
-
-    }
-
-    allExamPeriods.sort(
-        (a,b)=>examOrder(a)-examOrder(b)
-    );
-
-    const currentIndex = allExamPeriods.findIndex(period =>
-        normalizeExamPeriod(period).toLowerCase() === normalizeExamPeriod(examPeriod).toLowerCase()
-    );
-
-    if(currentIndex>0){
-
-        previousExamPeriod =
-            allExamPeriods[currentIndex-1];
-
-    }
-
-    console.log(
-        "Current Exam:",
-        examPeriod
-    );
-
-    console.log(
-        "Previous Exam:",
-        previousExamPeriod
-    );
-
-    console.log(
-        "Available Exams:",
-        allExamPeriods
-    );
+    console.log("Assessment report exam scan:", {
+        currentExam: examPeriod,
+        schoolWidePreviousExam: previousExamPeriod,
+        availableExamPeriods: allExamPeriods,
+        previousExamByGrade: Object.fromEntries(previousExamPeriodByGrade)
+    });
 
     // ===========================================
     // PROCESS LEARNERS
@@ -51668,8 +51696,13 @@ async function loadMarksUnifiedClean() {
                 Object.entries(rawMarks).map(([key, value]) => [key, normalizeSavedMarkValue(value)])
             );
 
-            const rawPreviousMarks = previousExamPeriod
-                ? (getMarksForNormalizedPeriod(data, previousExamPeriod) || {})
+            const learnerGradeForPrevious = normalizeGradePeriodKey(
+                getStudentGradeForPeriodScan(data, data.marks, examPeriod) || marks.grade || data.grade || ""
+            );
+            const learnerPreviousExamPeriod =
+                previousExamPeriodByGrade.get(learnerGradeForPrevious) || null;
+            const rawPreviousMarks = learnerPreviousExamPeriod
+                ? (getMarksForNormalizedPeriod(data, learnerPreviousExamPeriod) || {})
                 : {};
             const previousMarks = Object.fromEntries(
                 Object.entries(rawPreviousMarks).map(([key, value]) => [key, normalizeSavedMarkValue(value)])
@@ -51738,7 +51771,7 @@ async function loadMarksUnifiedClean() {
 
                 examPeriod,
 
-                previousExamPeriod
+                previousExamPeriod: learnerPreviousExamPeriod
 
             });
 
@@ -55739,7 +55772,7 @@ window.generateAssessmentReports = async function () {
     document.body.appendChild(loader);
 
 
-    setTimeout(async () => {
+    setTimeout(() => {
 
         try {
 
@@ -55764,205 +55797,6 @@ window.generateAssessmentReports = async function () {
                 return;
             }
 
-
-            // ==================================================
-            // GRADE-SPECIFIC PREVIOUS EXAM DISCOVERY
-            // ==================================================
-            // Do not choose the previous exam from a school-wide list alone.
-            // A grade may not have participated in the latest exam period.
-            // Scan the saved school student records, find periods that contain
-            // real numeric marks for THIS grade, and choose the closest earlier
-            // period relative to the current report exam.
-            const assessmentSchoolId = String(
-                window.schoolId || localStorage.getItem("schoolId") ||
-                sessionStorage.getItem("schoolId") || ""
-            ).trim();
-            const reportGradeValue = String(
-                reportMeta?.grade || activeAssessmentGrade || learners[0]?.grade || ""
-            ).trim();
-            const currentAssessmentPeriod = String(
-                reportMeta?.examName || learners.find(l => l?.examPeriod)?.examPeriod ||
-                window.reportContext?.examPeriod || ""
-            ).trim();
-            const normalizeAssessmentGrade = value => String(value || "")
-                .trim().toUpperCase().replace(/^GRADE\s*/i, "").replace(/^CLASS\s*/i, "")
-                .replace(/\s+/g, "");
-            const assessmentGradeMatches = (recordGrade, targetGrade) => {
-                const a = normalizeAssessmentGrade(recordGrade);
-                const b = normalizeAssessmentGrade(targetGrade);
-                if (!a || !b) return false;
-                if (a === b) return true;
-                const aNumber = typeof getGradeNumber === "function" ? getGradeNumber(a) : NaN;
-                const bNumber = typeof getGradeNumber === "function" ? getGradeNumber(b) : NaN;
-                // If the selected report names a stream/class (e.g. 8B), keep
-                // it exact. A grade-level selection (e.g. Grade 8) includes its
-                // streams if the saved learner records use 8A/8B notation.
-                const targetHasStream = /^\d+[A-Z]$/.test(b);
-                return !targetHasStream && Number.isFinite(aNumber) && aNumber > 0 && aNumber === bNumber;
-            };
-            const assessmentPeriodKey = value => String(value || "")
-                .trim().toLowerCase().replace(/[,\s]+/g, "").replace(/_+/g, "-");
-            const assessmentPeriodOrder = value => {
-                const p = String(value || "").toLowerCase();
-                const yearMatch = p.match(/(?:19|20)\d{2}/);
-                const termMatch = p.match(/term\s*[-_ ]?\s*([123])/);
-                const year = yearMatch ? Number(yearMatch[0]) : 0;
-                const term = termMatch ? Number(termMatch[1]) : 0;
-                let exam = 0;
-                if (/opener|opening/.test(p)) exam = 1;
-                else if (/mid(?:term)?|mid-term/.test(p)) exam = 2;
-                else if (/end(?:term)?|end-term/.test(p)) exam = 3;
-                // YYYY + term + exam order: opener, midterm, end-term.
-                return year && term && exam ? year * 100 + term * 10 + exam : null;
-            };
-            const hasActualAssessmentMarks = marksObject => {
-                if (!marksObject || typeof marksObject !== "object") return false;
-                return Object.entries(marksObject).some(([key, value]) => {
-                    if (typeof isMarksMetadataField === "function" && isMarksMetadataField(key)) return false;
-                    return typeof getNumericRecordedValue === "function"
-                        ? getNumericRecordedValue(value) !== null
-                        : (value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)));
-                });
-            };
-            const mergeAssessmentPeriodMarks = (marksByPeriod, wantedPeriod) => {
-                const merged = {};
-                if (!marksByPeriod || typeof marksByPeriod !== "object") return merged;
-                const wanted = assessmentPeriodKey(wantedPeriod);
-                Object.keys(marksByPeriod).forEach(key => {
-                    if (assessmentPeriodKey(key) !== wanted) return;
-                    const periodMarks = marksByPeriod[key];
-                    if (periodMarks && typeof periodMarks === "object") Object.assign(merged, periodMarks);
-                });
-                return merged;
-            };
-            let gradePreviousPeriod = null;
-            let gradePreviousPeriodMarksByStudent = new Map();
-            let assessmentScanSucceeded = false;
-            let assessmentRawStudentRecords = null;
-
-            if (assessmentSchoolId && currentAssessmentPeriod && reportGradeValue &&
-                typeof db !== "undefined" && typeof ref === "function") {
-                try {
-                    const assessmentSnapshot = await window.fastGet(ref(db, `schools/${assessmentSchoolId}/students`));
-                    if (assessmentSnapshot?.exists?.()) {
-                        const allPeriodsForGrade = new Map();
-                        const rawStudentRecords = assessmentSnapshot.val() || {};
-                    assessmentRawStudentRecords = rawStudentRecords;
-                        Object.entries(rawStudentRecords).forEach(([studentKey, studentRecord]) => {
-                            if (!studentRecord || !assessmentGradeMatches(
-                                studentRecord.grade || studentRecord.class || studentRecord.className,
-                                reportGradeValue
-                            )) return;
-                            const marksByPeriod = studentRecord.marks || {};
-                            Object.keys(marksByPeriod).forEach(periodKey => {
-                                const periodMarks = mergeAssessmentPeriodMarks(marksByPeriod, periodKey);
-                                if (!hasActualAssessmentMarks(periodMarks)) return;
-                                const normalizedKey = assessmentPeriodKey(periodKey);
-                                if (!allPeriodsForGrade.has(normalizedKey)) {
-                                    allPeriodsForGrade.set(normalizedKey, {
-                                        name: periodKey,
-                                        order: assessmentPeriodOrder(periodKey),
-                                        studentKeys: new Set()
-                                    });
-                                }
-                                allPeriodsForGrade.get(normalizedKey).studentKeys.add(studentKey);
-                            });
-                        });
-
-                        const currentKey = assessmentPeriodKey(currentAssessmentPeriod);
-                        const currentOrder = assessmentPeriodOrder(currentAssessmentPeriod);
-                        const earlierPeriods = [...allPeriodsForGrade.values()].filter(period => {
-                            if (assessmentPeriodKey(period.name) === currentKey) return false;
-                            if (currentOrder !== null && period.order !== null) return period.order < currentOrder;
-                            // When the key format is legacy/unknown, only use a
-                            // period that appears before the current period in the
-                            // school-wide stored period list; never guess a future one.
-                            return false;
-                        }).sort((a, b) => {
-                            if (a.order !== null && b.order !== null) return b.order - a.order;
-                            if (a.order !== null) return -1;
-                            if (b.order !== null) return 1;
-                            return String(b.name).localeCompare(String(a.name));
-                        });
-
-                        if (earlierPeriods.length) {
-                            gradePreviousPeriod = earlierPeriods[0].name;
-                            Object.entries(rawStudentRecords).forEach(([studentKey, studentRecord]) => {
-                                if (!studentRecord || !assessmentGradeMatches(
-                                    studentRecord.grade || studentRecord.class || studentRecord.className,
-                                    reportGradeValue
-                                )) return;
-                                const periodMarks = mergeAssessmentPeriodMarks(studentRecord.marks || {}, gradePreviousPeriod);
-                                if (hasActualAssessmentMarks(periodMarks)) {
-                                    gradePreviousPeriodMarksByStudent.set(studentKey, periodMarks);
-                                }
-                            });
-                        }
-                        assessmentScanSucceeded = true;
-                    }
-                } catch (assessmentScanError) {
-                    console.warn("Grade-specific previous exam scan failed; previous results will not be guessed.", assessmentScanError);
-                }
-            }
-
-            if (assessmentScanSucceeded) {
-                // Map current report learners to their persisted Firebase record.
-                // Prefer the record key/ID, then stable admission identifiers, and
-                // finally a grade-scoped name match for older records.
-                const rawSnapshotValue = assessmentRawStudentRecords;
-                const learnerRecordById = new Map();
-                const learnerRecordByAdmission = new Map();
-                const learnerRecordByNameGrade = new Map();
-                if (rawSnapshotValue && typeof rawSnapshotValue === "object") {
-                    Object.entries(rawSnapshotValue).forEach(([key, rec]) => {
-                        if (!rec || typeof rec !== "object") return;
-                        learnerRecordById.set(String(key), { key, rec });
-                        [rec.admissionNo, rec.admissionNumber, rec.admNo, rec.studentId, rec.id].forEach(v => {
-                            if (v !== undefined && v !== null && String(v).trim()) {
-                                learnerRecordByAdmission.set(String(v).trim().toLowerCase(), { key, rec });
-                            }
-                        });
-                        const nameKey = `${normalizeAssessmentGrade(rec.grade || rec.class || rec.className)}|${String(rec.name || rec.fullName || rec.learnerName || "").trim().toLowerCase()}`;
-                        if (nameKey !== "|") learnerRecordByNameGrade.set(nameKey, { key, rec });
-                    });
-                }
-                learners.forEach(learner => {
-                    let found = learnerRecordById.get(String(learner.id || learner.key || learner.studentId || ""));
-                    if (!found) {
-                        const admission = String(learner.admissionNo || learner.admissionNumber || learner.admNo || learner.studentId || "").trim().toLowerCase();
-                        if (admission) found = learnerRecordByAdmission.get(admission);
-                    }
-                    if (!found) {
-                        const nameKey = `${normalizeAssessmentGrade(learner.grade)}|${String(learner.name || learner.fullName || "").trim().toLowerCase()}`;
-                        found = learnerRecordByNameGrade.get(nameKey);
-                    }
-                    const previous = found ? gradePreviousPeriodMarksByStudent.get(found.key) : null;
-                    learner.previousMarks = previous ? { ...previous } : {};
-                    learner.previousExamPeriod = previous ? gradePreviousPeriod : null;
-                });
-                // This label is grade-specific: it must never advertise a period
-                // for which the selected grade has no recorded marks.
-                reportMeta.previousExamName = gradePreviousPeriod || "";
-                window.__assessmentPreviousExamDiscovery = {
-                    schoolId: assessmentSchoolId,
-                    grade: reportGradeValue,
-                    currentExam: currentAssessmentPeriod,
-                    previousExam: gradePreviousPeriod,
-                    learnersWithPreviousMarks: gradePreviousPeriodMarksByStudent.size,
-                    scannedAt: Date.now()
-                };
-                console.info("Assessment previous exam scan:", window.__assessmentPreviousExamDiscovery);
-            } else {
-                // If the scan failed, do not present a guessed global period as
-                // authoritative. Keep existing loaded data only when it is present.
-                if (!learners.some(l => hasActualAssessmentMarks(l.previousMarks || {}))) {
-                    learners.forEach(learner => {
-                        learner.previousMarks = {};
-                        learner.previousExamPeriod = null;
-                    });
-                    reportMeta.previousExamName = "";
-                }
-            }
 
             // ==================================================
             // CANONICAL EXAM TOTALS / RANKING
@@ -62040,10 +61874,9 @@ window.allStudents = [];
 // ======================================================
 function renderStudents(list) {
 
-  // store globally
-  window.allStudents = Array.isArray(list)
-    ? list
-    : [];
+  // Keep the canonical roster in window.allStudents; this is only the current
+  // filtered view used for table pagination and rendering.
+  window.__rasmVisibleStudents = Array.isArray(list) ? list : [];
 
   // reset pagination
   window.__studentPagination.page = 0;
@@ -62058,7 +61891,7 @@ function renderStudents(list) {
   tbody.innerHTML = "";
 
   // empty state
-  if (!window.allStudents.length) {
+  if (!window.__rasmVisibleStudents.length) {
 
     tbody.innerHTML = `
       <tr>
@@ -62100,7 +61933,8 @@ function renderNextStudentsBatch() {
   const end = start + state.limit;
 
   // get batch
-  const batch = window.allStudents.slice(start, end);
+  const visibleStudents = Array.isArray(window.__rasmVisibleStudents) ? window.__rasmVisibleStudents : [];
+  const batch = visibleStudents.slice(start, end);
 
   // finished
   if (!batch.length) {
@@ -69993,9 +69827,6 @@ const isGrade1To6 = gradeNo >= 1 && gradeNo <= 6;
   const normalizedSelectedGrade = String(grade || "").trim().toLowerCase();
   const normalizedSelectedPeriod = String(period || "").trim().toLowerCase();
 
-  // Keep learner records intact while filtering. Do not rank using the
-  // cached/stored `total`, because it can be stale or calculated differently
-  // from the marks currently displayed in this report.
   const learners = learnersData
     .filter(l => {
       const learnerGrade = String(l?.grade ?? "").trim().toLowerCase();
@@ -70003,7 +69834,8 @@ const isGrade1To6 = gradeNo >= 1 && gradeNo <= 6;
       const gradeMatch = !normalizedSelectedGrade || normalizedSelectedGrade === "all grades" || learnerGrade === normalizedSelectedGrade;
       const periodMatch = !normalizedSelectedPeriod || normalizedSelectedPeriod === "all periods" || learnerPeriod === normalizedSelectedPeriod;
       return gradeMatch && periodMatch;
-    });
+    })
+    .sort((a, b) => (b.total || 0) - (a.total || 0));
 
   if (!learners.length) {
 
@@ -70219,15 +70051,11 @@ function meritComputedTotal(learner) {
     }, 0);
 }
 
-// Rank EVERY grade by the exact same recomputed total shown in the report.
-// This prevents stale `learner.total` values from placing a higher-scoring
-// learner below a lower-scoring learner. Sorting whole learner objects keeps
-// each learner's subject marks, name and grade together as one row.
-learners.sort((a, b) => {
-    const totalDifference = meritComputedTotal(b) - meritComputedTotal(a);
-    if (totalDifference !== 0) return totalDifference;
-    return String(a?.name || "").localeCompare(String(b?.name || ""));
-});
+// Rank Grades 1–3 by the allowed five subjects, not by stale stored totals.
+if (isGrade1To3Value(grade)) {
+    learners.sort((a, b) => meritComputedTotal(b) - meritComputedTotal(a) ||
+        String(a?.name || "").localeCompare(String(b?.name || "")));
+}
 // ================= TOTALS =================
   updateProgress(40, "Calculating totals...");
   await new Promise(r => setTimeout(r, 300));
@@ -71795,11 +71623,9 @@ function applyStudentFilters() {
     const grade = normalize(gradeEl?.value);
     const gender = normalize(genderEl?.value);
 
-    const students = Array.isArray(window.allStudents)
-        ? window.allStudents
-        : (typeof allStudents !== "undefined" && Array.isArray(allStudents)
-            ? allStudents
-            : []);
+    const students = (typeof allStudents !== "undefined" && Array.isArray(allStudents))
+        ? allStudents
+        : (Array.isArray(window.allStudents) ? window.allStudents : []);
 
     let filtered = students;
 
@@ -101592,15 +101418,7 @@ ANTI FREEZE SYSTEM
    AUTO LOAD LIBRARY
 ========================================================= */
 
-window.addEventListener("load", () => {
-
-  runSmoothly(() => {
-
-    loadLibrary();
-
-  });
-
-});
+// Library records are loaded by the on-demand section dispatcher, not by page load.
 
 // =========================================
 // AUTO RISING SCHOOL COUNTER
@@ -118715,11 +118533,12 @@ window.addEventListener("load", async () => {
 
 window.__rasmLoadAllPromise = window.__rasmLoadAllPromise || null;
 
-window.__rasmLoadAllPromise = window.__rasmLoadAllPromise || null;
-
 /* RASM 360 lazy bootstrap: login loads the school profile only. Feature data
    is loaded by the section the user opens; concurrent calls share a promise. */
 window.loadAll = async function () {
+  // Firebase may restore an auth session before the user has completed this
+  // page's login/subscription checks. Never bootstrap school modules early.
+  if (window.__RASM_LOGIN_COMPLETE !== true) return false;
   if (window.__rasmLoadAllPromise) return window.__rasmLoadAllPromise;
   const sid = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "").trim();
   if (!sid) { console.warn("⏳ RASM 360 bootstrap waiting for verified school context."); return false; }
@@ -124573,13 +124392,10 @@ window.loadRegistrationRequests = function () {
     </div>
   `;
 
-  const usersRef = ref(db, "users");
+  // Only pending profiles are needed here; don't download/log the entire users tree.
+  const pendingUsersQuery = query(ref(db, "users"), orderByChild("registrationPending"), equalTo(true));
 
-  window.fastOnValue(usersRef, (snap) => {
-
-    console.log("📥 Users snapshot received");
-    console.log("📥 Exists:", snap.exists());
-    console.log("📥 Data:", snap.val());
+  window.fastOnValue(pendingUsersQuery, (snap) => {
 
     container.innerHTML = "";
 
@@ -124590,14 +124406,7 @@ window.loadRegistrationRequests = function () {
       const uid = child.key;
       const u = child.val();
 
-      console.log(
-        "👤 User:",
-        uid,
-        "Pending:",
-        u.registrationPending
-      );
-
-      if (u.registrationPending !== true) return;
+      if (!u || u.registrationPending !== true) return;
 
       found = true;
 
@@ -124871,7 +124680,10 @@ window.loadUsersTable = function() {
     return;
   }
   if (typeof window._usersListener === "function") { try { window._usersListener(); } catch (_) {} }
-  window._usersListener = window.fastOnValue(ref(db,"users"), snapshot => {
+  // Query only this school's profiles instead of downloading every school's users.
+  // Firebase rules should index users.schoolId (merge with the existing rules).
+  const schoolUsersQuery = query(ref(db, "users"), orderByChild("schoolId"), equalTo(schoolId));
+  window._usersListener = window.fastOnValue(schoolUsersQuery, snapshot => {
     const rows=[];
     if (snapshot?.exists()) snapshot.forEach(child => {
       const user=child.val() || {};
@@ -124987,7 +124799,10 @@ window.deleteUser = async function(uid) {
     Swal.fire({icon:"success",title:"Profile Deleted",text:"The RASM 360 profile was removed. Authentication identity deletion is separate."});
   } catch(error){console.error(error);Swal.fire({icon:"error",title:"Delete Failed",text:error.message||"Could not delete this profile."});}
 };
-document.addEventListener("DOMContentLoaded", () => { window.loadUsersTable(); });
+document.addEventListener("DOMContentLoaded", () => {
+  if (window.__RASM_LOGIN_COMPLETE !== true) return;
+  if (typeof window.loadUsersTable === "function") window.loadUsersTable();
+});
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -133200,7 +133015,7 @@ window.getGrade1To6ReportLabel = function(level) {
 
 
 
-</html>
+
 
 
 <!-- LOST BOOKS ACCOUNTABILITY FILTER / RECORD FALLBACK FIX -->
@@ -145336,10 +145151,8 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
   }
 
   document.addEventListener("DOMContentLoaded",()=>{
+    // This patch may prepare the UI, but must not fetch Library data at startup.
     ensureLibraryProfessionalUI();
-    setTimeout(()=>{
-      if(document.getElementById("library")) window.loadLibrary();
-    },300);
   });
 
   /* Re-run after navigation opens the Library section. */
@@ -146505,7 +146318,7 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
   console.log("✅ RASM 360 — Library clearance now linked directly to Circulation & Returns + Book Copies.");
 })();
 </script>
-</body>
+
 
 
 <!-- ============================================================
@@ -150674,14 +150487,10 @@ ${headerHtml}
     return ref(db, `schools/${sid}${path ? '/' + path : ''}`);
   };
   async function freshGet(path) {
-    const firebaseRef = currentSchoolRef(path);
-    // Prefer the application's shared fast-read bridge; fall back to the
-    // existing Firebase wrapper rather than relying on module-local names.
-    if (typeof window.fastGet === 'function') return window.fastGet(firebaseRef);
-    if (typeof window.rasmFreshGet === 'function') return window.rasmFreshGet(firebaseRef);
-    if (typeof window.rasmGet === 'function') return window.rasmGet(firebaseRef);
-    if (typeof window.get === 'function') return window.get(firebaseRef);
-    throw new Error('Firebase read helper is unavailable. Please refresh after signing in.');
+    if (typeof fastGet === 'function') return fastGet(currentSchoolRef(path));
+    if (typeof window.rasmFreshGet === 'function') return window.rasmFreshGet(currentSchoolRef(path));
+    if (typeof get === 'function') return get(currentSchoolRef(path));
+    throw new Error('Firebase read helper is unavailable.');
   }
   function normalizeLearners(raw) {
     if (Array.isArray(raw)) return raw.filter(Boolean).map((x,i)=>({...x,id:String(x.id || x.studentId || x.key || i)}));
@@ -150909,13 +150718,26 @@ ${headerHtml}
       await window.loadStudentResults(chosen.id,exam,grade);
     } catch(e){console.error('Learner results lookup failed:',e);Swal.close();Swal.fire('Unable to Load Results','Could not retrieve results. Please check your connection and try again.','error');}
   };
-  document.addEventListener('DOMContentLoaded',()=>{setFieldVisibility();window.loadFeeBalanceStudents?.();window.loadResultsFilters?.();});
-  // Re-apply role-based layout whenever the relevant sections are opened.
-  const oldShow=window.show;
-  if(typeof oldShow==='function'&&!oldShow.__rasmParentLayoutWrapped){
-    const wrapped=function(section){const out=oldShow.apply(this,arguments);if(section==='feeBalanceSection'){setFieldVisibility();window.loadFeeBalanceStudents?.();}if(section==='checkResultsSection'||section==='learnerResultsSection'||section==='checkLearnerResultsSection'){setFieldVisibility();window.loadResultsFilters?.();}return out;};
-    wrapped.__rasmParentLayoutWrapped=true;window.show=wrapped;
+  document.addEventListener('DOMContentLoaded',()=>{setFieldVisibility();});
+  document.addEventListener('rasm360:login-complete',()=>{setFieldVisibility();});
+  // Install after the deferred main module defines window.show. Data loading is
+  // handled by the single on-demand section dispatcher rather than duplicated here.
+  function installParentLayoutShowWrapper(){
+    if(window.__RASM_PARENT_LAYOUT_SHOW_WRAPPER_INSTALLED) return;
+    const oldShow=window.show;
+    if(typeof oldShow!=='function') return;
+    const wrapped=function(section){
+      const out=oldShow.apply(this,arguments);
+      if(section==='feeBalanceSection'||section==='checkResultsSection'||section==='learnerResultsSection'||section==='checkLearnerResultsSection') setFieldVisibility();
+      return out;
+    };
+    wrapped.__rasmParentLayoutWrapped=true;
+    window.show=wrapped;
+    window.__RASM_PARENT_LAYOUT_SHOW_WRAPPER_INSTALLED=true;
   }
+  installParentLayoutShowWrapper();
+  document.addEventListener('DOMContentLoaded',installParentLayoutShowWrapper,{once:true});
+  window.addEventListener('load',installParentLayoutShowWrapper,{once:true});
 })();
 </script>
 
@@ -151904,13 +151726,14 @@ ${headerHtml}
   }
 
   async function install(){
+    // Install safe wrappers after authentication without downloading/reconciling
+    // Library records. The wrapped loader reconciles only when Library is opened.
+    if (window.__RASM_LOGIN_COMPLETE !== true) return;
     try{
       installLoadWrapper();
-      await reconcileAll();
       installBorrowWrapper();
       installLoadWrapper();
-      if(typeof window.loadLibrary==="function") await window.loadLibrary();
-      console.log("✅ RASM 360 — Library single inventory authority active.");
+      console.log("✅ RASM 360 — Library inventory authority hooks ready; data remains on-demand.");
     }catch(error){
       console.error("LIBRARY_INVENTORY_AUTHORITY_INIT_ERROR",error);
     }
@@ -151918,7 +151741,8 @@ ${headerHtml}
 
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",()=>setTimeout(install,0),{once:true});
   else setTimeout(install,0);
-  window.addEventListener("load",()=>setTimeout(()=>{installBorrowWrapper();installLoadWrapper();},0),{once:true});
+  document.addEventListener("rasm360:login-complete",()=>install());
+  window.addEventListener("load",()=>setTimeout(()=>{if(window.__RASM_LOGIN_COMPLETE === true){installBorrowWrapper();installLoadWrapper();}},0),{once:true});
 })();
 
 </script>
@@ -153966,8 +153790,8 @@ ${headerHtml}
       localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || "").trim();
   }
   function loginReady() {
-    return !!getSchoolId() && (window.__RASM_LOGIN_COMPLETE === true ||
-      !!(window.currentUser || window.currentUserRole || window.userRole));
+    // Cached role/user values alone must never authorize a school-data load.
+    return window.__RASM_LOGIN_COMPLETE === true;
   }
   function startDashboardLoad() {
     if (!loginReady()) return;
@@ -154023,7 +153847,7 @@ ${headerHtml}
 
   function runLoader(sectionId, force) {
     const loaderName = modules[sectionId];
-    if (!loaderName || !getSchoolId()) return;
+    if (window.__RASM_LOGIN_COMPLETE !== true || !loaderName || !getSchoolId()) return;
     const section = document.getElementById(sectionId);
     if (!section || !isVisible(section)) return;
     const loader = window[loaderName];
@@ -154117,7 +153941,7 @@ ${headerHtml}
 })();
 </script>
 
-</html>
+
 
 <script id="rasm360-on-demand-data-loading">
 (function () {
@@ -154132,8 +153956,8 @@ ${headerHtml}
     teachers: ["loadTeachers"], teachersSection: ["loadTeachers"], registeredTeachersSection: ["loadTeachers"],
     ict: ["loadICT"], ictSection: ["loadICT"], ictManagementSection: ["loadICT"],
     supportStaff: ["loadSupportStaff"], supportStaffSection: ["loadSupportStaff"], registeredSupportStaffSection: ["loadSupportStaff"],
-    fees: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"], feesSection: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"],
-    feeManagementSection: ["loadFees", "loadFeeYears", "loadFeeFilterGrades"], feeBalanceSection: ["loadFeeBalanceStudents"],
+    fees: ["loadFees", "loadFeeYears", "loadFeeFilterGrades", "loadFeeFormYears", "loadFinanceSummary"], feesSection: ["loadFees", "loadFeeYears", "loadFeeFilterGrades", "loadFeeFormYears", "loadFinanceSummary"],
+    feeManagementSection: ["loadFees", "loadFeeYears", "loadFeeFilterGrades", "loadFeeFormYears", "loadFinanceSummary"], feeBalanceSection: ["loadFeeBalanceStudents"],
     teacherWalletSection: ["loadTeacherWallet", "loadMyWithdrawals"],
     transportSection: ["loadTransport"], transportDashboard: ["loadTransport"], transport: ["loadTransport"],
     inventorySection: ["loadInventory"], inventory: ["loadInventory"],
@@ -154143,9 +153967,10 @@ ${headerHtml}
     usersSection: ["loadUsersTable"], adminUsersPanel: ["loadUsersTable"],
     payrollSection: ["loadPayrollDashboard"], payrollDashboardSection: ["loadPayrollDashboard"],
     withdrawRequestsSection: ["loadWithdrawalRequests"], withdrawalHistorySection: ["loadWithdrawalRequests"], registrationRequestsSection: ["loadRegistrationRequests"],
-    checkResultsSection: ["loadResultsFilters"], resultsSection: ["loadResultsFilters"],
+    checkResultsSection: ["loadResultsFilters"], learnerResultsSection: ["loadResultsFilters"],
+    checkLearnerResultsSection: ["loadResultsFilters"], resultsSection: ["loadResultsFilters"],
     coursesSection: ["loadCourses"], eLearningSection: ["loadCourses"], assignmentsSection: ["loadAssignments"],
-    assignmentHelpSection: ["loadAssignmentHelp"], recordMarksSection: ["loadGradesFromStudents", "loadLearnersFromStudents"],
+    assignmentHelpSection: ["loadAssignmentHelp"], recordMarksSection: ["loadStudents", "loadGradesFromStudents"],
     meritListSection: ["loadStudents"], subjectChampions: ["loadStudents"], subjectPerformance: ["loadStudents"],
     genderPerformance: ["loadStudents"], levelSummary: ["loadStudents"], combineMarksByGrade: ["loadStudents"],
     marksStatus: ["loadStudents"], generateAssessmentReports: ["loadStudents"], subjectRankingReport: ["loadStudents"],
@@ -154156,7 +153981,7 @@ ${headerHtml}
   const reportSections = new Set(["meritListSection", "subjectChampions", "subjectPerformance", "genderPerformance", "levelSummary", "combineMarksByGrade", "marksStatus", "generateAssessmentReports", "subjectRankingReport", "generateBlankMerit", "generateSubjectRank", "performanceSection", "topGradeSection", "topStudentsSection", "termPerformanceSection", "certificatesSection"]);
   function schoolId() { return String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "").trim(); }
   function resetSchool() { const sid=schoolId(); if(sid!==state.schoolId){state.schoolId=sid;state.loaded.clear();state.pending.clear();} return sid; }
-  function loginReady() { return window.__RASM_LOGIN_COMPLETE===true || (!!schoolId() && !!(window.currentUser || window.currentUserRole || window.userRole)); }
+  function loginReady() { return window.__RASM_LOGIN_COMPLETE === true; }
   function invoke(name) { const fn=window[name]; if(typeof fn!=="function") return Promise.resolve(); try{return Promise.resolve(fn());}catch(e){return Promise.reject(e);} }
   async function loadForSection(sectionId) {
     const sid=resetSchool(); if(!sid || !loginReady()) return;
@@ -154166,7 +153991,17 @@ ${headerHtml}
     if(state.pending.has(key)) return state.pending.get(key);
     const task=(async()=>{
       const unique=[...new Set(names)];
-      const results=await Promise.allSettled(unique.map(invoke));
+      let results;
+      // Marks entry needs the complete roster before its dropdown is built.
+      if (sectionId === "recordMarksSection") {
+        results = [];
+        for (const name of unique) {
+          try { await invoke(name); results.push({status:"fulfilled"}); }
+          catch (reason) { results.push({status:"rejected", reason}); }
+        }
+      } else {
+        results = await Promise.allSettled(unique.map(invoke));
+      }
       results.forEach((r,i)=>{if(r.status==="rejected") console.error("RASM360 on-demand loader failed:",unique[i],r.reason);});
       state.loaded.add(key);
       if(reportSections.has(sectionId) && typeof window.runSectionLogic==="function") {
@@ -154177,19 +154012,26 @@ ${headerHtml}
     try { await task; } finally { if(state.pending.get(key)===task) state.pending.delete(key); }
   }
   window.RASM360_LOAD_SECTION_DATA=loadForSection;
-  const oldShow=window.show;
-  if(typeof oldShow==="function" && !oldShow.__rasmDemandLoadWrapped) {
-    const wrapped=function(sectionId) {
-      const result=oldShow.apply(this,arguments);
-      requestAnimationFrame(()=>{
-        const target=document.getElementById(sectionId);
-        if(!target || target.style.display==="none") return;
-        loadForSection(sectionId).catch(e=>console.error("RASM360 on-demand loading failed for "+sectionId+":",e));
+  function installDemandShowWrapper() {
+    const oldShow = window.show;
+    if (typeof oldShow !== "function" || oldShow.__rasmDemandLoadWrapped) return;
+    const wrapped = function(sectionId) {
+      const result = oldShow.apply(this, arguments);
+      const schedule = typeof requestAnimationFrame === "function" ? requestAnimationFrame : fn => setTimeout(fn, 0);
+      schedule(() => {
+        const target = document.getElementById(sectionId);
+        if (!target || target.style.display === "none") return;
+        loadForSection(sectionId).catch(e => console.error("RASM360 on-demand loading failed for " + sectionId + ":", e));
       });
       return result;
     };
-    wrapped.__rasmDemandLoadWrapped=true; wrapped.__rasmOriginal=oldShow; window.show=wrapped;
+    wrapped.__rasmDemandLoadWrapped = true;
+    wrapped.__rasmOriginal = oldShow;
+    window.show = wrapped;
   }
+  installDemandShowWrapper();
+  document.addEventListener("DOMContentLoaded", installDemandShowWrapper, { once: true });
+  window.addEventListener("load", installDemandShowWrapper, { once: true });
   function loadVisibleSection() {
     if(!loginReady()) return;
     const visible=[...document.querySelectorAll(".main > div[id], .main > section[id]")].find(el=>{
@@ -154222,8 +154064,7 @@ ${headerHtml}
       localStorage.getItem("currentSchoolId") || "").trim();
   }
   function loginReady() {
-    return window.__RASM_LOGIN_COMPLETE === true ||
-      (!!getSchoolId() && !!(window.currentUser || window.currentUserRole || window.userRole));
+    return window.__RASM_LOGIN_COMPLETE === true;
   }
   function normalize(value) { return String(value || "").trim().replace(/\s+/g, " "); }
   function escapeHtml(value) {
@@ -154254,7 +154095,14 @@ ${headerHtml}
       select.disabled = true;
       select.innerHTML = placeholder;
       try {
-        const snapshot = await readStudents(sid);
+        // Reuse the active school's canonical in-memory roster. This avoids a
+        // second full students-tree download when the marks form is opened.
+        if (typeof window.loadStudents === "function") await window.loadStudents();
+        const roster = typeof window.rasmGetLoadedStudentsForSchool === "function"
+          ? window.rasmGetLoadedStudentsForSchool(sid) : null;
+        const snapshot = Array.isArray(roster)
+          ? { forEach: callback => roster.forEach(learner => callback({ key: String(learner.id || ""), val: () => learner })) }
+          : await readStudents(sid);
         const gradeMap = new Map();
         if (snapshot && typeof snapshot.forEach === "function") {
           snapshot.forEach(child => {
@@ -154440,8 +154288,8 @@ ${headerHtml}
 
 </script>
 
-</body>
-</html>
+
+
 
 <!-- =============================================================
  RASM 360 — FINAL UNIVERSAL RECYCLE BIN ENFORCEMENT
@@ -155986,4 +155834,5 @@ document.addEventListener("DOMContentLoaded", function(){
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',install,{once:true}); else install();
 })();
 </script>
-
+</body>
+</html>
