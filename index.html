@@ -69993,6 +69993,9 @@ const isGrade1To6 = gradeNo >= 1 && gradeNo <= 6;
   const normalizedSelectedGrade = String(grade || "").trim().toLowerCase();
   const normalizedSelectedPeriod = String(period || "").trim().toLowerCase();
 
+  // Keep learner records intact while filtering. Do not rank using the
+  // cached/stored `total`, because it can be stale or calculated differently
+  // from the marks currently displayed in this report.
   const learners = learnersData
     .filter(l => {
       const learnerGrade = String(l?.grade ?? "").trim().toLowerCase();
@@ -70000,8 +70003,7 @@ const isGrade1To6 = gradeNo >= 1 && gradeNo <= 6;
       const gradeMatch = !normalizedSelectedGrade || normalizedSelectedGrade === "all grades" || learnerGrade === normalizedSelectedGrade;
       const periodMatch = !normalizedSelectedPeriod || normalizedSelectedPeriod === "all periods" || learnerPeriod === normalizedSelectedPeriod;
       return gradeMatch && periodMatch;
-    })
-    .sort((a, b) => (b.total || 0) - (a.total || 0));
+    });
 
   if (!learners.length) {
 
@@ -70217,11 +70219,15 @@ function meritComputedTotal(learner) {
     }, 0);
 }
 
-// Rank Grades 1–3 by the allowed five subjects, not by stale stored totals.
-if (isGrade1To3Value(grade)) {
-    learners.sort((a, b) => meritComputedTotal(b) - meritComputedTotal(a) ||
-        String(a?.name || "").localeCompare(String(b?.name || "")));
-}
+// Rank EVERY grade by the exact same recomputed total shown in the report.
+// This prevents stale `learner.total` values from placing a higher-scoring
+// learner below a lower-scoring learner. Sorting whole learner objects keeps
+// each learner's subject marks, name and grade together as one row.
+learners.sort((a, b) => {
+    const totalDifference = meritComputedTotal(b) - meritComputedTotal(a);
+    if (totalDifference !== 0) return totalDifference;
+    return String(a?.name || "").localeCompare(String(b?.name || ""));
+});
 // ================= TOTALS =================
   updateProgress(40, "Calculating totals...");
   await new Promise(r => setTimeout(r, 300));
