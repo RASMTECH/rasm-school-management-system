@@ -7217,6 +7217,112 @@ button.primary{
   #authSection .rasm-christmas-greeting { animation-duration: 12s; }
 }
 </style>
+<style id="rasm360-main-menu-popup-css">
+/* RASM 360: keep the long navigation list out of the fixed sidebar. */
+.sidebar-scroll { display:none !important; }
+.rasm360-menu-launcher {
+    width:calc(100% - 28px) !important;
+    min-width:0 !important;
+    min-height:48px !important;
+    height:auto !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-start !important;
+    gap:10px !important;
+    margin:16px 14px 12px !important;
+    padding:12px 14px !important;
+    border:1px solid rgba(250,204,21,.55) !important;
+    border-left:4px solid #facc15 !important;
+    border-radius:10px !important;
+    background:linear-gradient(135deg,#1e293b,#334155) !important;
+    color:#facc15 !important;
+    font-size:14px !important;
+    font-weight:800 !important;
+    letter-spacing:.3px !important;
+    text-align:left !important;
+    cursor:pointer !important;
+    box-sizing:border-box !important;
+    box-shadow:0 5px 16px rgba(0,0,0,.14) !important;
+}
+.rasm360-menu-launcher:hover,
+.rasm360-menu-launcher:focus-visible {
+    background:linear-gradient(135deg,#334155,#475569) !important;
+    outline:2px solid rgba(250,204,21,.55) !important;
+    outline-offset:2px !important;
+}
+.rasm360-menu-launcher-chevron { margin-left:auto; font-size:18px; color:#e2e8f0; }
+.rasm360-main-menu-swal.swal2-popup {
+    width:min(1180px,96vw) !important;
+    max-width:1180px !important;
+    padding:20px !important;
+    border:1px solid #334155 !important;
+    border-radius:18px !important;
+    background:#0f172a !important;
+    color:#f8fafc !important;
+    box-shadow:0 24px 90px rgba(2,6,23,.55) !important;
+}
+.rasm360-main-menu-swal .swal2-title { color:#f8fafc !important; font-size:24px !important; }
+.rasm360-main-menu-swal .swal2-html-container {
+    margin:0 !important; padding:0 !important; overflow:hidden !important;
+    color:#e2e8f0 !important; text-align:left !important;
+}
+.rasm360-menu-dialog { width:100%; text-align:left; }
+.rasm360-menu-dialog-head {
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    flex-wrap:wrap; margin:0 0 15px; padding:0 0 14px;
+    border-bottom:1px solid #334155;
+}
+.rasm360-menu-dialog-hint { color:#cbd5e1; font-size:13px; margin-top:3px; }
+.rasm360-menu-search-wrap { flex:1 1 300px; min-width:200px; max-width:460px; }
+#rasm360MenuSearch {
+    width:100%; min-height:44px; box-sizing:border-box; padding:11px 14px;
+    border:1px solid #475569; border-radius:10px; background:#1e293b;
+    color:#f8fafc; font-size:14px; outline:none;
+}
+#rasm360MenuSearch:focus { border-color:#38bdf8; box-shadow:0 0 0 3px rgba(56,189,248,.18); }
+.rasm360-menu-grid {
+    display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px;
+    max-height:min(68vh,720px); overflow-y:auto; overflow-x:hidden;
+    padding:1px 5px 5px 1px; scrollbar-width:thin; scrollbar-color:#64748b #0f172a;
+}
+.rasm360-menu-card {
+    min-width:0; align-self:start; padding:13px; border:1px solid #334155;
+    border-radius:13px; background:linear-gradient(155deg,rgba(30,41,59,.95),rgba(15,23,42,.98));
+}
+.rasm360-menu-card[hidden], .rasm360-menu-action[hidden] { display:none !important; }
+.rasm360-menu-card h3 { display:flex; align-items:center; gap:7px; margin:0 0 10px; color:#facc15; font-size:14px; font-weight:800; }
+.rasm360-menu-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.rasm360-menu-action {
+    display:flex; align-items:center; justify-content:flex-start; gap:7px;
+    width:100%; min-width:0; min-height:43px; height:auto; box-sizing:border-box;
+    padding:10px 11px; margin:0; border:1px solid #475569; border-radius:9px;
+    background:#1e293b; color:#f8fafc; font-size:12px; font-weight:700;
+    line-height:1.35; text-align:left; white-space:normal; overflow-wrap:anywhere; cursor:pointer;
+    transition:background .15s ease,border-color .15s ease,transform .15s ease;
+}
+.rasm360-menu-action:hover,.rasm360-menu-action:focus-visible {
+    background:#1d4ed8; border-color:#60a5fa; outline:none; transform:translateY(-1px);
+}
+.rasm360-menu-print-row { display:flex; flex-direction:column; gap:9px; }
+#rasm360MenuPrintSelector {
+    width:100%; min-height:42px; box-sizing:border-box; padding:9px 10px;
+    border:1px solid #475569; border-radius:9px; background:#1e293b; color:#f8fafc; font-size:12px;
+}
+.rasm360-menu-print-btn { justify-content:center; background:#166534; border-color:#22c55e; }
+.rasm360-menu-no-results { display:none; padding:22px 10px; text-align:center; color:#cbd5e1; font-size:14px; }
+.rasm360-menu-no-results.is-visible { display:block; }
+@media (max-width:900px) {
+    .rasm360-main-menu-swal.swal2-popup { width:96vw !important; padding:14px !important; }
+    .rasm360-menu-grid { grid-template-columns:repeat(2,minmax(0,1fr)); max-height:70vh; }
+}
+@media (max-width:560px) {
+    .rasm360-main-menu-swal.swal2-popup { width:98vw !important; padding:11px !important; }
+    .rasm360-menu-dialog-head { align-items:stretch; }
+    .rasm360-menu-search-wrap { max-width:none; min-width:0; flex-basis:100%; }
+    .rasm360-menu-grid { grid-template-columns:minmax(0,1fr); max-height:68vh; }
+    .rasm360-menu-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+</style>
 </head>
 
 <body>
@@ -7962,29 +8068,19 @@ background: radial-gradient(circle at center, #ffffff 0%, #f3f4f6 60%, #e5e7eb 1
 </div>
 
 <!-- =====================================================
-     MAIN MENU HEADING
+     MAIN MENU POPUP LAUNCHER
 ====================================================== -->
-
-<div style="
-    margin:18px 0 12px;
-    padding:10px 14px;
-    background:rgba(255,255,255,.08);
-    border-left:4px solid #facc15;
-    border-radius:8px;
-">
-
-    <h4 style="
-        margin:0;
-        color:#facc15;
-        font-size:14px;
-        font-weight:700;
-        letter-spacing:1px;
-        text-transform:uppercase;
-    ">
-        ☰ Main Menu
-    </h4>
-
-</div>
+<button
+    id="rasm360MainMenuToggle"
+    class="rasm360-menu-launcher"
+    type="button"
+    aria-haspopup="dialog"
+    aria-expanded="false"
+    title="Open all navigation buttons">
+    <span aria-hidden="true" style="font-size:19px;line-height:1;">☰</span>
+    <span>Main Menu</span>
+    <span aria-hidden="true" class="rasm360-menu-launcher-chevron">⌄</span>
+</button>
 
 <!-- =====================================================
      SCROLLABLE MENU
@@ -71163,9 +71259,28 @@ subjects.forEach(s => {
 const overallAverage = learnerCount > 0 ? grandTotal / learnerCount : 0;
 html += `<td>${overallAverage.toFixed(2)}</td><td>-</td></tr>`;
 
-html += "</tbody></table></div>";
+html += `</tbody></table></div>
+    <div class="combined-stream-actions" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:18px auto 8px;padding:12px;">
+      <button type="button" id="regroupCombinedMeritStreamsBtn" style="background:#155eef;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-weight:800;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,.12);">🎯 Regroup Learners into Streams by Performance</button>
+    </div>`;
 
+  // Cache just the generated report's ranking data so the user can regroup it
+  // without re-reading Firebase or modifying any learner/marks records.
+  window.__rasmCombinedStreamSnapshot = {
+    grade: String(rawGrade || "All Grades"),
+    period: String(rawPeriod || "All Periods"),
+    year: year,
+    learners: learnersData.map(l => ({
+      name: String(l.name || "Unnamed Learner"),
+      grade: String(l.grade || rawGrade || ""),
+      totalMarks: Number(l.totalMarks) || 0,
+      average: Number(l.average) || 0
+    }))
+  };
+  window.__rasmCombinedOriginalHtml = html;
   container.innerHTML = html;
+
+  document.getElementById("regroupCombinedMeritStreamsBtn")?.addEventListener("click", window.promptAndGeneratePerformanceStreams);
 
   updateProgress(100, "Complete ✅");
   await new Promise(r => setTimeout(r, 300));
@@ -71183,6 +71298,297 @@ html += "</tbody></table></div>";
   });
 };
 
+// ============================================================
+// 🎯 PERFORMANCE-BASED STREAM REGROUPING FOR COMBINED MERIT LIST
+// This is a report-only operation. It does not change learner grades,
+// marks, exam records, or any Firebase data.
+// ============================================================
+window.promptAndGeneratePerformanceStreams = async function () {
+  const snapshot = window.__rasmCombinedStreamSnapshot;
+  const learners = Array.isArray(snapshot?.learners) ? snapshot.learners : [];
+
+  if (learners.length < 2) {
+    await Swal.fire({
+      icon: "info",
+      title: "Not Enough Learners",
+      text: "At least two learners must be in the generated Combined Merit List before streams can be created."
+    });
+    return;
+  }
+
+  const result = await Swal.fire({
+    title: "Create Performance-Balanced Streams",
+    html: `<p style="margin:0 0 10px;color:#475569">${learners.length} learners will be distributed across streams using their Combined Merit List ranking. High-performing learners will be spread across the streams rather than placed together in one stream.</p>`,
+    input: "number",
+    inputLabel: "How many streams do you want?",
+    inputValue: 2,
+    inputAttributes: {
+      min: "2",
+      max: String(learners.length),
+      step: "1",
+      "aria-label": "Number of streams"
+    },
+    inputValidator: value => {
+      const count = Number(value);
+      if (!Number.isInteger(count) || count < 2) return "Enter a whole number of at least 2 streams.";
+      if (count > learners.length) return `There are only ${learners.length} learners, so the number of streams cannot exceed ${learners.length}.`;
+      return undefined;
+    },
+    showCancelButton: true,
+    confirmButtonText: "Generate Stream Lists",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: "#155eef",
+    reverseButtons: true
+  });
+
+  if (!result.isConfirmed) return;
+
+  const streamCount = Number(result.value);
+  if (!Number.isInteger(streamCount) || streamCount < 2 || streamCount > learners.length) return;
+
+  const sorted = learners.slice().sort((a, b) =>
+    (Number(b.totalMarks) - Number(a.totalMarks)) ||
+    (Number(b.average) - Number(a.average)) ||
+    String(a.name).localeCompare(String(b.name))
+  );
+
+  const streams = Array.from({ length: streamCount }, (_, index) => ({
+    name: `Stream ${String.fromCharCode(65 + (index % 26))}${index >= 26 ? Math.floor(index / 26) + 1 : ""}`,
+    learners: []
+  }));
+
+  // Serpentine (snake) distribution balances ranking: first pass goes A→last,
+  // second pass goes last→A, and continues alternating until all are assigned.
+  sorted.forEach((learner, index) => {
+    const batch = Math.floor(index / streamCount);
+    const positionInBatch = index % streamCount;
+    const streamIndex = batch % 2 === 0
+      ? positionInBatch
+      : streamCount - 1 - positionInBatch;
+    streams[streamIndex].learners.push({ ...learner, meritRank: index + 1 });
+  });
+
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+
+  const safeText = value => escapeHtml(value);
+  const streamSummaries = streams.map(stream => {
+    const count = stream.learners.length;
+    const meanTotal = count ? stream.learners.reduce((sum, l) => sum + Number(l.totalMarks || 0), 0) / count : 0;
+    const meanAverage = count ? stream.learners.reduce((sum, l) => sum + Number(l.average || 0), 0) / count : 0;
+    return { ...stream, meanTotal, meanAverage };
+  });
+
+  const streamTables = streamSummaries.map((stream, streamIndex) => `
+    <section class="rasm-performance-stream ${streamIndex === 0 ? "first-stream" : ""}">
+      <div class="rasm-stream-heading">
+        <h2>${safeText(stream.name)}</h2>
+        <div class="rasm-stream-stats">
+          <span><b>Learners:</b> ${stream.learners.length}</span>
+          <span><b>Mean Total:</b> ${stream.meanTotal.toFixed(2)}</span>
+          <span><b>Mean Average:</b> ${stream.meanAverage.toFixed(2)}</span>
+        </div>
+      </div>
+      <div class="rasm-stream-table-wrap">
+        <table class="rasm-stream-table">
+          <thead><tr><th>No.</th><th>Merit Rank</th><th>Learner Name</th><th>Grade</th><th>Total Marks</th><th>Average</th></tr></thead>
+          <tbody>
+            ${stream.learners.map((learner, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td>${learner.meritRank}</td>
+                <td class="learner-name">${safeText(learner.name)}</td>
+                <td>${safeText(learner.grade)}</td>
+                <td>${Number(learner.totalMarks || 0).toFixed(0)}</td>
+                <td>${Number(learner.average || 0).toFixed(1)}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </section>`).join("");
+
+  const container = document.getElementById("combineMarksByGradeContent");
+  if (!container) {
+    await Swal.fire("Report unavailable", "The Combined Merit List container could not be found.", "error");
+    return;
+  }
+
+  const printHeader = typeof window.getSchoolPrintHeader === "function"
+    ? window.getSchoolPrintHeader("PERFORMANCE-BASED STREAM ALLOCATION")
+    : `<h1 style="text-align:center">PERFORMANCE-BASED STREAM ALLOCATION</h1>`;
+  const metaLine = typeof window.rasmReportMetaLine === "function"
+    ? window.rasmReportMetaLine(snapshot.grade, snapshot.year, snapshot.period)
+    : `<p style="text-align:center">Grade: ${safeText(snapshot.grade)} | Examination: ${safeText(snapshot.period)} | Year: ${safeText(snapshot.year)}</p>`;
+
+  container.innerHTML = `
+    <style>
+      .rasm-stream-toolbar{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:12px auto 18px;padding:10px}
+      .rasm-stream-toolbar button{border:0;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer}
+      .rasm-stream-back{background:#e2e8f0;color:#0f172a}
+      .rasm-stream-print{background:#155eef;color:#fff}
+      .rasm-stream-title{text-align:center;margin:12px 0 18px;color:#0f172a}
+      .rasm-performance-stream{margin:18px 0 28px;padding:0;break-inside:auto}
+      .rasm-stream-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid #cbd5e1;background:#f1f5f9;padding:10px 12px;margin-bottom:0}
+      .rasm-stream-heading h2{margin:0;font-size:18px;color:#0f172a}
+      .rasm-stream-stats{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:#334155}
+      .rasm-stream-table-wrap{width:100%;overflow-x:auto}
+      .rasm-stream-table{width:100%;border-collapse:collapse;background:#fff;font-size:12px}
+      .rasm-stream-table th,.rasm-stream-table td{border:1px solid #475569;padding:6px 8px;text-align:center}
+      .rasm-stream-table thead th{background:#0f172a!important;color:#fff!important;font-weight:800}
+      .rasm-stream-table td.learner-name{text-align:left;font-weight:650;white-space:normal}
+      .rasm-stream-table tbody tr:nth-child(even){background:#f8fafc}
+      @media print{
+        @page{margin:10mm;size:A4 portrait}
+        .rasm-stream-toolbar{display:none!important}
+        .rasm-performance-stream{break-before:page;margin:0 0 8mm}
+        .rasm-performance-stream.first-stream{break-before:auto}
+        .rasm-stream-heading{background:#e2e8f0!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+        .rasm-stream-table{font-size:9pt}
+        .rasm-stream-table th,.rasm-stream-table td{padding:4px 5px}
+        .rasm-stream-table thead{display:table-header-group}
+        .rasm-stream-table tr{break-inside:avoid}
+      }
+    </style>
+    ${printHeader}
+    ${metaLine}
+    <h2 class="rasm-stream-title">PERFORMANCE-BALANCED STREAM ALLOCATION</h2>
+    <p style="text-align:center;margin:0 0 10px;color:#475569">${sorted.length} learners distributed into ${streamCount} streams using a merit-ranked snake allocation. Original ranks are retained for reference.</p>
+    <div class="rasm-stream-toolbar">
+      <button type="button" id="backToCombinedMeritBtn" class="rasm-stream-back">↩ Back to Combined Merit List</button>
+      <button type="button" id="printPerformanceStreamsBtn" class="rasm-stream-print">🖨 Print Stream Lists</button>
+    </div>
+    ${streamTables}
+    <div class="rasm-stream-toolbar">
+      <button type="button" id="backToCombinedMeritBtnBottom" class="rasm-stream-back">↩ Back to Combined Merit List</button>
+      <button type="button" id="printPerformanceStreamsBtnBottom" class="rasm-stream-print">🖨 Print Stream Lists</button>
+    </div>`;
+
+  // Print through an isolated iframe. This keeps the main RASM 360 page
+  // completely out of the print job (including dashboard/sidebar/loading UI).
+  const printPerformanceStreams = () => {
+    const printDocument = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Performance-Balanced Stream Allocation</title>
+  <style>
+    @page { size: A4 portrait; margin: 10mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0 !important; padding: 0 !important; width: 100%; background: #fff !important; color: #111 !important; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+    .rasm-stream-print-document { display: block; width: 100%; margin: 0 auto; }
+    .rasm-stream-print-document img { max-width: 90px; max-height: 90px; object-fit: contain; }
+    .rasm-stream-print-document h1 { font-size: 20pt !important; }
+    .rasm-stream-print-document h2 { break-after: avoid; page-break-after: avoid; }
+    .rasm-print-title { text-align: center; margin: 8px 0; font-size: 15pt; }
+    .rasm-print-summary { text-align: center; margin: 0 0 12px; font-size: 9pt; }
+    .rasm-stream-print-document > div[style*="border-bottom"] { break-inside: avoid; }
+    .rasm-performance-stream { display: block; width: 100%; margin: 0 0 8mm; break-before: page; page-break-before: always; }
+    .rasm-performance-stream.first-stream { break-before: auto; page-break-before: auto; }
+    .rasm-stream-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; border: 1px solid #111; background: #e2e8f0; padding: 7px 9px; }
+    .rasm-stream-heading h2 { margin: 0; font-size: 13pt; color: #111; }
+    .rasm-stream-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 8.5pt; color: #111; }
+    .rasm-stream-table-wrap { width: 100%; overflow: visible !important; }
+    .rasm-stream-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 9pt; table-layout: fixed; }
+    .rasm-stream-table th, .rasm-stream-table td { border: 1px solid #111; padding: 4px 5px; text-align: center; vertical-align: top; overflow-wrap: anywhere; }
+    .rasm-stream-table th:nth-child(1), .rasm-stream-table td:nth-child(1) { width: 7%; }
+    .rasm-stream-table th:nth-child(2), .rasm-stream-table td:nth-child(2) { width: 12%; }
+    .rasm-stream-table th:nth-child(3), .rasm-stream-table td:nth-child(3) { width: 39%; }
+    .rasm-stream-table th:nth-child(4), .rasm-stream-table td:nth-child(4) { width: 10%; }
+    .rasm-stream-table th:nth-child(5), .rasm-stream-table td:nth-child(5) { width: 17%; }
+    .rasm-stream-table th:nth-child(6), .rasm-stream-table td:nth-child(6) { width: 15%; }
+    .rasm-stream-table thead { display: table-header-group; }
+    .rasm-stream-table thead th { background: #e5e7eb !important; color: #111 !important; font-weight: 800; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .rasm-stream-table td.learner-name { text-align: left; font-weight: 600; white-space: normal; }
+    .rasm-stream-table tr { break-inside: avoid; page-break-inside: avoid; }
+    @media print {
+      .rasm-stream-table { font-size: 9pt; }
+      .rasm-stream-table th, .rasm-stream-table td { padding: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="rasm-stream-print-document">
+    ${printHeader}
+    ${metaLine}
+    <h2 class="rasm-print-title">PERFORMANCE-BALANCED STREAM ALLOCATION</h2>
+    <p class="rasm-print-summary">${sorted.length} learners distributed into ${streamCount} streams using merit-ranked snake allocation. Original merit ranks are retained for reference.</p>
+    ${streamTables}
+  </main>
+</body>
+</html>`;
+
+    let printFrame = null;
+    try {
+      // Remove a stale frame if the user prints more than once.
+      document.getElementById("rasm360-stream-print-frame")?.remove();
+      printFrame = document.createElement("iframe");
+      printFrame.id = "rasm360-stream-print-frame";
+      printFrame.title = "Isolated stream-list print view";
+      printFrame.setAttribute("aria-hidden", "true");
+      printFrame.style.cssText = "position:fixed;left:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;z-index:-1;";
+      document.body.appendChild(printFrame);
+
+      const frameWindow = printFrame.contentWindow;
+      const frameDocument = printFrame.contentDocument || frameWindow?.document;
+      if (!frameWindow || !frameDocument) throw new Error("The isolated print frame could not be created.");
+
+      frameDocument.open();
+      frameDocument.write(printDocument);
+      frameDocument.close();
+
+      const removePrintFrame = () => {
+        try { printFrame?.remove(); } catch (_) {}
+      };
+      frameWindow.addEventListener("afterprint", removePrintFrame, { once: true });
+
+      // Wait for the School Profile logo, if present, before opening print UI.
+      const images = Array.from(frameDocument.images || []);
+      const imageLoads = images.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          const done = () => resolve();
+          img.addEventListener("load", done, { once: true });
+          img.addEventListener("error", done, { once: true });
+          setTimeout(done, 1800);
+        });
+      });
+
+      Promise.all(imageLoads).then(() => {
+        try {
+          frameWindow.focus();
+          frameWindow.print();
+          // Some browsers do not emit afterprint consistently.
+          setTimeout(removePrintFrame, 3000);
+        } catch (error) {
+          console.error("Could not start printing stream lists:", error);
+          removePrintFrame();
+          Swal.fire("Print failed", "The stream lists could not be sent to the print dialog. Please try again.", "error");
+        }
+      });
+    } catch (error) {
+      console.error("Could not prepare isolated stream-list print document:", error);
+      try { printFrame?.remove(); } catch (_) {}
+      Swal.fire("Print failed", "The stream-list print document could not be prepared. Please try again.", "error");
+    }
+  };
+
+  const restoreCombinedList = () => {
+    container.innerHTML = window.__rasmCombinedOriginalHtml || "";
+    document.getElementById("regroupCombinedMeritStreamsBtn")?.addEventListener("click", window.promptAndGeneratePerformanceStreams);
+    container.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  ["backToCombinedMeritBtn", "backToCombinedMeritBtnBottom"].forEach(id => {
+    container.querySelectorAll(`[id="${id}"]`).forEach(button => button.addEventListener("click", restoreCombinedList));
+  });
+  ["printPerformanceStreamsBtn", "printPerformanceStreamsBtnBottom"].forEach(id => {
+    container.querySelectorAll(`[id="${id}"]`).forEach(button => button.addEventListener("click", printPerformanceStreams));
+  });
+  container.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
 // ===============================
 window.combineMarks = function () {
   window.combineMarksByGradeWithDetails();
@@ -71198,6 +71604,26 @@ function getSelectedStudents() {
 
   return selected;
 }
+
+// ======================================================
+// 📚 HISTORICAL GRADE POLICY
+// A learner's current grade is not the source of truth for an old transaction.
+// Existing fee/exam/library records must retain their saved grade and period.
+// When a legacy record has no grade, callers may consult this promotion history;
+// do not silently rewrite the original record or infer a grade without evidence.
+// ======================================================
+window.getLearnerGradeHistory = async function (learnerId) {
+    if (!learnerId || !schoolId) return [];
+    try {
+        const snap = await fastGet(ref(db, `schools/${schoolId}/learnerGradeHistory/${learnerId}`));
+        const raw = snap.val() || {};
+        return Object.keys(raw).map(id => ({ id, ...raw[id] }))
+            .sort((a, b) => String(a.promotedAt || '').localeCompare(String(b.promotedAt || '')));
+    } catch (error) {
+        console.warn('Unable to load learner grade history:', error);
+        return [];
+    }
+};
 
 // ======================================================
 // 🎓 PROMOTE SELECTED LEARNERS
@@ -71230,6 +71656,10 @@ window.promoteSelected = async () => {
         const updates = {};
         const promoted = [];
         const skipped = [];
+        // One stable batch identifier ties every grade transition to this promotion run.
+        const promotionBatchId = `promotion_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const promotionDate = new Date().toISOString();
+        const promotionAcademicYear = String(new Date().getFullYear());
 
         ids.forEach(id => {
 
@@ -71247,8 +71677,21 @@ window.promoteSelected = async () => {
                 return;
             }
 
+            // Keep the current-grade change separate from historical transactions.
+            // Fees, marks/exams and library records are deliberately not rewritten here.
             updates[`schools/${schoolId}/students/${id}/previousGrade`] = currentGrade;
             updates[`schools/${schoolId}/students/${id}/grade`] = nextGrade;
+            updates[`schools/${schoolId}/learnerGradeHistory/${id}/${promotionBatchId}`] = {
+                learnerId: id,
+                learnerName: String(student.name || student.learnerName || "Unnamed Learner"),
+                fromGrade: String(currentGrade),
+                toGrade: String(nextGrade),
+                academicYear: promotionAcademicYear,
+                effectiveDate: promotionDate.slice(0, 10),
+                promotedAt: promotionDate,
+                batchId: promotionBatchId,
+                status: "completed"
+            };
 
             promoted.push(
                 `<li><b>${student.name || "Unnamed Learner"}</b><br>
@@ -71440,7 +71883,7 @@ window.undoPromotion = async () => {
   try {
 
     const snapshot = await fastGet(schoolRef("students"));
-    const students = snapshot.val();
+    const students = snapshot.val() || {};
 
     const updates = {};
     const summary = [];
@@ -71449,11 +71892,17 @@ window.undoPromotion = async () => {
 
       const student = students[key];
 
-      if (student.previousGrade) {
-
+      if (student.previousGrade && student.grade) {
+        // Do not overwrite a learner who has subsequently moved again.
+        const latestHistory = await window.getLearnerGradeHistory(key);
+        const latest = latestHistory.length ? latestHistory[latestHistory.length - 1] : null;
+        if (latest && latest.toGrade !== String(student.grade)) continue;
         updates[`schools/${schoolId}/students/${key}/grade`] = student.previousGrade;
         updates[`schools/${schoolId}/students/${key}/previousGrade`] = null;
-
+        if (latest && latest.id) {
+          updates[`schools/${schoolId}/learnerGradeHistory/${key}/${latest.id}/status`] = "undone";
+          updates[`schools/${schoolId}/learnerGradeHistory/${key}/${latest.id}/undoneAt`] = new Date().toISOString();
+        }
         summary.push(`${student.name || "Unnamed"} → ${student.previousGrade}`);
       }
     }
@@ -89101,447 +89550,7 @@ window.addDevice = async function addDevice() {
 }
 
 
-window.loadICT = function () {
-
-  const schoolId = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || localStorage.getItem("currentSchoolId") || "").trim();
-  const ictList = document.getElementById("ictList");
-
-  if (!ictList) { console.error("ICT list container #ictList was not found."); return; }
-  if (!schoolId) {
-    ictList.innerHTML = `
-      <div style="padding:20px;color:#dc2626;">
-        School ID is missing.
-      </div>
-    `;
-    return;
-  }
-
-  window.fastOnValue(
-    ref(db, `ict/${schoolId}`),
-    (snap) => {
-
-      let html = "";
-
-      if (!snap.exists()) {
-
-        html = `
-          <div style="
-            padding:20px;
-            color:#64748b;
-            background:white;
-            border-radius:12px;
-            text-align:center;
-          ">
-            💻 No ICT devices found
-          </div>
-        `;
-
-        ictList.innerHTML = html;
-        return;
-      }
-
-      html += `
-        <div style="
-          overflow-x:auto;
-          background:white;
-          border-radius:14px;
-          box-shadow:0 4px 15px rgba(0,0,0,.08);
-        ">
-
-          <table style="${tableStyle};min-width:1050px;">
-
-            <thead>
-              <tr>
-
-                <th style="${thStyle}">
-                  No
-                </th>
-
-                <th style="${thStyle}">
-                  Device
-                </th>
-
-                <th style="${thStyle}">
-                  Type
-                </th>
-
-                <th style="${thStyle}">
-                  Serial / Asset
-                </th>
-
-                <th style="${thStyle}">
-                  Total
-                </th>
-
-                <th style="${thStyle}">
-                  Borrowed
-                </th>
-
-                <th style="${thStyle}">
-                  Remaining
-                </th>
-
-                <th style="${thStyle}">
-                  Condition
-                </th>
-
-                <th style="${thStyle}">
-                  Status
-                </th>
-
-                <th style="${thStyle}">
-                  Action
-                </th>
-
-              </tr>
-            </thead>
-
-            <tbody>
-      `;
-
-      let i = 1;
-
-      snap.forEach(child => {
-
-        const d = child.val() || {};
-        const key = child.key;
-
-        /*
-         * NEW RECORDS
-         * --------------------------
-         * totalQuantity = total devices registered
-         * borrowedQuantity = devices currently borrowed
-         * availableQuantity = devices remaining
-         */
-
-        let total = Number(d.totalQuantity);
-
-        /*
-         * OLD RECORD COMPATIBILITY
-         *
-         * Older ICT records don't have totalQuantity.
-         * Treat them as 1 device until their quantity is updated.
-         */
-
-        if (!Number.isFinite(total) || total < 1) {
-          total = 1;
-        }
-
-        let borrowed = Number(d.borrowedQuantity);
-
-        if (!Number.isFinite(borrowed) || borrowed < 0) {
-          borrowed = 0;
-        }
-
-        /*
-         * Calculate remaining from total - borrowed.
-         * This prevents the table from displaying
-         * an incorrect stored availableQuantity.
-         */
-
-        let remaining = total - borrowed;
-
-        if (remaining < 0) {
-          remaining = 0;
-        }
-
-        /*
-         * Determine borrowing status
-         */
-
-        let borrowStatus = "Available";
-
-        if (borrowed >= total) {
-
-          borrowStatus = "Fully Borrowed";
-
-        } else if (borrowed > 0) {
-
-          borrowStatus = "Partially Borrowed";
-
-        }
-
-        /*
-         * Physical condition
-         *
-         * New records use d.condition.
-         * Old records used d.status.
-         */
-
-        const condition =
-          d.condition ||
-          (
-            ["Working", "Faulty", "Under Repair"]
-              .includes(String(d.status || ""))
-              ? d.status
-              : "Working"
-          );
-
-        /*
-         * Escape text before putting database
-         * values into HTML.
-         */
-
-        const safeName =
-          typeof escapeICT === "function"
-            ? escapeICT(d.deviceName || "-")
-            : String(d.deviceName || "-");
-
-        const safeType =
-          typeof escapeICT === "function"
-            ? escapeICT(d.deviceType || "-")
-            : String(d.deviceType || "-");
-
-        const safeSerial =
-          typeof escapeICT === "function"
-            ? escapeICT(d.serialNo || "-")
-            : String(d.serialNo || "-");
-
-        const safeCondition =
-          typeof escapeICT === "function"
-            ? escapeICT(condition)
-            : String(condition);
-
-        /*
-         * Status badge
-         */
-
-        let statusColor = "#16a34a";
-        let statusBg = "#dcfce7";
-
-        if (borrowStatus === "Partially Borrowed") {
-
-          statusColor = "#d97706";
-          statusBg = "#fef3c7";
-
-        } else if (borrowStatus === "Fully Borrowed") {
-
-          statusColor = "#dc2626";
-          statusBg = "#fee2e2";
-
-        }
-
-        /*
-         * Condition badge
-         */
-
-        let conditionColor = "#166534";
-        let conditionBg = "#dcfce7";
-
-        if (String(condition).toLowerCase() === "faulty") {
-
-          conditionColor = "#dc2626";
-          conditionBg = "#fee2e2";
-
-        } else if (
-          String(condition).toLowerCase() === "under repair"
-        ) {
-
-          conditionColor = "#d97706";
-          conditionBg = "#fef3c7";
-
-        }
-
-        /*
-         * Borrow button
-         *
-         * Disable borrowing when:
-         * - no devices remain
-         * - device is faulty
-         * - device is under repair
-         */
-
-        const conditionLower =
-          String(condition).toLowerCase();
-
-        const cannotBorrow =
-          remaining <= 0 ||
-          conditionLower === "faulty" ||
-          conditionLower === "under repair";
-
-        html += `
-          <tr>
-
-            <td style="${tdStyle}">
-              ${i++}
-            </td>
-
-            <td style="${tdStyle}">
-              <strong>${safeName}</strong>
-            </td>
-
-            <td style="${tdStyle}">
-              ${safeType}
-            </td>
-
-            <td style="${tdStyle}">
-              ${safeSerial}
-            </td>
-
-            <td style="${tdStyle}">
-              <strong style="
-                font-size:17px;
-                color:#111827;
-              ">
-                ${total}
-              </strong>
-            </td>
-
-            <td style="${tdStyle}">
-              <strong style="
-                font-size:17px;
-                color:#dc2626;
-              ">
-                ${borrowed}
-              </strong>
-            </td>
-
-            <td style="${tdStyle}">
-              <strong style="
-                font-size:17px;
-                color:#16a34a;
-              ">
-                ${remaining}
-              </strong>
-            </td>
-
-            <td style="${tdStyle}">
-              <span style="
-                display:inline-block;
-                padding:6px 10px;
-                border-radius:20px;
-                background:${conditionBg};
-                color:${conditionColor};
-                font-weight:700;
-                font-size:12px;
-                white-space:nowrap;
-              ">
-                ${safeCondition}
-              </span>
-            </td>
-
-            <td style="${tdStyle}">
-              <span style="
-                display:inline-block;
-                padding:6px 10px;
-                border-radius:20px;
-                background:${statusBg};
-                color:${statusColor};
-                font-weight:700;
-                font-size:12px;
-                white-space:nowrap;
-              ">
-                ${borrowStatus}
-              </span>
-            </td>
-
-            <td style="${tdStyle}">
-
-              <div style="
-                display:flex;
-                flex-wrap:wrap;
-                gap:6px;
-                justify-content:center;
-              ">
-
-                ${
-                  cannotBorrow
-                    ? `
-                      <button
-                        disabled
-                        style="
-                          padding:7px 10px;
-                          border:none;
-                          border-radius:7px;
-                          background:#cbd5e1;
-                          color:#64748b;
-                          cursor:not-allowed;
-                          font-weight:600;
-                        "
-                      >
-                        📤 Borrow
-                      </button>
-                    `
-                    : `
-                      <button
-                        onclick="borrowICT('${key}')"
-                        style="
-                          padding:7px 10px;
-                          border:none;
-                          border-radius:7px;
-                          background:#2563eb;
-                          color:white;
-                          cursor:pointer;
-                          font-weight:600;
-                        "
-                      >
-                        📤 Borrow
-                      </button>
-                    `
-                }
-
-                <button
-                  onclick="viewICTBorrowers('${key}')"
-                  style="
-                    padding:7px 10px;
-                    border:none;
-                    border-radius:7px;
-                    background:#7c3aed;
-                    color:white;
-                    cursor:pointer;
-                    font-weight:600;
-                  "
-                >
-                  👥 Borrowers
-                </button>
-
-                ${
-                  borrowed > 0
-                    ? `
-                      <button
-                        onclick="returnICT('${key}')"
-                        style="
-                          padding:7px 10px;
-                          border:none;
-                          border-radius:7px;
-                          background:#16a34a;
-                          color:white;
-                          cursor:pointer;
-                          font-weight:600;
-                        "
-                      >
-                        ↩ Return
-                      </button>
-                    `
-                    : ""
-                }
-
-                <button
-                  onclick="deleteICT('${key}')"
-                  style="${deleteBtnStyle}"
-                >
-                  🗑️ Delete
-                </button>
-
-              </div>
-
-            </td>
-
-          </tr>
-        `;
-      });
-
-      html += `
-            </tbody>
-          </table>
-
-        </div>
-      `;
-
-      ictList.innerHTML = html;
-    }
-  );
-};window.deleteICT = async function (id) {
+window.deleteICT = async function (id) {
 
   const schoolId = window.schoolId;
 
@@ -133938,774 +133947,7 @@ window.getGrade1To6ReportLabel = function(level) {
     }
 
 
-    /* ============================================================
-       FINAL TEACHER SAVE FUNCTION
-       ============================================================ */
-
-    window.addTeacher = async function () {
-
-        if (window.__addingTeacher) {
-
-            console.warn(
-                "Teacher save already running."
-            );
-
-            return;
-        }
-
-
-        window.__addingTeacher = true;
-
-
-        const saveBtn =
-            document.getElementById(
-                "saveTeacherBtn"
-            );
-
-
-        try {
-
-            /* ----------------------------------------------------
-               READ FORM
-               ---------------------------------------------------- */
-
-            const values =
-                getTeacherFormValues();
-
-
-            const {
-                name,
-                phone,
-                email,
-                subject,
-                classAssigned,
-                staffNumber,
-                employmentType
-            } = values;
-
-
-            /* ----------------------------------------------------
-               VALIDATION
-               ---------------------------------------------------- */
-
-            if (!name) {
-
-                await Swal.fire({
-                    icon: "warning",
-                    title: "Teacher Name Required",
-                    text:
-                        "Please enter the teacher's full name."
-                });
-
-                return;
-            }
-
-
-            if (!subject) {
-
-                await Swal.fire({
-                    icon: "warning",
-                    title: "Subject Required",
-                    text:
-                        "Please enter the teaching subject."
-                });
-
-                return;
-            }
-
-
-            if (!classAssigned) {
-
-                await Swal.fire({
-                    icon: "warning",
-                    title: "Class Required",
-                    text:
-                        "Please enter the assigned class."
-                });
-
-                return;
-            }
-
-
-            /* ----------------------------------------------------
-               EMAIL VALIDATION
-               ---------------------------------------------------- */
-
-            if (email) {
-
-                const emailRegex =
-                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-                if (!emailRegex.test(email)) {
-
-                    await Swal.fire({
-                        icon: "warning",
-                        title: "Invalid Email",
-                        text:
-                            "Enter a valid email address."
-                    });
-
-                    return;
-                }
-            }
-
-
-            /* ----------------------------------------------------
-               PHONE VALIDATION
-               ---------------------------------------------------- */
-
-            if (phone) {
-
-                const phoneRegex =
-                    /^(?:\+254|254|0)[17]\d{8}$/;
-
-                if (!phoneRegex.test(phone)) {
-
-                    await Swal.fire({
-                        icon: "warning",
-                        title: "Invalid Phone Number",
-                        text:
-                            "Enter a valid Kenyan phone number."
-                    });
-
-                    return;
-                }
-            }
-
-
-            /* ----------------------------------------------------
-               NORMALIZE PHONE
-               ---------------------------------------------------- */
-
-            let normalizedPhone =
-                phone.replace(/\s+/g, "");
-
-
-            if (
-                normalizedPhone.startsWith("+254")
-            ) {
-
-                normalizedPhone =
-                    "0" +
-                    normalizedPhone.substring(4);
-
-            } else if (
-                normalizedPhone.startsWith("254")
-            ) {
-
-                normalizedPhone =
-                    "0" +
-                    normalizedPhone.substring(3);
-            }
-
-
-            /* ----------------------------------------------------
-               BUILD TEACHER RECORD
-               ---------------------------------------------------- */
-
-            const now =
-                Date.now();
-
-
-            const teacherData = {
-
-                name: name,
-
-                phone: phone,
-
-                normalizedPhone:
-                    normalizedPhone,
-
-                email: email,
-
-                subject: subject,
-
-                classAssigned:
-                    classAssigned,
-
-                staffNumber:
-                    staffNumber,
-
-                employmentType:
-                    employmentType || "Permanent",
-
-                /*
-                 * The renderer uses employment.
-                 * Keep both fields for compatibility.
-                 */
-                employment:
-                    employmentType || "Permanent",
-
-                status:
-                    "Active",
-
-                updatedAt:
-                    now
-            };
-
-
-            /* ----------------------------------------------------
-               LOADING
-               ---------------------------------------------------- */
-
-            if (saveBtn) {
-
-                saveBtn.disabled = true;
-
-                saveBtn.innerHTML =
-                    `<i class="fas fa-spinner fa-spin"></i> Saving...`;
-
-            }
-
-
-            await showLoading(
-                "Saving Teacher",
-                "Writing teacher information to Firebase..."
-            );
-
-
-            /* ----------------------------------------------------
-               SCHOOL TEACHERS REFERENCE
-               ---------------------------------------------------- */
-
-            const teachersRef =
-                schoolRef("teachers");
-
-
-            /* ====================================================
-               EDIT EXISTING TEACHER
-               ==================================================== */
-
-            if (window.editingTeacherId) {
-
-                const teacherId =
-                    String(
-                        window.editingTeacherId
-                    );
-
-
-                const teacherRef =
-                    schoolRef(
-                        `teachers/${teacherId}`
-                    );
-
-
-                /* -----------------------------------------------
-                   Make sure teacher still exists
-                   ----------------------------------------------- */
-
-                const currentSnap =
-                    await fastGet(
-                        teacherRef
-                    );
-
-
-                if (!currentSnap.exists()) {
-
-                    throw new Error(
-                        "This teacher no longer exists."
-                    );
-                }
-
-
-                /*
-                 * ACTUAL FIREBASE UPDATE
-                 *
-                 * Wait for the write to finish.
-                 */
-                if (
-                    typeof window.rasmBackgroundUpdate ===
-                    "function"
-                ) {
-
-                    const write =
-                        window.rasmBackgroundUpdate(
-                            teacherRef,
-                            teacherData
-                        );
-
-                    await write;
-
-                } else {
-
-                    await update(
-                        teacherRef,
-                        teacherData
-                    );
-                }
-
-
-                /* -----------------------------------------------
-                   UPDATE LOCAL TABLE DATA IMMEDIATELY
-                   ----------------------------------------------- */
-
-                const teachers =
-                    window.__teacherData || [];
-
-
-                const index =
-                    teachers.findIndex(
-                        teacher =>
-                            String(teacher.id) ===
-                            teacherId
-                    );
-
-
-                const localTeacher = {
-
-                    id: teacherId,
-
-                    name:
-                        teacherData.name,
-
-                    phone:
-                        teacherData.phone || "-",
-
-                    email:
-                        teacherData.email || "-",
-
-                    subject:
-                        teacherData.subject || "-",
-
-                    classAssigned:
-                        teacherData.classAssigned || "-",
-
-                    staffNumber:
-                        teacherData.staffNumber ||
-                        `TCH-${String(
-                            Math.max(
-                                1,
-                                teachers.length + 1
-                            )
-                        ).padStart(4, "0")}`,
-
-                    employment:
-                        teacherData.employmentType ||
-                        "Permanent",
-
-                    status:
-                        teacherData.status ||
-                        "Active"
-                };
-
-
-                if (index >= 0) {
-
-                    teachers[index] =
-                        localTeacher;
-
-                } else {
-
-                    teachers.unshift(
-                        localTeacher
-                    );
-                }
-
-
-                window.__teacherData =
-                    teachers;
-
-
-                window.__teacherPage =
-                    1;
-
-
-                /* -----------------------------------------------
-                   UPDATE COUNTER
-                   ----------------------------------------------- */
-
-                const totalElement =
-                    document.getElementById(
-                        "totalTeachers"
-                    );
-
-                if (totalElement) {
-
-                    totalElement.innerText =
-                        teachers.length.toLocaleString();
-                }
-
-
-                /* -----------------------------------------------
-                   IMMEDIATE TABLE RENDER
-                   ----------------------------------------------- */
-
-                if (
-                    typeof window.renderTeacherPage ===
-                    "function"
-                ) {
-
-                    window.renderTeacherPage();
-
-                } else {
-
-                    /*
-                     * Fallback if renderer is temporarily
-                     * unavailable.
-                     */
-                    clearRasmCache(
-                        teachersRef
-                    );
-
-                    await window.loadTeachers();
-                }
-
-
-                closeLoading();
-
-
-                await Swal.fire({
-
-                    icon: "success",
-
-                    title:
-                        "Teacher Updated",
-
-                    text:
-                        `${name} has been updated successfully.`,
-
-                    timer: 1800,
-
-                    showConfirmButton:
-                        false
-
-                });
-
-
-                clearTeacherFormFixed();
-
-
-                return;
-            }
-
-
-            /* ====================================================
-               CREATE NEW TEACHER
-               ==================================================== */
-
-            teacherData.createdAt =
-                now;
-
-
-            /*
-             * IMPORTANT:
-             *
-             * DO NOT USE:
-             *
-             * push(teachersRef).key
-             *
-             * because the ERP has replaced push()
-             * with an async queued function.
-             *
-             * rasmBackgroundPush() gives us the real
-             * Firebase reference immediately.
-             */
-
-            let teacherKey = "";
-
-
-            if (
-                typeof window.rasmBackgroundPush ===
-                "function"
-            ) {
-
-                const pushResult =
-                    window.rasmBackgroundPush(
-                        teachersRef,
-                        teacherData
-                    );
-
-
-                teacherKey =
-                    pushResult
-                        ?.ref
-                        ?.key;
-
-
-                if (!teacherKey) {
-
-                    throw new Error(
-                        "Firebase could not generate a teacher ID."
-                    );
-                }
-
-
-                /*
-                 * WAIT FOR ACTUAL DATABASE WRITE.
-                 */
-                await pushResult.promise;
-
-
-            } else {
-
-                /*
-                 * Fallback using Firebase's actual push()
-                 * implementation if available.
-                 */
-
-                const newTeacherRef =
-                    firebasePush(
-                        teachersRef
-                    );
-
-
-                teacherKey =
-                    newTeacherRef.key;
-
-
-                if (!teacherKey) {
-
-                    throw new Error(
-                        "Firebase could not generate a teacher ID."
-                    );
-                }
-
-
-                await set(
-                    newTeacherRef,
-                    teacherData
-                );
-            }
-
-
-            /* ====================================================
-               UPDATE LOCAL TEACHER ARRAY IMMEDIATELY
-               ==================================================== */
-
-            const teachers =
-                Array.isArray(
-                    window.__teacherData
-                )
-                    ? window.__teacherData
-                    : [];
-
-
-            const newTeacher = {
-
-                id:
-                    teacherKey,
-
-                name:
-                    teacherData.name,
-
-                phone:
-                    teacherData.phone || "-",
-
-                email:
-                    teacherData.email || "-",
-
-                subject:
-                    teacherData.subject || "-",
-
-                classAssigned:
-                    teacherData.classAssigned || "-",
-
-                staffNumber:
-                    teacherData.staffNumber ||
-                    `TCH-${String(
-                        teachers.length + 1
-                    ).padStart(4, "0")}`,
-
-                employment:
-                    teacherData.employmentType ||
-                    "Permanent",
-
-                status:
-                    teacherData.status ||
-                    "Active"
-            };
-
-
-            /*
-             * Put newest teacher at the top.
-             */
-            teachers.unshift(
-                newTeacher
-            );
-
-
-            window.__teacherData =
-                teachers;
-
-
-            window.__teacherPage =
-                1;
-
-
-            /* ====================================================
-               UPDATE TOTAL TEACHERS COUNTER
-               ==================================================== */
-
-            const totalElement =
-                document.getElementById(
-                    "totalTeachers"
-                );
-
-
-            if (totalElement) {
-
-                totalElement.innerText =
-                    teachers.length.toLocaleString();
-
-            }
-
-
-            /* ====================================================
-               RENDER IMMEDIATELY
-               ==================================================== */
-
-            if (
-                typeof window.renderTeacherPage ===
-                "function"
-            ) {
-
-                window.renderTeacherPage();
-
-            } else {
-
-                /*
-                 * If teacher table hasn't been initialized,
-                 * reload it from Firebase.
-                 */
-                clearRasmCache(
-                    teachersRef
-                );
-
-                if (
-                    typeof window.loadTeachers ===
-                    "function"
-                ) {
-
-                    await window.loadTeachers();
-                }
-            }
-
-
-            closeLoading();
-
-
-            /* ====================================================
-               SUCCESS
-               ==================================================== */
-
-            await Swal.fire({
-
-                icon:
-                    "success",
-
-                title:
-                    "Teacher Added",
-
-                html: `
-                    <div style="
-                        text-align:center;
-                        padding:5px;
-                    ">
-
-                        <div style="
-                            font-size:45px;
-                            margin-bottom:10px;
-                        ">
-                            👩‍🏫
-                        </div>
-
-                        <strong>
-                            ${name}
-                        </strong>
-
-                        <br><br>
-
-                        Teacher has been added
-                        successfully.
-
-                        <br><br>
-
-                        ${
-                            teacherData.staffNumber
-                                ? `
-                                    <span>
-                                        Staff Number:
-                                    </span>
-                                    <br>
-                                    <strong>
-                                        ${teacherData.staffNumber}
-                                    </strong>
-                                  `
-                                : ""
-                        }
-
-                    </div>
-                `,
-
-                timer:
-                    2200,
-
-                showConfirmButton:
-                    false
-
-            });
-
-
-            /* ====================================================
-               CLEAR FORM
-               ==================================================== */
-
-            clearTeacherFormFixed();
-
-
-            console.log(
-                "✅ Teacher added successfully:",
-                teacherKey,
-                teacherData
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "❌ Teacher save failed:",
-                error
-            );
-
-
-            closeLoading();
-
-
-            await Swal.fire({
-
-                icon:
-                    "error",
-
-                title:
-                    "Unable to Save Teacher",
-
-                text:
-                    error?.message ||
-                    "An unexpected error occurred while saving the teacher."
-
-            });
-
-
-        } finally {
-
-            window.__addingTeacher =
-                false;
-
-
-            if (saveBtn) {
-
-                saveBtn.disabled =
-                    false;
-
-                saveBtn.innerHTML =
-                    `<i class="fas fa-save"></i> Save Teacher`;
-
-            }
-
-        }
-
-    };
-
+    
 
     /* ============================================================
        FEE GRADE RANGE
@@ -155279,7 +154521,10 @@ import { runTransaction } from "https://www.gstatic.com/firebasejs/9.17.1/fireba
     $("inv360ReportOutput").innerHTML=`<div class="inv360-report-head"><div style="font-size:18px;font-weight:800">${esc(schoolName||"School Inventory Report")}</div>${logo?`<div>${esc(logo)}</div>`:""}<h2 style="margin:6px 0">${esc(title)}</h2><div>Generated: ${dateLabel(today())} · School year: ${esc(year||"All")} · Term: ${esc(term||"All")} · Store: ${esc(loc||"All")} · Category: ${esc(cat||"All")}</div><hr style="margin:10px 0"></div><div class="no-print" style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px"><b>${esc(title)}</b><span style="font-size:11px;color:#64748b">${rows.length} row(s)</span></div>${table(heads,rows,1000)}<div style="margin-top:18px;display:flex;justify-content:space-between;font-size:11px;gap:30px"><span>Prepared by: ${esc(actorName())}</span><span>Reviewed / approved by: ____________________</span></div>`;
   }
   window.inv360PrintReport=function(){document.body.classList.add("inv360-printing");window.print();setTimeout(()=>document.body.classList.remove("inv360-printing"),800);};
-  window.inv360PrintElement=async function(id,title){const el=$(id);if(!el){await notify("warning","Nothing to print","No report is available in this view.");return;}const frame=document.createElement("iframe");frame.title=title||"Inventory print view";frame.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";document.body.appendChild(frame);const doc=frame.contentDocument||frame.contentWindow.document;doc.open();doc.write(`<!doctype html><html><head><title>${esc(title)}</title><meta charset="utf-8"><style>@page{size:A4 portrait;margin:12mm}body{font-family:Arial;padding:4px;color:#111;font-size:11px}h2{text-align:center}table{width:100%;border-collapse:collapse;font-size:10px}td,th{border:1px solid #222;padding:5px;text-align:left}th{background:#e2e8f0}button{display:none!important}</style></head><body><h2>${esc(title)}</h2>${el.innerHTML}</body></html>`);doc.close();setTimeout(()=>{try{frame.contentWindow.focus();frame.contentWindow.print();}finally{setTimeout(()=>frame.remove(),1000);}},150);};
+  window.inv360PrintElement=async function(id,title){const el=$(id);if(!el){await notify("warning","Nothing to print","No report is available in this view.");return;}const frame=document.createElement("iframe");frame.title=title||"Inventory print view";frame.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";document.body.appendChild(frame);const doc=frame.contentDocument||frame.contentWindow.document;doc.open();doc.write(`<!doctype html><html><head><title>${esc(title)}</title><meta charset="utf-8"><style>@page{size:A4 portrait;margin:12mm}body{font-family:Arial;padding:4px;color:#111;font-size:11px}h2{text-align:center}table{width:100%;border-collapse:collapse;font-size:10px}td,th{border:1px solid #222;padding:5px;text-align:left}th{background:#e2e8f0}button{display:none!important}</style>
+
+
+</head><body><h2>${esc(title)}</h2>${el.innerHTML}</body></html>`);doc.close();setTimeout(()=>{try{frame.contentWindow.focus();frame.contentWindow.print();}finally{setTimeout(()=>frame.remove(),1000);}},150);};
   window.inv360ExportCSV=function(){const out=$("inv360ReportOutput");if(!out){return;}const rows=Array.from(out.querySelectorAll("table tr")).map(tr=>Array.from(tr.querySelectorAll("th,td")).map(cell=>'"'+String(cell.innerText||"").replace(/"/g,'""')+'"').join(","));if(!rows.length){notify("warning","Generate a report first","No report rows are ready to export.");return;}const blob=new Blob(["\uFEFF"+rows.join("\r\n")],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`RASM360_Inventory_${text(state.reportTitle||"Report").replace(/[^A-Za-z0-9_-]+/g,"_")}_${today()}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);};
 
   async function archiveRecord(collection,id,label) {
@@ -155414,15 +154659,6 @@ import { runTransaction } from "https://www.gstatic.com/firebasejs/9.17.1/fireba
   window.inv360HandleSubmit=handleSubmit;
   async function archiveLegacy(id) { if(!await guardWrite("archive"))return;const answer=await window.Swal.fire({title:"Archive legacy inventory item?",text:"The original record remains in its old database location and is not physically deleted.",icon:"warning",showCancelButton:true,confirmButtonText:"Archive",confirmButtonColor:"#b91c1c"});if(!answer.isConfirmed)return;await update(`inventory/${schoolId()}/${id}`,{archived:true,archivedAt:timestamp(),archivedBy:actorName()});cache.delete(`${schoolId()}|inventory/${schoolId()}`);await audit("archive","legacy-item",id,{});await refreshAfterChange(["items"]);}
 
-  // Keep the pre-existing global entry points used by sidebar navigation and recycle/audit integrations.
-  window.loadInventory=async function(){
-    if(window.__RASM_LOGIN_COMPLETE!==true){if(window.__RASM_DEFERRED_MODULE_LOADS&&typeof window.__RASM_DEFERRED_MODULE_LOADS.add==="function")window.__RASM_DEFERRED_MODULE_LOADS.add("loadInventory");return;}
-    const sid=schoolId();if(!sid){status("School ID is missing. Please sign in again.","error");return;}
-    if(state.schoolId!==sid){state.schoolId=sid;cache.clear();state.learners=null;state.learnersAt=0;}
-    if(isRestrictedRole()){status("Your account does not have inventory management access.","error");return;}
-    if(!state.bootstrapped){state.bootstrapped=true;["inv360ReceiptDate","inv360IssueDate","inv360ReqDate","inv360OrderDate","inv360TransferDate","inv360ReturnDate","inv360StocktakeDate","inv360AssignDate"].forEach(id=>{if($(id)&&!$(id).value)$(id).value=today();});$("inv360IssueYear").value=new Date().getFullYear();}
-    await loadTab(state.activeTab||"dashboard",true);
-  };
   window.loadInventoryStats=async function(){try{await renderDashboard();}catch(e){console.warn("Inventory stats refresh failed",e);}};
   window.addInventory=async function(){const form=$("inv360ItemForm");if(form)await handleSubmit({preventDefault(){},target:form},"item");};
   window.issueInventory=async function(id){await window.inv360ShowTab("issues");if(id){const itemRef=String(id).startsWith("N:")||String(id).startsWith("L:")?id:`L:${id}`;if($("inv360IssueItem"))$("inv360IssueItem").value=itemRef;}};
@@ -155834,5 +155070,250 @@ document.addEventListener("DOMContentLoaded", function(){
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',install,{once:true}); else install();
 })();
 </script>
+
+<script id="rasm360-main-menu-popup-script">
+(function () {
+  'use strict';
+  if (window.__rasm360MainMenuPopupInstalled) return;
+  window.__rasm360MainMenuPopupInstalled = true;
+
+  const sidebarMenu = document.querySelector('.sidebar-scroll');
+  const toggle = document.getElementById('rasm360MainMenuToggle');
+  if (!sidebarMenu || !toggle) return;
+
+  // Assign unique keys to the existing navigation controls so their original
+  // click handlers and permission rules continue to be used by the popup.
+  let navCounter = 0;
+  sidebarMenu.querySelectorAll('button').forEach((button) => {
+    if (!button.dataset.rasm360PopupKey) {
+      navCounter += 1;
+      button.dataset.rasm360PopupKey = 'rasm360-nav-' + navCounter;
+    }
+  });
+
+  const escapeHtml = (value) => String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  // Check CSS display-based role permissions but ignore collapsed submenu
+  // visibility, because submenu actions are intentionally listed in this popup.
+  function isAllowed(element, root) {
+    if (!element) return false;
+    if (window.getComputedStyle(element).display === 'none') return false;
+    let node = element.parentElement;
+    while (node && node !== root) {
+      if (window.getComputedStyle(node).display === 'none') return false;
+      node = node.parentElement;
+    }
+    return true;
+  }
+
+  function buttonLabel(button) {
+    return String(button?.innerText || button?.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function sourceKey(button) {
+    return button ? button.dataset.rasm360PopupKey : '';
+  }
+
+  function actionButton(label, key, extraClass) {
+    return '<button type="button" class="rasm360-menu-action ' + (extraClass || '') + '" data-source-key="' + escapeHtml(key || '') + '" data-menu-search="' + escapeHtml(label.toLowerCase()) + '">' + escapeHtml(label) + '</button>';
+  }
+
+  function directButtons(container, selector, excludedIds) {
+    if (!container) return [];
+    return Array.from(container.querySelectorAll(selector)).filter((button) => {
+      if (excludedIds && excludedIds.includes(button.id)) return false;
+      if (button.closest('#usersSubmenu') || button.closest('#examsSubmenu')) return false;
+      return isAllowed(button, sidebarMenu);
+    });
+  }
+
+  function getVisibleButtons(container, excludedIds) {
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('button')).filter((button) => {
+      if (excludedIds && excludedIds.includes(button.id)) return false;
+      return isAllowed(button, container);
+    });
+  }
+
+  function renderCard(title, emoji, buttons, opts) {
+    opts = opts || {};
+    const inner = buttons.map((button) => actionButton(buttonLabel(button), sourceKey(button))).join('');
+    let extra = '';
+    if (opts.staticActions) {
+      extra = opts.staticActions.map((item) => '<button type="button" class="rasm360-menu-action" data-menu-route="' + escapeHtml(item.route) + '" data-menu-search="' + escapeHtml(item.label.toLowerCase()) + '">' + escapeHtml(item.label) + '</button>').join('');
+    }
+    return '<section class="rasm360-menu-card" data-menu-card><h3><span aria-hidden="true">' + emoji + '</span><span>' + escapeHtml(title) + '</span></h3><div class="rasm360-menu-actions">' + inner + extra + '</div></section>';
+  }
+
+  function renderMenuHtml() {
+    const main = document.getElementById('mainMenu');
+    const users = document.getElementById('usersSubmenu');
+    const exams = document.getElementById('examsSubmenu');
+    const schoolGroupButton = document.getElementById('menuSchoolManagement');
+    const reportSelector = document.getElementById('reportSelector');
+
+    const mainButtons = main ? Array.from(main.children).filter((element) => element.tagName === 'BUTTON') : [];
+    const primary = mainButtons.filter((button) => !['menuSchoolManagement', 'menuUsers'].includes(button.id) && isAllowed(button, sidebarMenu));
+
+    const schoolActions = [
+      { label: '👨‍🎓 Students', route: 'students' },
+      { label: '👨‍🏫 Teachers', route: 'teachers' },
+      { label: '🧹 Support Staff', route: 'supportStaff' },
+      { label: '💻 ICT', route: 'ict' },
+      { label: '🗓️ Attendance', route: 'attendanceSection' },
+      { label: '📚 Library', route: 'library' },
+      { label: '💰 Fees', route: 'fees' },
+      { label: '🚌 Transport', route: 'transport' },
+      { label: '🏨 Hostel', route: 'hostel' },
+      { label: '📦 Inventory', route: 'inventory' },
+      { label: '🧾 Generate Payment Voucher', route: 'paymentVoucher' }
+    ];
+    const schoolButtonsAllowed = isAllowed(schoolGroupButton, sidebarMenu);
+
+    const userButtonsAllowed = isAllowed(document.getElementById('menuUsers'), sidebarMenu);
+    const userButtons = userButtonsAllowed ? getVisibleButtons(users, ['menuUsers']) : [];
+
+    const examButtonsAllowed = isAllowed(document.getElementById('menuExams'), sidebarMenu);
+    const examButtons = examButtonsAllowed ? getVisibleButtons(exams, ['menuExams']).filter((button) => !/printSelectedReport\s*\(/.test(button.getAttribute('onclick') || '')) : [];
+
+    const primaryHtml = renderCard('Main', '🏠', primary);
+    const schoolHtml = schoolButtonsAllowed ? renderCard('School Management', '🏫', [], { staticActions: schoolActions }) : '';
+    const usersHtml = userButtons.length ? renderCard('User Management', '👥', userButtons) : '';
+    const examsHtml = examButtons.length ? renderCard('Exams & Assessment', '📊', examButtons) : '';
+
+    let printHtml = '';
+    if (reportSelector && isAllowed(reportSelector, sidebarMenu)) {
+      const optionsHtml = Array.from(reportSelector.options).map((option) =>
+        '<option value="' + escapeHtml(option.value) + '">' + escapeHtml(option.textContent.trim()) + '</option>'
+      ).join('');
+      printHtml = '<section class="rasm360-menu-card" data-menu-card data-print-card><h3><span aria-hidden="true">🖨️</span><span>Print Reports</span></h3><div class="rasm360-menu-print-row"><select id="rasm360MenuPrintSelector" aria-label="Select report to print">' + optionsHtml + '</select><button type="button" class="rasm360-menu-action rasm360-menu-print-btn" id="rasm360MenuPrintButton" data-menu-search="print selected report">🖨️ Print Selected Report</button></div></section>';
+    }
+
+    return '<div class="rasm360-menu-dialog">' +
+      '<div class="rasm360-menu-dialog-head"><div><div style="font-size:17px;font-weight:900;color:#f8fafc;">Choose a section</div><div class="rasm360-menu-dialog-hint">Select a button below, or search by name to find it quickly.</div></div><div class="rasm360-menu-search-wrap"><input id="rasm360MenuSearch" type="search" placeholder="🔎 Search menu buttons…" autocomplete="off" aria-label="Search menu buttons"></div></div>' +
+      '<div class="rasm360-menu-grid" id="rasm360MenuGrid">' + primaryHtml + schoolHtml + usersHtml + examsHtml + printHtml + '</div>' +
+      '<div class="rasm360-menu-no-results" id="rasm360MenuNoResults">No menu buttons match your search. Try another keyword.</div>' +
+      '</div>';
+  }
+
+  function applyMenuSearch(query) {
+    const q = String(query || '').toLowerCase().trim();
+    const popup = document.querySelector('.rasm360-main-menu-swal');
+    if (!popup) return;
+    let visibleCount = 0;
+    popup.querySelectorAll('.rasm360-menu-action').forEach((button) => {
+      const searchText = String(button.dataset.menuSearch || button.textContent || '').toLowerCase();
+      const matches = !q || searchText.includes(q);
+      button.hidden = !matches;
+      if (matches) visibleCount += 1;
+    });
+    const printCard = popup.querySelector('[data-print-card]');
+    if (printCard) {
+      const select = printCard.querySelector('select');
+      let reportMatch = false;
+      if (select) {
+        Array.from(select.options).forEach((option) => {
+          const match = !q || String(option.textContent || '').toLowerCase().includes(q);
+          option.hidden = !!q && !match;
+          if (match && option.value) reportMatch = true;
+        });
+      }
+      const printMatches = !q || 'print reports print selected report'.includes(q) || reportMatch;
+      printCard.hidden = !printMatches;
+      if (printMatches && q) visibleCount += 1;
+    }
+    popup.querySelectorAll('[data-menu-card]:not([data-print-card])').forEach((card) => {
+      const hasButton = Array.from(card.querySelectorAll('.rasm360-menu-action')).some((button) => !button.hidden);
+      card.hidden = !hasButton;
+    });
+    const noResults = popup.querySelector('#rasm360MenuNoResults');
+    if (noResults) noResults.classList.toggle('is-visible', visibleCount === 0);
+  }
+
+  function runStaticRoute(route) {
+    if (route === 'paymentVoucher') {
+      if (typeof window.openPaymentVoucherGenerator === 'function') window.openPaymentVoucherGenerator();
+      else if (window.Swal) window.Swal.fire({ icon: 'info', title: 'Unavailable', text: 'Payment Voucher is not available in this build.' });
+      return;
+    }
+    if (typeof window.show === 'function') window.show(route);
+    else if (window.Swal) window.Swal.fire({ icon: 'warning', title: 'Section unavailable', text: 'The requested section could not be opened in this build.' });
+  }
+
+  window.rasm360OpenMainMenuPopup = function () {
+    const swal = window.Swal;
+    if (!swal || typeof swal.fire !== 'function') {
+      console.warn('RASM 360 Main Menu popup requires SweetAlert2 to be loaded.');
+      return;
+    }
+
+    const html = renderMenuHtml();
+    toggle.setAttribute('aria-expanded', 'true');
+    swal.fire({
+      title: '☰ Main Menu',
+      html,
+      width: '96vw',
+      showConfirmButton: false,
+      showCloseButton: true,
+      focusConfirm: false,
+      allowOutsideClick: true,
+      allowEscapeKey: true,
+      customClass: { popup: 'rasm360-main-menu-swal' },
+      didOpen: (popup) => {
+        const search = popup.querySelector('#rasm360MenuSearch');
+        if (search) {
+          search.addEventListener('input', () => applyMenuSearch(search.value));
+          search.focus({ preventScroll: true });
+        }
+        popup.querySelectorAll('.rasm360-menu-action[data-source-key]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const key = button.dataset.sourceKey;
+            const source = sidebarMenu.querySelector('button[data-rasm360-popup-key="' + key + '"]');
+            swal.close();
+            setTimeout(() => {
+              if (source && !source.disabled) source.click();
+            }, 30);
+          });
+        });
+        popup.querySelectorAll('.rasm360-menu-action[data-menu-route]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const route = button.dataset.menuRoute;
+            swal.close();
+            setTimeout(() => runStaticRoute(route), 30);
+          });
+        });
+        const printButton = popup.querySelector('#rasm360MenuPrintButton');
+        if (printButton) {
+          printButton.addEventListener('click', () => {
+            const originalSelector = document.getElementById('reportSelector');
+            const menuSelector = popup.querySelector('#rasm360MenuPrintSelector');
+            if (originalSelector && menuSelector) {
+              originalSelector.value = menuSelector.value;
+              originalSelector.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            const sourcePrintButton = Array.from(sidebarMenu.querySelectorAll('button')).find((button) => /printSelectedReport\s*\(/.test(button.getAttribute('onclick') || ''));
+            swal.close();
+            setTimeout(() => {
+              if (sourcePrintButton) sourcePrintButton.click();
+              else if (typeof window.printSelectedReport === 'function') window.printSelectedReport();
+            }, 30);
+          });
+        }
+      },
+      willClose: () => toggle.setAttribute('aria-expanded', 'false')
+    });
+  };
+
+  // The original sidebar list is no longer a scroll target; its actions are
+  // made available through the popup above. The visible launcher remains.
+  toggle.addEventListener('click', function (event) {
+    event.preventDefault();
+    window.rasm360OpenMainMenuPopup();
+  });
+})();
+</script>
+
 </body>
 </html>
