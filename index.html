@@ -38177,65 +38177,8 @@ try {
 
 
 
-    /* ------------------------------------------------
-       3. REFRESH FEE TABLE IMMEDIATELY
-       ------------------------------------------------ */
-
-    if (
-        typeof loadFees ===
-        "function"
-    ) {
-
-        const refreshFeeTable =
-            async function () {
-
-                /*
-                   If another fee-table load is already
-                   running, wait until it finishes instead
-                   of allowing the new refresh to be skipped.
-                */
-
-                if (
-                    window.__feesLoading
-                ) {
-
-                    setTimeout(
-                        refreshFeeTable,
-                        50
-                    );
-
-                    return;
-
-                }
-
-
-                try {
-
-                    await loadFees();
-
-
-                    console.log(
-                        "✅ Learner fee table updated immediately."
-                    );
-
-
-                } catch (
-                    refreshError
-                ) {
-
-                    console.error(
-                        "❌ Immediate fee table refresh failed:",
-                        refreshError
-                    );
-
-                }
-
-            };
-
-
-        refreshFeeTable();
-
-    }
+    /* Fee register intentionally is not reloaded after Add Fee.
+       The saved learner record is updated in window.allFees above. */
 
 
 } catch (
@@ -38285,38 +38228,7 @@ try {
 
 
 
-        /* ====================================================
-           💰 BACKGROUND FEE TABLE REFRESH
-           
-           Delayed slightly so the payment operation itself
-           is already complete.
-           ==================================================== */
-
-        if (
-            typeof loadFees ===
-            "function"
-        ) {
-
-            setTimeout(
-                () => {
-
-                    Promise.resolve(
-                        loadFees()
-                    )
-                    .catch(
-                        error =>
-                            console.error(
-                                "Background fee refresh:",
-                                error
-                            )
-                    );
-
-                },
-                100
-            );
-
-        }
-
+        /* Add Fee does not reload the complete fee register. */
 
 
         console.log(
