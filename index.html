@@ -15222,7 +15222,7 @@ Other</textarea></div></div><div class="ict360-form-actions"><button class="ict3
     .rasm-library-form-grid .rasm-book-submit{grid-column:1/-1;background:#2563eb;color:#fff;border:0;border-radius:10px;padding:13px 16px;font-weight:800;cursor:pointer;}
     .rasm-library-empty{padding:42px 20px;text-align:center;color:#64748b;}
     .rasm-library-empty strong{display:block;color:#0f172a;font-size:16px;margin-bottom:5px;}
-    .rasm-library-table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .rasm-library-table-wrap{width:100%;max-height:70vh;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-radius:0 0 12px 12px;}
     .rasm-library-table{width:100%;min-width:1050px;border-collapse:collapse;}
     .rasm-library-table th{padding:12px 10px;background:#0f172a;color:#fff;text-align:left;font-size:12px;white-space:nowrap;position:sticky;top:0;z-index:2;}
     .rasm-library-table td{padding:12px 10px;border-bottom:1px solid #e5e7eb;color:#334155;font-size:13px;vertical-align:top;}
@@ -18104,6 +18104,7 @@ window.rasmGet = firebaseGet;
           else if (item.op === "remove") await firebaseRemove(target);
           await deleteQueuedWrite(item.id);
           console.info("☁️ Offline write synchronized:", item.op, item.path);
+          window.__RASM_WRITE_TRACKER?.synced?.();
         } catch (err) {
           if (isTransientNetworkError(err)) break;
           console.warn("⚠️ Queued write retained after sync error:", err);
@@ -18121,35 +18122,41 @@ window.rasmGet = firebaseGet;
 
   async function queuedSet(firebaseRef, value){
     const tracker = window.__RASM_WRITE_TRACKER; tracker?.begin("set");
+    let outcome = "success";
     try {
       try { return await firebaseSet(firebaseRef, value); }
       catch (err) {
-        if (isTransientNetworkError(err) && await queueWrite("set", firebaseRef, value)) return undefined;
-        throw err;
+        if (isTransientNetworkError(err) && await queueWrite("set", firebaseRef, value)) { outcome = "queued"; return undefined; }
+        outcome = "error"; throw err;
       }
-    } finally { tracker?.end("set"); }
+    } catch (err) { outcome = "error"; throw err; }
+    finally { tracker?.end("set", outcome); }
   }
 
   async function queuedUpdate(firebaseRef, value){
     const tracker = window.__RASM_WRITE_TRACKER; tracker?.begin("update");
+    let outcome = "success";
     try {
       try { return await firebaseUpdate(firebaseRef, value); }
       catch (err) {
-        if (isTransientNetworkError(err) && await queueWrite("update", firebaseRef, value)) return undefined;
-        throw err;
+        if (isTransientNetworkError(err) && await queueWrite("update", firebaseRef, value)) { outcome = "queued"; return undefined; }
+        outcome = "error"; throw err;
       }
-    } finally { tracker?.end("update"); }
+    } catch (err) { outcome = "error"; throw err; }
+    finally { tracker?.end("update", outcome); }
   }
 
   async function queuedRemove(firebaseRef){
     const tracker = window.__RASM_WRITE_TRACKER; tracker?.begin("remove");
+    let outcome = "success";
     try {
       try { return await firebaseRemove(firebaseRef); }
       catch (err) {
-        if (isTransientNetworkError(err) && await queueWrite("remove", firebaseRef, null)) return undefined;
-        throw err;
+        if (isTransientNetworkError(err) && await queueWrite("remove", firebaseRef, null)) { outcome = "queued"; return undefined; }
+        outcome = "error"; throw err;
       }
-    } finally { tracker?.end("remove"); }
+    } catch (err) { outcome = "error"; throw err; }
+    finally { tracker?.end("remove", outcome); }
   }
 
   async function queuedPush(firebaseRef, value){
@@ -33170,12 +33177,20 @@ window.addTeacher = async function () {
          * push() creates a child reference and key locally.
          * It does not mean the record has been saved yet.
          */
-        const newTeacherRef = push(teachersRef);
-        const teacherKey = newTeacherRef?.key;
+       const newTeacherRef = await push(teachersRef);
+const teacherKey = newTeacherRef?.key;
 
-        if (!teacherKey) {
-            throw new Error("TEACHER_ID_GENERATION_FAILED");
-        }
+if (!newTeacherRef || !teacherKey) {
+    console.error("Teacher ID generation diagnostics:", {
+        teachersRef,
+        newTeacherRef,
+        teacherKey,
+        pushType: typeof push,
+        schoolId: sid
+    });
+
+    throw new Error("TEACHER_ID_GENERATION_FAILED");
+}
 
         const newTeacher = {
             ...teacherData,
@@ -33222,13 +33237,13 @@ window.addTeacher = async function () {
          * Keep detailed diagnostics in the developer console only.
          * Never show error.message or Firebase internals to the user.
          */
-        console.error(
-            "RASM 360: Teacher save operation failed.",
-            {
-                code: error?.code || "UNKNOWN",
-                message: error?.message || "No diagnostic message"
-            }
-        );
+        console.error("RASM 360: Teacher save operation failed.", {
+            code: error?.code || "UNKNOWN",
+            message: error?.message || "No diagnostic message",
+            name: error?.name || "Error",
+            stack: error?.stack || "No stack trace",
+            schoolId: window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId") || "MISSING"
+        });
 
         const friendly = getFriendlyError(error);
 
@@ -48096,6 +48111,8 @@ Printed on ${generated}
 
 
 
+
+
 </body>
 
 
@@ -51584,13 +51601,27 @@ async function loadMarksUnifiedClean() {
     let snapshot;
 
     try {
+        // The Students module already maintains an incremental, school-scoped
+        // live roster. Reuse it for Enter Marks instead of downloading the full
+        // students tree again on every marks refresh.
+        const cachedRoster = typeof window.rasmGetLoadedStudentsForSchool === "function"
+            ? window.rasmGetLoadedStudentsForSchool(String(schoolId))
+            : null;
 
-        snapshot = await fastGet(
-            ref(
-                db,
-                `schools/${schoolId}/students`
-            )
-        );
+        if (Array.isArray(cachedRoster)) {
+            const rawStudents = {};
+            cachedRoster.forEach(student => {
+                const key = String(student?.id || student?.firebaseId || student?.studentId || "").trim();
+                if (key) rawStudents[key] = student;
+            });
+            snapshot = {
+                exists: () => Object.keys(rawStudents).length > 0,
+                val: () => rawStudents,
+                forEach: callback => Object.entries(rawStudents).forEach(([key, student]) => callback({ key, val: () => student }))
+            };
+        } else {
+            snapshot = await fastGet(ref(db, `schools/${schoolId}/students`));
+        }
 
     }
 
@@ -71517,6 +71548,20 @@ window.promptAndGeneratePerformanceStreams = async function () {
     <p class="rasm-print-summary">${sorted.length} learners distributed into ${streamCount} streams using merit-ranked snake allocation. Original merit ranks are retained for reference.</p>
     ${streamTables}
   </main>
+
+<style id="rasm360-hostel-table-readability-fix">
+#rasm360HostelRoot .h2tablewrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;border:1px solid #dbe3ee;border-radius:10px;background:#fff;}
+#rasm360HostelRoot .h2table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;table-layout:auto;}
+#rasm360HostelRoot .h2table th{padding:12px 14px!important;text-align:left;white-space:nowrap;background:#f1f5f9;color:#0f172a;border-bottom:2px solid #cbd5e1;font-weight:800;}
+#rasm360HostelRoot .h2table td{padding:12px 14px!important;vertical-align:middle;border-bottom:1px solid #e2e8f0;line-height:1.45;white-space:normal;overflow-wrap:anywhere;}
+#rasm360HostelRoot .h2table tbody tr:nth-child(even){background:#f8fafc;}
+#rasm360HostelRoot .h2table tbody tr:hover{background:#eff6ff;}
+#rasm360HostelRoot .h2actions{display:flex;gap:7px;flex-wrap:wrap;min-width:130px;}
+#rasm360HostelRoot .h2sectionhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+#rasm360HostelRoot .h2subhead{margin:22px 0 10px;font-size:16px;font-weight:850;color:#0f172a;}
+#rasm360HostelRoot .h2card{min-width:0;}
+</style>
+
 </body>
 </html>`;
 
@@ -71784,26 +71829,15 @@ window.promoteSelected = async () => {
 
         if (!confirm.isConfirmed) return;
 
-        // ==========================================
-        // LOADING
-        // ==========================================
-        Swal.fire({
-            title: "Promoting Learners...",
-            html: "Please wait while records are being updated.",
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
-        });
-
-        // ==========================================
-        // UPDATE DATABASE
-        // ==========================================
+        // Update directly without opening a blocking loading dialog.
+        // The previous modal could remain visible if another async handler
+        // or a UI error interrupted the success dialog.
         await update(ref(db), updates);
 
         // ==========================================
         // SUCCESS
         // ==========================================
+        Swal.close();
         Swal.fire({
 
             icon: "success",
@@ -71866,6 +71900,8 @@ window.promoteSelected = async () => {
     catch (error) {
 
         console.error("Promotion Error:", error);
+        // Never leave a stale processing dialog on screen after a failed write.
+        Swal.close();
 
         Swal.fire({
             icon: "error",
@@ -73354,6 +73390,20 @@ window.generateStationeryList = async function () {
             }, 400);
         });
     <\/script>
+
+<style id="rasm360-hostel-table-readability-fix">
+#rasm360HostelRoot .h2tablewrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;border:1px solid #dbe3ee;border-radius:10px;background:#fff;}
+#rasm360HostelRoot .h2table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;table-layout:auto;}
+#rasm360HostelRoot .h2table th{padding:12px 14px!important;text-align:left;white-space:nowrap;background:#f1f5f9;color:#0f172a;border-bottom:2px solid #cbd5e1;font-weight:800;}
+#rasm360HostelRoot .h2table td{padding:12px 14px!important;vertical-align:middle;border-bottom:1px solid #e2e8f0;line-height:1.45;white-space:normal;overflow-wrap:anywhere;}
+#rasm360HostelRoot .h2table tbody tr:nth-child(even){background:#f8fafc;}
+#rasm360HostelRoot .h2table tbody tr:hover{background:#eff6ff;}
+#rasm360HostelRoot .h2actions{display:flex;gap:7px;flex-wrap:wrap;min-width:130px;}
+#rasm360HostelRoot .h2sectionhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+#rasm360HostelRoot .h2subhead{margin:22px 0 10px;font-size:16px;font-weight:850;color:#0f172a;}
+#rasm360HostelRoot .h2card{min-width:0;}
+</style>
+
 </body>
 </html>`);
 
@@ -75974,10 +76024,22 @@ window.loadAttendance = async function () {
     if(!grade || !date) return Swal.fire("Missing Data","Select grade and date","warning");
     output.innerHTML="Loading...";
     try{
+      const activeSchoolId = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "").trim();
+      const loadedStudents = typeof window.rasmGetLoadedStudentsForSchool === "function"
+        ? window.rasmGetLoadedStudentsForSchool(activeSchoolId)
+        : null;
       const [studentsSnap, attendanceSnap] = await Promise.all([
-        fastGet(schoolRef("students")), fastGet(schoolRef("attendance"))
+        Array.isArray(loadedStudents) ? Promise.resolve(null) : fastGet(schoolRef("students")),
+        fastGet(schoolRef("attendance"))
       ]);
       attendanceCache=[]; attendanceMap={};
+      const students = Array.isArray(loadedStudents)
+        ? loadedStudents
+        : (() => {
+            const list=[];
+            if(studentsSnap && studentsSnap.exists()) studentsSnap.forEach(ch=>list.push({id:String(ch.key),...(ch.val()||{})}));
+            return list;
+          })();
       const savedByStudent={};
       if(attendanceSnap.exists()) attendanceSnap.forEach(ch=>{
         const d=ch.val()||{};
@@ -75985,13 +76047,14 @@ window.loadAttendance = async function () {
           d.records.forEach(r=>{ if(r?.studentId) savedByStudent[r.studentId]=r; });
         }
       });
-      if(!studentsSnap.exists()){ output.innerHTML="<p>No students found</p>"; return; }
-      studentsSnap.forEach(ch=>{
-        const st=ch.val()||{};
+      if(!students.length){ output.innerHTML="<p>No students found</p>"; return; }
+      students.forEach(st=>{
         if(String(st.grade||"").trim().toLowerCase()===String(grade).trim().toLowerCase()){
-          const id=ch.key, saved=savedByStudent[id]||{};
+          const id=String(st.id || st.firebaseId || st.studentId || "");
+          if(!id) return;
+          const saved=savedByStudent[id]||{};
           const legacy=saved.status || "Present";
-          attendanceCache.push({id,...st});
+          attendanceCache.push({...st,id});
           attendanceMap[id]={
             morningStatus:saved.morningStatus || legacy,
             eveningStatus:saved.eveningStatus || legacy
@@ -76016,34 +76079,27 @@ window.loadAttendanceGrades = async function () {
 
     try {
 
-        const snap =
-            await fastGet(schoolRef("students"));
-
-        if (!snap.exists()) return;
+        const activeSchoolId = String(window.schoolId || sessionStorage.getItem("schoolId") || localStorage.getItem("schoolId") || "").trim();
+        const cachedStudents = typeof window.rasmGetLoadedStudentsForSchool === "function"
+            ? window.rasmGetLoadedStudentsForSchool(activeSchoolId)
+            : null;
+        let studentList = Array.isArray(cachedStudents) ? cachedStudents : null;
+        if (!studentList) {
+            const snap = await fastGet(schoolRef("students"));
+            studentList = [];
+            if (snap.exists()) snap.forEach(child => studentList.push({id:String(child.key),...(child.val()||{})}));
+        }
 
         const grades = new Set();
-
-        snap.forEach(child => {
-
-            const s = child.val();
-
-            if (s.grade) {
-                grades.add(
-                    s.grade.trim()
-                );
-            }
+        studentList.forEach(student => {
+            const grade = String(student?.grade || "").trim();
+            if (grade) grades.add(grade);
         });
 
-        [...grades]
-            .sort()
-            .forEach(g => {
-
-                attendanceGrade.innerHTML += `
-                    <option value="${g}">
-                        ${g}
-                    </option>
-                `;
-            });
+        attendanceGrade.innerHTML = `<option value="">-- Select Grade --</option>` +
+            [...grades].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(g =>
+                `<option value="${g}">${g}</option>`
+            ).join("");
 
     } catch (err) {
 
@@ -78099,7 +78155,7 @@ window.updateAttendanceSummary = async function () {
 
     try {
 
-        const snapshot = await fastGet(child(schoolRef("attendance")));
+        const snapshot = await fastGet(schoolRef("attendance"));
 
         if (!snapshot.exists()) {
             summary.innerHTML = "No attendance data";
@@ -78122,7 +78178,7 @@ window.updateAttendanceSummary = async function () {
 // ================= INTELLIGENCE ENGINE =================
 window.calculateAttendanceIntelligence = async function (grade) {
 
-    const snapshot = await fastGet(child(schoolRef("attendance")));
+    const snapshot = await fastGet(schoolRef("attendance"));
 
     if (!snapshot.exists()) return null;
 
@@ -78230,7 +78286,7 @@ window.showAttendanceRanking = async function () {
 // ================= MONTHLY ANALYTICS =================
 window.getMonthlyAttendance = async function () {
 
-    const snapshot = await fastGet(child(schoolRef("attendance")));
+    const snapshot = await fastGet(schoolRef("attendance"));
 
     const monthData = {};
 
@@ -78979,325 +79035,655 @@ window.__supportStaffPagination = {
 };
 
 
+/* =========================================================
+   🚀 RASM 360 — ZERO-DELAY SUPPORT STAFF SYSTEM
+   ---------------------------------------------------------
+   ✔ Immediate Firebase listener
+   ✔ Instant first batch rendering
+   ✔ Fast DOM insertion
+   ✔ Live Firebase updates
+   ✔ 30 records per batch
+   ✔ Duplicate listener protection
+   ✔ Automatic pagination
+   ✔ Attendance and staff actions preserved
+   ✔ Live print report synchronization
+   ✔ Safe HTML rendering
+========================================================= */
+
+// =========================================================
+// 🌍 GLOBAL STATE
+// =========================================================
+
+window.__supportStaffData =
+    window.__supportStaffData || [];
+
+window.__supportStaffListener = null;
+
+window.__supportStaffPagination = {
+    page: 0,
+    limit: 30,
+    loading: false,
+    finished: false
+};
+
+window.__supportStaffRenderVersion = 0;
+
+
+// =========================================================
+// 🔐 SAFE HTML HELPER
+// =========================================================
+
+window.escapeSupportStaffHTML = function (value) {
+    return String(value ?? "").replace(
+        /[&<>"']/g,
+        char => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        })[char]
+    );
+};
+
+
 // =========================================================
 // 🚀 LOAD SUPPORT STAFF
 // =========================================================
+
 window.loadSupportStaff = function () {
 
-  // ===============================
-  // REMOVE OLD LISTENER
-  // ===============================
-  if (window.__supportStaffListener) {
-    window.__supportStaffListener();
-  }
+    // Remove previous listener
+    if (window.__supportStaffListener) {
+        window.__supportStaffListener();
+        window.__supportStaffListener = null;
+    }
 
-  // ===============================
-  // START LIVE LISTENER
-  // ===============================
-  window.__supportStaffListener = window.fastOnValue(
-
-    schoolRef("supportStaff"),
-
-    (snapshot) => {
-
-      const data = snapshot.val() || {};
-
-      // ===============================
-      // CONVERT TO ARRAY
-      // ===============================
-      const staffArray = Object.entries(data).map(([id, staff]) => ({
-        id,
-        ...staff
-      }));
-
-      // ===============================
-      // SORT BY NAME
-      // ===============================
-      staffArray.sort((a, b) =>
-        (a.name || "").localeCompare(b.name || "")
-      );
-
-      // ===============================
-      // STORE GLOBALLY
-      // ===============================
-      window.__supportStaffData = staffArray;
-
-      // ===============================
-      // RESET PAGINATION
-      // ===============================
-      window.__supportStaffPagination.page = 0;
-      window.__supportStaffPagination.loading = false;
-      window.__supportStaffPagination.finished = false;
-
-      // ===============================
-      // CLEAR TABLE
-      // ===============================
-      const tbody =
+    const tbody =
         document.getElementById("supportStaffList");
 
-      if (!tbody) return;
+    if (!tbody) return;
 
-      tbody.innerHTML = "";
+    // Invalidate previous rendering
+    window.__supportStaffRenderVersion++;
 
-      // ===============================
-      // EMPTY STATE
-      // ===============================
-      if (!staffArray.length) {
+    // Reset pagination
+    Object.assign(window.__supportStaffPagination, {
+        page: 0,
+        loading: false,
+        finished: false
+    });
 
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="12"
-                style="
-                  text-align:center;
-                  padding:20px;
-                  color:#666;
-                ">
-              No support staff found
+    // Immediate loading state
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="14"
+                style="text-align:center;padding:15px;color:#64748b;">
+                Loading support staff...
             </td>
-          </tr>
-        `;
+        </tr>
+    `;
 
-        updateSupportSummary([]);
-        renderDepartmentStats([]);
+    try {
 
-        return;
-      }
+        // Start Firebase live listener
+        window.__supportStaffListener = window.fastOnValue(
 
-      // ===============================
-      // UPDATE SUMMARY
-      // ===============================
-      updateSupportSummary(staffArray);
+            schoolRef("supportStaff"),
 
-      // ===============================
-      // DEPARTMENT STATS
-      // ===============================
-      renderDepartmentStats(staffArray);
+            snapshot => {
 
-      // ===============================
-      // FIRST BATCH
-      // ===============================
-      renderNextSupportStaffBatch();
+                const data = snapshot.val() || {};
+
+                // Convert Firebase records
+                const staffArray = Object.entries(data).map(
+                    ([id, staff]) => ({
+                        ...staff,
+                        id
+                    })
+                );
+
+                // Sort by name
+                staffArray.sort((a, b) =>
+                    String(a.name || "").localeCompare(
+                        String(b.name || "")
+                    )
+                );
+
+                // Store globally
+                window.__supportStaffData = staffArray;
+
+                // Reset pagination
+                Object.assign(
+                    window.__supportStaffPagination,
+                    {
+                        page: 0,
+                        loading: false,
+                        finished: false
+                    }
+                );
+
+                // Update summaries
+                updateSupportSummary(staffArray);
+
+                // Update department statistics
+                renderDepartmentStats(staffArray);
+
+                // Render first batch immediately
+                const currentVersion =
+                    ++window.__supportStaffRenderVersion;
+
+                window.renderNextSupportStaffBatch(
+                    currentVersion
+                );
+
+            },
+
+            error => {
+
+                console.error(
+                    "RASM 360: Support staff loading failed.",
+                    error
+                );
+
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="14"
+                            style="text-align:center;padding:20px;color:#dc2626;">
+                            Unable to load support staff. Please try again.
+                        </td>
+                    </tr>
+                `;
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "RASM 360: Support staff listener initialization failed.",
+            error
+        );
+
     }
-  );
 };
 
 
 // =========================================================
 // 🚀 LOAD NEXT STAFF BATCH
 // =========================================================
-function renderNextSupportStaffBatch() {
 
-  const state = window.__supportStaffPagination;
+window.renderNextSupportStaffBatch = function (version) {
 
-  if (state.loading || state.finished) return;
+    const state =
+        window.__supportStaffPagination;
 
-  state.loading = true;
+    const tbody =
+        document.getElementById("supportStaffList");
 
-  const tbody =
-    document.getElementById("supportStaffList");
+    if (!tbody) return;
 
-  if (!tbody) {
-    state.loading = false;
-    return;
-  }
+    if (state.loading || state.finished) return;
 
-  // ===============================
-  // DATA
-  // ===============================
-  const data = window.__supportStaffData || [];
+    // Prevent stale rendering
+    if (
+        version !== undefined &&
+        version !== window.__supportStaffRenderVersion
+    ) return;
 
-  const start = state.page * state.limit;
-  const end = start + state.limit;
+    state.loading = true;
 
-  const batch = data.slice(start, end);
+    try {
 
-  // ===============================
-  // FINISHED
-  // ===============================
-  if (!batch.length) {
+        const data =
+            window.__supportStaffData || [];
 
-    state.finished = true;
-    state.loading = false;
+        const start =
+            state.page * state.limit;
 
-    return;
-  }
+        const end =
+            Math.min(
+                start + state.limit,
+                data.length
+            );
 
-  // ===============================
-  // BUILD ROWS
-  // ===============================
-  let html = "";
+        const batch =
+            data.slice(start, end);
 
-  batch.forEach((staff, index) => {
+        // Empty state
+        if (!data.length) {
 
-    const rowNo = start + index + 1;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="14"
+                        style="text-align:center;padding:20px;color:#666;">
+                        No support staff found
+                    </td>
+                </tr>
+            `;
 
-    html += `
-<tr data-rb-key="${staff.id}">
+            state.finished = true;
+            return;
+        }
 
-  <td style="width:50px;min-width:50px;text-align:center;">
-    <input type="checkbox" class="rasm-record-select" data-module="supportStaff" data-key="${staff.id}" aria-label="Select support staff record" style="width:18px;height:18px;accent-color:#dc2626;cursor:pointer;">
-  </td>
+        if (!batch.length) {
+            state.finished = true;
+            return;
+        }
 
-  <td>${rowNo}</td>
+        // Build rows using DocumentFragment
+        const fragment =
+            document.createDocumentFragment();
 
-  <td>${staff.staffNumber || `STF-${String(rowNo).padStart(4,"0")}`}</td>
+        batch.forEach((staff, index) => {
 
-  <td>
-    <b>${staff.name || ""}</b>
-  </td>
+            const rowNo = start + index + 1;
 
-  <td>${staff.role || ""}</td>
+            const id =
+                window.escapeSupportStaffHTML(staff.id);
 
-  <td>${staff.department || "-"}</td>
+            const name =
+                window.escapeSupportStaffHTML(staff.name);
 
-  <td>${staff.phone || ""}</td>
+            const staffNumber =
+                window.escapeSupportStaffHTML(
+                    staff.staffNumber ||
+                    `STF-${String(rowNo).padStart(4, "0")}`
+                );
 
-  <td>${staff.email || ""}</td>
+            const role =
+                window.escapeSupportStaffHTML(staff.role);
 
-  <td>${staff.shift || "-"}</td>
+            const department =
+                window.escapeSupportStaffHTML(
+                    staff.department || "-"
+                );
 
-  <td>
-    KES ${Number(staff.salary || 0).toLocaleString()}
-  </td>
+            const phone =
+                window.escapeSupportStaffHTML(staff.phone);
 
-  <td>${staff.contractType || "-"}</td>
+            const email =
+                window.escapeSupportStaffHTML(staff.email);
 
-  <!-- STATUS -->
-  <td>
-    <span style="
-      padding:4px 10px;
-      border-radius:20px;
-      color:white;
-      font-size:12px;
-      background:
-      ${staff.status === "Active"
-        ? "#16a34a"
-        : staff.status === "On Leave"
-        ? "#f59e0b"
-        : "#dc2626"};
-    ">
-      ${staff.status || "Active"}
-    </span>
-  </td>
+            const shift =
+                window.escapeSupportStaffHTML(
+                    staff.shift || "-"
+                );
 
-  <!-- ATTENDANCE -->
-  <td>
+            const salary =
+                Number(staff.salary || 0).toLocaleString();
 
-    <button
-      onclick="markStaffAttendance('${staff.id}','Present')"
-      style="
-        background:#16a34a;
-        color:white;
-        border:none;
-        padding:5px 8px;
-        border-radius:6px;
-        cursor:pointer;
-      "
-    >✅</button>
+            const contractType =
+                window.escapeSupportStaffHTML(
+                    staff.contractType || "-"
+                );
 
-    <button
-      onclick="markStaffAttendance('${staff.id}','Absent')"
-      style="
-        background:#dc2626;
-        color:white;
-        border:none;
-        padding:5px 8px;
-        border-radius:6px;
-        cursor:pointer;
-      "
-    >❌</button>
+            const status =
+                String(staff.status || "Active");
 
-  </td>
+            const safeStatus =
+                window.escapeSupportStaffHTML(status);
 
-<!-- ACTIONS -->
-<td>
+            const statusColor =
+                status === "Active"
+                    ? "#16a34a"
+                    : status === "On Leave"
+                    ? "#f59e0b"
+                    : "#dc2626";
 
-<select
-    onchange="
-        if(this.value==='payslip') generateSupportPayslip('${staff.id}');
-        else if(this.value==='advance') giveAdvance('${staff.id}');
-        else if(this.value==='leaveOut') openLeaveOutSheet('staff','${staff.id}');
-        else if(this.value==='edit') editSupportStaff('${staff.id}');
-        else if(this.value==='delete') deleteSupportStaff('${staff.id}');
-        this.selectedIndex=0;
-    "
-    style="
-        width:170px;
-        padding:10px;
-        border:1px solid #d1d5db;
-        border-radius:10px;
-        background:#fff;
-        font-size:14px;
-        font-weight:600;
-        cursor:pointer;
-    "
->
+            const tr =
+                document.createElement("tr");
 
-    <option value="">⚙️ Select Action</option>
+            tr.dataset.rbKey = staff.id;
 
-    <option value="payslip">🧾 Generate Payslip</option>
+            tr.innerHTML = `
 
-    <option value="advance">💰 Give Advance</option>
+                <td style="width:50px;min-width:50px;text-align:center;">
 
-    <option value="leaveOut">📝 Leave Out Sheet</option>
+                    <input
+                        type="checkbox"
+                        class="rasm-record-select"
+                        data-module="supportStaff"
+                        data-key="${id}"
+                        aria-label="Select support staff record"
+                        style="width:18px;height:18px;accent-color:#dc2626;cursor:pointer;"
+                    >
 
-    <option value="edit">✏️ Edit Staff</option>
+                </td>
 
-    <option value="delete">🗑️ Delete Staff</option>
+                <td>${rowNo}</td>
 
-</select>
+                <td>${staffNumber}</td>
 
-</td>
+                <td>
+                    <b>${name}</b>
+                </td>
 
-</tr>
+                <td>${role}</td>
+
+                <td>${department}</td>
+
+                <td>${phone}</td>
+
+                <td>${email}</td>
+
+                <td>${shift}</td>
+
+                <td>KES ${salary}</td>
+
+                <td>${contractType}</td>
+
+                <!-- STATUS -->
+
+                <td>
+                    <span style="
+                        padding:4px 10px;
+                        border-radius:20px;
+                        color:white;
+                        font-size:12px;
+                        background:${statusColor};
+                    ">
+                        ${safeStatus}
+                    </span>
+                </td>
+
+                <!-- ATTENDANCE -->
+
+                <td>
+
+                    <button
+                        type="button"
+                        data-action="attendance"
+                        data-id="${id}"
+                        data-status="Present"
+                        style="
+                            background:#16a34a;
+                            color:white;
+                            border:none;
+                            padding:5px 8px;
+                            border-radius:6px;
+                            cursor:pointer;
+                        "
+                    >✅</button>
+
+                    <button
+                        type="button"
+                        data-action="attendance"
+                        data-id="${id}"
+                        data-status="Absent"
+                        style="
+                            background:#dc2626;
+                            color:white;
+                            border:none;
+                            padding:5px 8px;
+                            border-radius:6px;
+                            cursor:pointer;
+                        "
+                    >❌</button>
+
+                </td>
+
+                <!-- ACTIONS -->
+
+                <td>
+
+                    <select
+                        data-action="staff-menu"
+                        data-id="${id}"
+                        style="
+                            width:170px;
+                            padding:10px;
+                            border:1px solid #d1d5db;
+                            border-radius:10px;
+                            background:#fff;
+                            font-size:14px;
+                            font-weight:600;
+                            cursor:pointer;
+                        "
+                    >
+
+                        <option value="">⚙️ Select Action</option>
+
+                        <option value="payslip">🧾 Generate Payslip</option>
+
+                        <option value="advance">💰 Give Advance</option>
+
+                        <option value="leaveOut">📝 Leave Out Sheet</option>
+
+                        <option value="edit">✏️ Edit Staff</option>
+
+                        <option value="delete">🗑️ Delete Staff</option>
+
+                    </select>
+
+                </td>
+
+            `;
+
+            fragment.appendChild(tr);
+
+        });
+
+        // Clear old rows on first page only
+        if (state.page === 0) {
+            tbody.innerHTML = "";
+        }
+
+        // Insert entire batch at once
+        tbody.appendChild(fragment);
+
+        // Advance pagination
+        state.page++;
+
+        state.finished =
+            end >= data.length;
+
+        // Update print report
+        window.updateSupportStaffPrintReport();
+
+    } catch (error) {
+
+        console.error(
+            "RASM 360: Support staff rendering failed.",
+            error
+        );
+
+    } finally {
+
+        state.loading = false;
+
+    }
+
+};
+
+
+// =========================================================
+// ⚡ SUPPORT STAFF ACTION HANDLER
+// =========================================================
+
+window.handleSupportStaffAction = function (event) {
+
+    const target = event.target;
+
+    if (!target) return;
+
+    // Attendance
+    if (
+        target.matches(
+            'button[data-action="attendance"]'
+        )
+    ) {
+
+        const id = target.dataset.id;
+        const status = target.dataset.status;
+
+        if (typeof window.markStaffAttendance === "function") {
+            window.markStaffAttendance(id, status);
+        }
+
+        return;
+    }
+
+    // Staff action menu
+    if (
+        target.matches(
+            'select[data-action="staff-menu"]'
+        )
+    ) {
+
+        const id = target.dataset.id;
+        const action = target.value;
+
+        if (!action) return;
+
+        target.value = "";
+
+        switch (action) {
+
+            case "payslip":
+                if (typeof window.generateSupportPayslip === "function")
+                    window.generateSupportPayslip(id);
+                break;
+
+            case "advance":
+                if (typeof window.giveAdvance === "function")
+                    window.giveAdvance(id);
+                break;
+
+            case "leaveOut":
+                if (typeof window.openLeaveOutSheet === "function")
+                    window.openLeaveOutSheet("staff", id);
+                break;
+
+            case "edit":
+                if (typeof window.editSupportStaff === "function")
+                    window.editSupportStaff(id);
+                break;
+
+            case "delete":
+                if (typeof window.deleteSupportStaff === "function")
+                    window.deleteSupportStaff(id);
+                break;
+
+        }
+
+    }
+
+};
+
+
+// =========================================================
+// ⚡ REGISTER EVENT HANDLERS ONCE
+// =========================================================
+
+if (!window.__supportStaffEventsRegistered) {
+
+    const tbody =
+        document.getElementById("supportStaffList");
+
+    if (tbody) {
+
+        tbody.addEventListener(
+            "click",
+            window.handleSupportStaffAction
+        );
+
+        tbody.addEventListener(
+            "change",
+            window.handleSupportStaffAction
+        );
+
+        window.__supportStaffEventsRegistered = true;
+
+    }
+
+}
+
+
+// =========================================================
+// 📄 UPDATE PRINT REPORT
+// =========================================================
+
+window.updateSupportStaffPrintReport = function () {
+
+    const printContainer =
+        document.getElementById("supportStaffContent");
+
+    const reportTable =
+        document.getElementById("supportStaffList");
+
+    if (!printContainer || !reportTable) return;
+
+    printContainer.innerHTML = `
+
+        <div style="
+            padding:20px;
+            font-family:Arial,sans-serif;
+        ">
+
+            <h2 style="
+                text-align:center;
+                margin-bottom:20px;
+            ">
+                🧹 SUPPORT STAFF REPORT
+            </h2>
+
+            <table>
+                ${reportTable.innerHTML}
+            </table>
+
+        </div>
+
     `;
-  });
 
-  // append rows
-// =====================================================
-// APPEND TO SCREEN TABLE
-// =====================================================
+};
 
-tbody.insertAdjacentHTML("beforeend", html);
 
-// =====================================================
-// UPDATE PRINT REPORT
-// =====================================================
+// =========================================================
+// ➕ LOAD MORE STAFF
+// =========================================================
 
-const printContainer =
-  document.getElementById("supportStaffContent");
+window.loadMoreSupportStaff = function () {
 
-const reportTable =
-  document.querySelector("#supportStaffList");
-if (printContainer && reportTable) {
+    const state =
+        window.__supportStaffPagination;
 
-  printContainer.innerHTML = `
-    <div style="
-      padding:20px;
-      font-family:Arial,sans-serif;
-    ">
+    if (state.loading || state.finished) return;
 
-      <h2 style="
-        text-align:center;
-        margin-bottom:20px;
-      ">
-        🧹 SUPPORT STAFF REPORT
-      </h2>
+    window.renderNextSupportStaffBatch(
+        window.__supportStaffRenderVersion
+    );
 
-      ${reportTable.outerHTML}
+};
 
-    </div>
-  `;
-}
 
-// =====================================================
-// NEXT PAGE
-// =====================================================
+// =========================================================
+// ♻️ REFRESH SUPPORT STAFF
+// =========================================================
 
-state.page++;
+window.refreshSupportStaff = function () {
 
-state.loading = false;
-}
+    window.loadSupportStaff();
+
+};
+
+
+// =========================================================
+// 🛑 STOP LIVE LISTENER
+// =========================================================
+
+window.stopSupportStaffListener = function () {
+
+    if (window.__supportStaffListener) {
+
+        window.__supportStaffListener();
+
+        window.__supportStaffListener = null;
+
+    }
+
+    window.__supportStaffRenderVersion++;
+
+};
 
 
 // =========================================================
@@ -87612,6 +87998,10 @@ window.loadTransport = function () {
       if (!transportList) return;
 
       const data = snap.val() || {};
+      let transportSignature = "";
+      try { transportSignature = JSON.stringify(data); } catch (_) { transportSignature = String(Date.now()); }
+      if (transportList.dataset.rasmTransportRenderSignature === transportSignature) return;
+      transportList.dataset.rasmTransportRenderSignature = transportSignature;
       window.__RASM360_TRANSPORT_CACHE = {
         schoolId: rasmTransportSchoolId(),
         data,
@@ -100206,9 +100596,12 @@ window.borrowBook = async function (bookId) {
         }
 
         /*
-         * PHASE 1: START ALL INITIAL READS TOGETHER.
-         * The book request no longer waits for the borrower requests.
+         * PHASE 1: Show feedback immediately, then start the reads together.
+         * This prevents a silent pause while borrower records are being fetched.
          */
+        openSweetLoader("Opening the borrow form… loading book and borrower details");
+        loaderOpened = true;
+
         const bookRef = ref(db, `library/${schoolId}/${bookId}`);
 
         const initialResults = await Promise.all([
@@ -100236,6 +100629,8 @@ window.borrowBook = async function (bookId) {
         const initialBookSnap = initialResults[2];
 
         if (!initialBookSnap || !initialBookSnap.exists()) {
+            closeSweetLoader();
+            loaderOpened = false;
             return await showError(
                 "Book Not Found",
                 "This book could not be found. Refresh the library and try again."
@@ -100388,7 +100783,12 @@ window.borrowBook = async function (bookId) {
 
         /*
          * PHASE 3: DISPLAY THE BORROWING FORM.
+         * Close the initial progress indicator before showing the interactive form.
          */
+        if (loaderOpened) {
+            closeSweetLoader();
+            loaderOpened = false;
+        }
         const result = await Swal.fire({
             title: `Borrow Book — ${esc(initialBook.title || "Untitled Book")}`,
             width: 760,
@@ -100694,30 +101094,38 @@ window.borrowBook = async function (bookId) {
         /*
          * Generate unique borrowing-record IDs before the single write.
          */
-        assigned.forEach(row => {
-            const borrowingRecordRef = push(ref(db, borrowRoot));
+    
+/*
+ * Generate unique borrowing-record IDs before the single write.
+ * UUIDs are valid Firebase Realtime Database child keys.
+ */
+assigned.forEach(row => {
+    const borrowingRecordId =
+        globalThis.crypto?.randomUUID?.() ||
+        (
+            Date.now().toString(36) +
+            Math.random().toString(36).slice(2) +
+            Math.random().toString(36).slice(2)
+        );
 
-            if (!borrowingRecordRef?.key) {
-                throw new Error("Unable to generate a borrowing record ID.");
-            }
+    multi[`${borrowRoot}/${borrowingRecordId}`] = {
+        bookId,
+        bookTitle: book.title || "",
+        bookNumber: row.bookNumber,
+        borrowerName: row.borrowerName,
+        borrowerAdm: row.borrowerAdm,
+        borrowerId: row.borrowerId,
+        borrowerType: formValues.borrowerType,
+        grade: formValues.selectedGrade,
+        year,
+        borrowDate: borrowDateDisplay,
+        borrowDateISO: formValues.borrowDate,
+        dueDate: formValues.dueDate,
+        returned: false,
+        createdAt
+    };
+});
 
-            multi[`${borrowRoot}/${borrowingRecordRef.key}`] = {
-                bookId,
-                bookTitle: book.title || "",
-                bookNumber: row.bookNumber,
-                borrowerName: row.borrowerName,
-                borrowerAdm: row.borrowerAdm,
-                borrowerId: row.borrowerId,
-                borrowerType: formValues.borrowerType,
-                grade: formValues.selectedGrade,
-                year,
-                borrowDate: borrowDateDisplay,
-                borrowDateISO: formValues.borrowDate,
-                dueDate: formValues.dueDate,
-                returned: false,
-                createdAt
-            };
-        });
 
         /*
          * One atomic multi-location update.
@@ -100761,7 +101169,10 @@ window.borrowBook = async function (bookId) {
         console.error("RASM 360 borrowing operation failed:", {
             code: error?.code || "UNKNOWN",
             message: error?.message || "Unknown error",
-            bookId
+            name: error?.name || "Error",
+            stack: error?.stack || "",
+            bookId,
+            error
         });
 
         if (loaderOpened) {
@@ -101267,24 +101678,6 @@ ANTI FREEZE SYSTEM
   });
 
   /* =====================================================
-     INPUT OPTIMIZATION
-  ===================================================== */
-  document
-    .querySelectorAll("input, textarea")
-    .forEach(input => {
-
-      input.addEventListener(
-        "input",
-
-        debounce(() => {
-
-        }, 250)
-
-      );
-
-    });
-
-  /* =====================================================
      SAFE INNERHTML
   ===================================================== */
   window.safeHTML =
@@ -101341,17 +101734,6 @@ ANTI FREEZE SYSTEM
      RASM 360 — RUNTIME DIAGNOSTICS
      Disabled in production to avoid needless timers/console noise.
   ===================================================== */
-
-  /* =====================================================
-     TABLE OPTIMIZATION
-  ===================================================== */
-  document.querySelectorAll("table")
-    .forEach(table => {
-
-      table.style.willChange =
-        "transform";
-
-    });
 
   /* =====================================================
      NETWORK SAFE FETCH
@@ -101448,27 +101830,8 @@ let schoolCount =
 counter.textContent =
   schoolCount.toLocaleString();
 
-// Increase randomly forever
-setInterval(() => {
-
-  // Random increase
-  const increase =
-    Math.floor(
-      Math.random() * 5
-    ) + 1;
-
-  schoolCount += increase;
-
-  // Maximum limit
-  if (schoolCount > 2000) {
-
-    schoolCount = 2000;
-  }
-
-  counter.textContent =
-    schoolCount.toLocaleString();
-
-}, 4000);
+// The counter is initialized once. Avoid a permanent timer that changes
+// a decorative number without reading actual school statistics.
 
 
 // =========================================
@@ -102313,43 +102676,48 @@ totalCourses.textContent =
 };
 
 window.deleteSelectedCourses = async function () {
+  const schoolId = String(window.schoolId || localStorage.getItem("schoolId") || sessionStorage.getItem("schoolId") || "").trim();
+  const selected = Array.from(document.querySelectorAll(".courseSelectBox:checked"))
+    .map(el => String(el.value || "").trim()).filter(Boolean);
 
-  const schoolId = window.schoolId;
-
-  const selected =
-    Array.from(
-      document.querySelectorAll(".courseSelectBox:checked")
-    ).map(el => el.value);
-
-  if (selected.length === 0) {
-    return Swal.fire("No Selection", "Select courses first", "warning");
+  if (!selected.length) {
+    return Swal.fire("No Selection", "Select learning resources first", "warning");
+  }
+  if (!schoolId) {
+    return Swal.fire("School Session Missing", "Please log in again.", "error");
   }
 
   const confirm = await Swal.fire({
-    title: `Delete ${selected.length} courses?`,
-    text: "This action cannot be undone",
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonColor: "#dc2626",
-    confirmButtonText: "Delete"
+    title: `Move ${selected.length} learning resource(s) to Recycle Bin?`,
+    text: "The selected resources can be restored later from the Recycle Bin.",
+    icon: "warning", showCancelButton: true,
+    confirmButtonColor: "#dc2626", confirmButtonText: "Move to Recycle Bin",
+    cancelButtonText: "Cancel", reverseButtons: true
   });
-
   if (!confirm.isConfirmed) return;
 
-  for (const id of selected) {
-
-    rasmBackgroundRemove(
-      ref(db, `schools/${schoolId}/courses/${id}`)
-    );
-
-    window.courses =
-      window.courses.filter(c => c.id !== id);
+  try {
+    Swal.fire({title:"Moving Learning Resources…",text:`Saving ${selected.length} record(s) to the Recycle Bin.`,allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+    if (typeof window.rasmRecycleDelete !== "function") throw new Error("Recycle Bin is not ready. Please reload the page and try again.");
+    const currentCourses = Array.isArray(window.courses) ? window.courses : [];
+    const selectedCourses = currentCourses.filter(c => selected.includes(String(c.id || "")) || selected.includes(String(c.firebaseId || "")));
+    const databaseIds = [...new Set(selectedCourses.map(c => String(c.firebaseId || c.id || "").trim()).filter(Boolean))];
+    if (!databaseIds.length) throw new Error("The selected learning resources could not be matched to their Firebase records. Refresh the list and try again.");
+    for(let i=0;i<databaseIds.length;i+=10){
+      await Promise.all(databaseIds.slice(i,i+10).map(id => window.rasmRecycleDelete(ref(db, `schools/${schoolId}/courses/${id}`))));
+    }
+    const selectedSet = new Set([...selected, ...databaseIds]);
+    window.courses = currentCourses.filter(c => !selectedSet.has(String(c.firebaseId || "")) && !selectedSet.has(String(c.id || "")));
+    courses = window.courses;
+    window.renderCourses();
+    if (typeof window.updateBulkBar === "function") window.updateBulkBar();
+    Swal.close();
+    await Swal.fire({icon:"success",title:"Moved to Recycle Bin",text:`${selected.length} learning resource(s) moved successfully.`,timer:1500,showConfirmButton:false});
+  } catch (error) {
+    console.error("LEARNING_RESOURCE_RECYCLE_ERROR:", error);
+    Swal.close();
+    await Swal.fire("Move Failed", error?.message || "The selected resources could not be moved to the Recycle Bin.", "error");
   }
-
-  window.renderCourses();
-  updateBulkBar();
-
-  Swal.fire("Deleted", "Courses removed", "success");
 };
 
 // =========================================
@@ -102365,8 +102733,8 @@ window.renderCourses = function () {
 
   if (!container) return;
 
-  // Clear existing content
-  container.innerHTML = "";
+  // Build once and commit once; repeated innerHTML += reparses every prior card.
+  let cardsHtml = "";
 
   const role =
     (window.currentUserRole || "")
@@ -102418,7 +102786,7 @@ window.renderCourses = function () {
     const price =
       Number(course.price || 0);
 
-    container.innerHTML += `
+    cardsHtml += `
 
       <div class="course-card">
 
@@ -102575,7 +102943,7 @@ window.renderCourses = function () {
             </button>
 
             <button
-              onclick="deleteCourse('${course.id}')"
+              onclick="deleteCourse('${course.firebaseId || course.id}')"
               style="
                 background:#dc2626;
                 color:white;
@@ -102598,6 +102966,7 @@ window.renderCourses = function () {
     `;
   });
 
+  container.innerHTML = cardsHtml;
 };
 window.bulkLockCourses = async function (lock) {
 
@@ -103154,23 +103523,19 @@ window.deleteCourse = function(id){
           return;
         }
 
-        rasmBackgroundRemove(
-          ref(
-            db,
-            `schools/${schoolId}/courses/${id}`
-          )
-        );
+        if (typeof window.rasmRecycleDelete !== "function") {
+          throw new Error("Recycle Bin is not ready. Please reload the page and try again.");
+        }
+        await window.rasmRecycleDelete(ref(db, `schools/${schoolId}/courses/${id}`));
 
-      courses =
-courses.filter(
-            c => c.id !== id
-          );
-
+        window.courses = (Array.isArray(window.courses) ? window.courses : [])
+          .filter(c => String(c.firebaseId || c.id || "") !== String(id));
+        courses = window.courses;
         window.renderCourses();
 
         Swal.fire(
-          "Deleted",
-          "Course removed successfully",
+          "Moved to Recycle Bin",
+          "The learning resource can be restored from the Recycle Bin.",
           "success"
         );
 
@@ -105742,6 +106107,17 @@ window.loadAssignments = async function () {
     const assignmentsRef = ref(db, `schools/${schoolId}/assignments`);
     const submissionsRef = ref(db, `schools/${schoolId}/assignmentSubmissions`);
 
+    if (window.__rasmAssignmentListenerSchoolId !== schoolId) {
+        try { if (typeof window.__rasmAssignmentAssignmentsUnsubscribe === "function") window.__rasmAssignmentAssignmentsUnsubscribe(); } catch (_) {}
+        try { if (typeof window.__rasmAssignmentSubmissionsUnsubscribe === "function") window.__rasmAssignmentSubmissionsUnsubscribe(); } catch (_) {}
+        window.__rasmAssignmentAssignmentsUnsubscribe = null;
+        window.__rasmAssignmentSubmissionsUnsubscribe = null;
+        window.__rasmAssignmentListenersInstalled = false;
+        window.__rasmAssignmentInitialLoadDone = false;
+        window.__rasmAssignmentListenerSchoolId = schoolId;
+        window.assignments = [];
+    }
+
     // ---------------------------------------------------------
     // Build normalized assignment objects from Firebase.
     // ---------------------------------------------------------
@@ -105787,9 +106163,14 @@ window.loadAssignments = async function () {
         const list = Array.isArray(window.assignments)
             ? window.assignments
             : [];
+        const assignmentById = new Map();
 
         list.forEach((assignment) => {
             assignment.submissions = [];
+            [assignment.id, assignment.firebaseId].forEach(value => {
+                const key = String(value || "").trim();
+                if (key) assignmentById.set(key, assignment);
+            });
         });
 
         if (!submissionSnapshot || !submissionSnapshot.exists()) return;
@@ -105816,11 +106197,7 @@ window.loadAssignments = async function () {
                 markedAt: raw.markedAt || null
             };
 
-            const assignment = list.find((a) =>
-                String(a.id || "") === submission.assignmentId ||
-                String(a.firebaseId || "") === submission.assignmentId
-            );
-
+            const assignment = assignmentById.get(submission.assignmentId);
             if (assignment) assignment.submissions.push(submission);
         });
 
@@ -105859,7 +106236,7 @@ window.loadAssignments = async function () {
             window.__lastAssignmentRenderSignature = "";
             renderNow();
 
-            console.log("📚 ASSIGNMENTS AVAILABLE:", window.assignments.length);
+            console.info("📚 ASSIGNMENTS AVAILABLE:", window.assignments.length);
         };
 
         window.__rasmAssignmentAssignmentsUnsubscribe = window.fastOnValue(
@@ -105888,10 +106265,8 @@ window.loadAssignments = async function () {
         );
     }
 
-    // ---------------------------------------------------------
-    // Initial direct reads ensure the section works even if the realtime
-    // helper is delayed or unavailable during first page initialization.
-    // ---------------------------------------------------------
+    // One bounded initial read keeps callers that await loadAssignments()
+    // compatible while avoiding repeated direct reads on later section visits.
     if (!window.__rasmAssignmentInitialLoadDone) {
         window.__rasmAssignmentInitialLoadDone = true;
         try {
@@ -105899,15 +106274,13 @@ window.loadAssignments = async function () {
                 fastGet(assignmentsRef),
                 fastGet(submissionsRef)
             ]);
-
             window.assignments = buildAssignments(assignmentSnapshot);
             attachSubmissions(submissionSnapshot);
             window.__lastAssignmentRenderSignature = "";
             renderNow();
-
-            console.log("📚 INITIAL ASSIGNMENTS LOADED:", window.assignments.length);
-            console.log("📚 INITIAL ASSIGNMENT DATA:", window.assignments);
+            console.info("📚 INITIAL ASSIGNMENTS LOADED:", window.assignments.length);
         } catch (error) {
+            window.__rasmAssignmentInitialLoadDone = false;
             console.error("❌ INITIAL_ASSIGNMENT_LOAD_ERROR:", error);
             const container = document.getElementById("assignmentContainer");
             if (container) {
@@ -105929,6 +106302,7 @@ window.destroyAssignmentListeners = function () {
     window.__rasmAssignmentSubmissionsUnsubscribe = null;
     window.__rasmAssignmentListenersInstalled = false;
     window.__rasmAssignmentInitialLoadDone = false;
+    window.__rasmAssignmentListenerSchoolId = "";
 };
 
 // =========================================================
@@ -128492,107 +128866,37 @@ onclick="openPasswordModal();Swal.close();">
 // =====================================
 
 window.openSchoolManagementMenu = function () {
-
     Swal.fire({
-
         title: "🏫 School Management",
-
-        width: 700,
-
+        width: 680,
         showConfirmButton: false,
-
+        showCloseButton: true,
         html: `
-
-<div style="
-display:grid;
-grid-template-columns:repeat(2,1fr);
-gap:12px;
-margin-top:15px;
-">
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('students');Swal.close();">
-👨🎓 Students
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('teachers');Swal.close();">
-👨🏫 Teachers
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('supportStaff');Swal.close();">
-🧹 Support Staff
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('ict');Swal.close();">
-💻 ICT
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('attendanceSection');Swal.close();">
-🗓️ Attendance
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('library');Swal.close();">
-📚 Library
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('fees');Swal.close();">
-💰 Fees
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('transport');Swal.close();">
-🚌 Transport
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('hostel');Swal.close();">
-🏨 Hostel
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;"
-onclick="show('inventory');Swal.close();">
-📦 Inventory
-</button>
-
-<button
-class="swal2-confirm swal2-styled"
-style="width:100%;margin:0;background:#166534;"
-onclick="openPaymentVoucherGenerator();">
-🧾 Generate Payment Voucher
-</button>
-
-</div>
-
-`
-
+          <div style="text-align:left;max-height:65vh;overflow:auto;padding:4px;">
+            <p style="margin:0 0 12px;color:#64748b;font-size:13px;">Choose what you want to manage. Each button opens that section directly.</p>
+            <h3 style="font-size:13px;color:#64748b;margin:8px 0;">PEOPLE</h3>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('students');Swal.close();">👨‍🎓 Students</button>
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('teachers');Swal.close();">👩‍🏫 Teachers</button>
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('supportStaff');Swal.close();">🧹 Support Staff</button>
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('attendanceSection');Swal.close();">🗓️ Attendance</button>
+            </div>
+            <h3 style="font-size:13px;color:#64748b;margin:16px 0 8px;">SCHOOL SERVICES</h3>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('fees');Swal.close();">💰 Fees</button>
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('transport');Swal.close();">🚌 Transport</button>
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('library');Swal.close();">📚 Library</button>
+            </div>
+            <h3 style="font-size:13px;color:#64748b;margin:16px 0 8px;">ASSETS & FACILITIES</h3>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('ict');Swal.close();">💻 ICT</button>
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('hostel');Swal.close();">🏨 Hostel</button>
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;" onclick="show('inventory');Swal.close();">📦 Inventory</button>
+              <button class="swal2-confirm swal2-styled" style="margin:0;width:100%;background:#166534;" onclick="openPaymentVoucherGenerator();">🧾 Payment Voucher</button>
+            </div>
+          </div>
+        `
     });
-
 };
 
 // =====================================
@@ -137090,6 +137394,20 @@ return `
 
 
 
+
+<style id="rasm360-hostel-table-readability-fix">
+#rasm360HostelRoot .h2tablewrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;border:1px solid #dbe3ee;border-radius:10px;background:#fff;}
+#rasm360HostelRoot .h2table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;table-layout:auto;}
+#rasm360HostelRoot .h2table th{padding:12px 14px!important;text-align:left;white-space:nowrap;background:#f1f5f9;color:#0f172a;border-bottom:2px solid #cbd5e1;font-weight:800;}
+#rasm360HostelRoot .h2table td{padding:12px 14px!important;vertical-align:middle;border-bottom:1px solid #e2e8f0;line-height:1.45;white-space:normal;overflow-wrap:anywhere;}
+#rasm360HostelRoot .h2table tbody tr:nth-child(even){background:#f8fafc;}
+#rasm360HostelRoot .h2table tbody tr:hover{background:#eff6ff;}
+#rasm360HostelRoot .h2actions{display:flex;gap:7px;flex-wrap:wrap;min-width:130px;}
+#rasm360HostelRoot .h2sectionhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+#rasm360HostelRoot .h2subhead{margin:22px 0 10px;font-size:16px;font-weight:850;color:#0f172a;}
+#rasm360HostelRoot .h2card{min-width:0;}
+</style>
+
 </body>
 </html>`);
     win.document.close();
@@ -140927,7 +141245,9 @@ html,body,#app,.main{
     transport:"🚌 Transport",
     hostel:"🏨 Hostel",
     inventory:"📦 Inventory",
-    examResults:"📝 Exam Results"
+    examResults:"📝 Exam Results",
+    assignments:"📝 Assignments",
+    courses:"📚 Learning Resources"
   };
 
   function getSchoolId(){
@@ -140965,7 +141285,8 @@ html,body,#app,.main{
       const module=parts[2];
       const supported=[
         "students","teachers","supportStaff","attendance",
-        "library","fees","transport","hostel","inventory","ict"
+        "library","fees","transport","hostel","inventory","ict",
+        "assignments","courses"
       ];
       if(supported.includes(module)){
         return {module, schoolId:parts[1], base:`schools/${parts[1]}/${module}`, id:parts.slice(3).join("/")};
@@ -141004,13 +141325,18 @@ html,body,#app,.main{
 
   async function saveCollectionChildren(module, basePath, snapshot){
     if(!snapshot || !snapshot.exists()) return 0;
+    const children=[];
+    snapshot.forEach(child=>children.push({key:child.key,data:child.val()}));
     let count=0;
-    const promises=[];
-    snapshot.forEach(child=>{
-      const childPath=`${basePath}/${child.key}`;
-      promises.push(saveRecycleRecord(module,childPath,child.val(),child.key).then(()=>count++));
-    });
-    await Promise.all(promises);
+    // Bound concurrent Firebase writes so large school-wide deletes do not
+    // flood the connection with one promise per record.
+    for(let i=0;i<children.length;i+=20){
+      const batch=children.slice(i,i+20);
+      await Promise.all(batch.map(child=>
+        saveRecycleRecord(module,`${basePath}/${child.key}`,child.data,child.key)
+      ));
+      count+=batch.length;
+    }
     return count;
   }
 
@@ -141954,7 +142280,8 @@ window.openAdminRecycleBin = function () {
 
     const saveOne=async(p,data,id)=>{
       const key=Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,9);
-      const record={module,moduleLabel:(typeof MODULE_LABELS!=="undefined"&&MODULE_LABELS[module])||module,
+      const recycleLabels={assignments:"📝 Assignments",courses:"📚 Learning Resources"};
+      const record={module,moduleLabel:(typeof MODULE_LABELS!=="undefined"&&MODULE_LABELS[module])||recycleLabels[module]||module,
         originalPath:p,originalId:String(id||""),data:data,deletedAt:Date.now(),
         deletedBy:window.currentUser?.email||window.currentUser?.uid||"Current User",restoreAvailable:true};
       await set(ref(db,`schools/${sid}/recycleBin/${module}/${key}`),record);
@@ -141966,7 +142293,10 @@ window.openAdminRecycleBin = function () {
       const children=[];
       snap.forEach(child=>children.push({key:child.key,val:child.val()}));
       if(children.length){
-        for(const child of children) await saveOne(`${path}/${child.key}`,child.val,child.key);
+        // Save in bounded batches; preserve every child before removing the source collection.
+        for(let i=0;i<children.length;i+=20){
+          await Promise.all(children.slice(i,i+20).map(child=>saveOne(`${path}/${child.key}`,child.val,child.key)));
+        }
       } else {
         await saveOne(path,snap.val(),originalId);
       }
@@ -142003,7 +142333,7 @@ window.openAdminRecycleBin = function () {
     if(p) return p;
     const mod=r.module, id=String(r.data?.originalId || r.originalId || "");
     if(!id) return "";
-    const simple=["students","teachers","supportStaff","attendance","library","transport","hostel","inventory","ict"];
+    const simple=["students","teachers","supportStaff","attendance","library","transport","hostel","inventory","ict","assignments","courses"];
     if(simple.includes(mod)) return safePath(`schools/${sid}/${mod}/${id}`);
     if(mod==="fees" && r.data?.originalYear) return safePath(`schools/${sid}/fees/${r.data.originalYear}/${id}`);
     return "";
@@ -143013,11 +143343,9 @@ window.openAdminRecycleBin = function () {
   const CONFIG = [
     {module:"teachers",      label:"Teachers",      list:"#teacherList",       section:"#teachers",      single:"deleteTeacher",      path:(sid,id)=>`schools/${sid}/teachers/${id}`},
     {module:"supportStaff",  label:"Support Staff",  list:"#supportStaffList",   section:"#supportStaff",  single:"deleteSupportStaff",  path:(sid,id)=>`schools/${sid}/supportStaff/${id}`},
-    {module:"ict",           label:"ICT",            list:"#ictList",            section:"#ict",           single:"deleteICT",           path:(sid,id)=>`ict/${sid}/${id}`},
     {module:"transport",     label:"Transport",      list:"#transportList",      section:"#transport",     single:"deleteTransport",     path:(sid,id)=>`schools/${sid}/transport/${id}`},
     {module:"hostel",        label:"Hostel",         list:"#hostelList",         section:"#hostel",        single:"deleteHostel",        path:(sid,id)=>`hostel/${sid}/${id}`},
     {module:"inventory",     label:"Inventory",      list:"#inventoryList",      section:"#inventory",     single:"deleteInventory",     path:(sid,id)=>`inventory/${sid}/${id}`},
-    {module:"library",       label:"Library",        list:"#libraryList",        section:"#library",       single:"deleteBook",           path:(sid,id)=>`library/${sid}/${id}`},
     {module:"fees",          label:"Fees",           list:"#feesTable tbody",   section:"#fees",          single:"deleteFee",            path:(sid,id)=>{
       const year=String(document.getElementById("filterFeeYear")?.value || new Date().getFullYear());
       return `schools/${sid}/fees/${year}/${id}`;
@@ -143659,6 +143987,13 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
     container.querySelectorAll(".assignment-card").forEach(card => {
       const id = String(card.dataset.assignmentId || card.dataset.assignmentCardId || "");
       if(!id) return;
+      // Keep the card's logical ID unchanged for learner/submission workflows,
+      // but use the real Firebase child key for recycle operations.
+      const assignmentRecord = (Array.isArray(window.assignments) ? window.assignments : []).find(a =>
+        String(a.id || "") === id || String(a.firebaseId || "") === id
+      );
+      const recycleId = String(assignmentRecord?.firebaseId || id);
+      const safeRecycleId = recycleId.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 
       // Remove/disable the old single-record Delete menu action. Selection is
       // now the only normal assignment deletion mechanism.
@@ -143675,7 +144010,7 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
         wrap.style.cssText = "display:flex;align-items:center;gap:9px;margin:0 0 10px 0;";
         wrap.innerHTML = `
           <input type="checkbox" class="rasm-assignment-select"
-            data-assignment-id="${CSS.escape(id)}"
+            data-assignment-id="${safeRecycleId}"
             style="width:19px;height:19px;accent-color:#dc2626;cursor:pointer;">
           <span style="font-weight:800;color:#64748b;font-size:13px;">Select this assignment</span>
         `;
@@ -143727,12 +144062,14 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
       });
 
       // rasmRecycleDelete preserves each complete assignment before removing it.
-      await Promise.all(ids.map(id =>
-        window.rasmRecycleDelete(ref(db, `schools/${schoolId}/assignments/${id}`))
-      ));
+      for(let i=0;i<ids.length;i+=10){
+        await Promise.all(ids.slice(i,i+10).map(id =>
+          window.rasmRecycleDelete(ref(db, `schools/${schoolId}/assignments/${id}`))
+        ));
+      }
 
       if(Array.isArray(window.assignments)){
-        window.assignments = window.assignments.filter(a => !ids.includes(String(a.id || a.firebaseId || "")));
+        window.assignments = window.assignments.filter(a => !ids.includes(String(a.firebaseId || "")) && !ids.includes(String(a.id || "")));
         assignments = window.assignments;
       }
 
@@ -144096,6 +144433,45 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
     `).join("");
   }
 
+  // Read every top-level book record from a Firebase snapshot. The normal
+  // library structure is library/{schoolId}/{bookId}; the fallback handles
+  // snapshot implementations that expose val() more reliably than forEach().
+  function libraryBookEntriesFromSnapshot(snapshot){
+    if(!snapshot || !snapshot.exists || !snapshot.exists()) return [];
+    const value = typeof snapshot.val === "function" ? snapshot.val() : null;
+    if(!value || typeof value !== "object") return [];
+
+    // Support a single book record as well as the normal map of book IDs.
+    if(value.title || value.bookTitle || value.author || value.copies || value.quantity !== undefined){
+      return [{key:snapshot.key || "book-record", data:value}];
+    }
+
+    const entries = Object.entries(value);
+    const records = entries
+      .filter(([, record]) => record && typeof record === "object" && !Array.isArray(record))
+      .map(([key, record]) => ({
+        key:String(key),
+        data:(record.data && typeof record.data === "object") ? record.data : record
+      }));
+
+    // Prefer all direct records from val(); use forEach only if needed.
+    if(records.length) return records;
+
+    const fallback = [];
+    if(typeof snapshot.forEach === "function"){
+      snapshot.forEach(child => {
+        const record = child?.val?.();
+        if(record && typeof record === "object"){
+          fallback.push({
+            key:String(child.key),
+            data:(record.data && typeof record.data === "object") ? record.data : record
+          });
+        }
+      });
+    }
+    return fallback;
+  }
+
   function renderCatalogue(){
     ensureLibraryProfessionalUI();
     const search=String(document.getElementById("libraryBookSearch")?.value||"").trim().toLowerCase();
@@ -144103,7 +144479,7 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
     const books=Array.isArray(window.__libraryBooksCache)?window.__libraryBooksCache:[];
     const filtered=books.filter(item=>{
       const d=item.data||{};
-      const hay=[d.title,d.author,d.category,d.isbn,d.publisher,d.shelf,d.edition,d.grade].map(v=>String(v||"").toLowerCase()).join(" ");
+      const hay=[d.title,d.bookTitle,d.name,d.author,d.category,d.isbn,d.publisher,d.shelf,d.edition,d.grade].map(v=>String(v||"").toLowerCase()).join(" ");
       return (!search||hay.includes(search)) && (!grade||String(d.grade||"").trim().toLowerCase()===grade);
     });
     const count=document.getElementById("libraryBookCount");
@@ -144131,7 +144507,7 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
           <td><input class="rasm-library-select-book" type="checkbox" data-book-key="${esc(key)}" style="width:17px;height:17px;"></td>
           <td>${i+1}</td>
           <td><span class="rasm-library-grade">${esc(d.grade||"All Grades")}</span></td>
-          <td class="rasm-library-title-cell">${esc(d.title||"Untitled Book")}</td>
+          <td class="rasm-library-title-cell">${esc(d.title||d.bookTitle||d.name||"Untitled Book")}</td>
           <td>${esc(d.author||"-")}</td>
           <td>${esc(d.category||"-")}</td>
           <td>${esc(d.shelf||"-")}</td>
@@ -144139,7 +144515,7 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
           <td><strong>${s.available}/${s.total}</strong><div style="font-size:11px;color:#64748b">B:${s.borrowed} · L:${s.lost} · D:${s.damaged} · R:${s.repair}</div></td>
           <td>${status}</td>
           <td>
-            <select class="rasm-library-action-select" data-book-key="${esc(key)}" aria-label="Actions for ${esc(d.title||"book")}" onchange="handleLibraryAction(this.value, this.dataset.bookKey); this.selectedIndex=0;">
+            <select class="rasm-library-action-select" data-book-key="${esc(key)}" aria-label="Actions for ${esc(d.title||d.bookTitle||d.name||"book")}" onchange="handleLibraryAction(this.value, this.dataset.bookKey); this.selectedIndex=0;">
               <option value="">⚙️ Select Action</option>
               <option value="borrow">📕 Borrow Book</option>
               <option value="returnAll">↩️ Return All Borrowed Books</option>
@@ -144172,11 +144548,17 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
       try{window.__rasmLibraryBookUnsub();}catch(_){}
     }
     window.__rasmLibraryBookUnsub=window.fastOnValue(window.rasmRef(`library/${schoolId}`),snap=>{
-      window.__libraryBooksCache=[];
+      const records=libraryBookEntriesFromSnapshot(snap);
+      const seen=new Set();
+      window.__libraryBooksCache=records.filter(item=>{
+        const key=String(item.key ?? "");
+        if(!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
       const grades=new Set();
-      if(snap.exists()) snap.forEach(child=>{
-        const d=child.val()||{};
-        window.__libraryBooksCache.push({key:child.key,data:d});
+      window.__libraryBooksCache.forEach(item=>{
+        const d=item.data||{};
         if(d.grade) grades.add(String(d.grade).trim());
       });
       const select=document.getElementById("libraryGradeFilter");
@@ -144186,6 +144568,7 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
           [...grades].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("");
         if([...grades].some(g=>g.toLowerCase()===String(current).toLowerCase())) select.value=current;
       }
+      console.info("[RASM Library] Catalogue records loaded:",window.__libraryBooksCache.length);
       renderCatalogue();
     });
   }
@@ -144211,11 +144594,14 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
     });
   }
 
-  window.loadLibrary=function(){
+  window.loadLibrary=async function(){
     ensureLibraryProfessionalUI();
+    // Attach live listeners, then perform one complete read so all registered
+    // titles appear together instead of waiting for a partial/late render.
     startLibraryBookListener();
     startBorrowingListener();
-    renderCatalogue();
+    try { await window.refreshLibraryManagement(false); }
+    catch(error) { console.error("Library initial load failed:", error); renderCatalogue(); }
   };
 
   window.refreshLibraryManagement=async function(showMessage){
@@ -144229,8 +144615,7 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
         fastGet(ref(db,`library/${schoolId}`)),
         fastGet(ref(db,`libraryBorrowings/${schoolId}`))
       ]);
-      window.__libraryBooksCache=[];
-      if(booksSnap.exists()) booksSnap.forEach(c=>window.__libraryBooksCache.push({key:c.key,data:c.val()||{}}));
+      window.__libraryBooksCache=libraryBookEntriesFromSnapshot(booksSnap);
       window.__libraryBorrowingsCache=[];
       if(loansSnap.exists()) loansSnap.forEach(c=>window.__libraryBorrowingsCache.push({id:c.key,...(c.val()||{})}));
       renderCatalogue();
@@ -149339,6 +149724,20 @@ ${headerHtml}
   };
 <\/script>
 
+
+<style id="rasm360-hostel-table-readability-fix">
+#rasm360HostelRoot .h2tablewrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;border:1px solid #dbe3ee;border-radius:10px;background:#fff;}
+#rasm360HostelRoot .h2table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;table-layout:auto;}
+#rasm360HostelRoot .h2table th{padding:12px 14px!important;text-align:left;white-space:nowrap;background:#f1f5f9;color:#0f172a;border-bottom:2px solid #cbd5e1;font-weight:800;}
+#rasm360HostelRoot .h2table td{padding:12px 14px!important;vertical-align:middle;border-bottom:1px solid #e2e8f0;line-height:1.45;white-space:normal;overflow-wrap:anywhere;}
+#rasm360HostelRoot .h2table tbody tr:nth-child(even){background:#f8fafc;}
+#rasm360HostelRoot .h2table tbody tr:hover{background:#eff6ff;}
+#rasm360HostelRoot .h2actions{display:flex;gap:7px;flex-wrap:wrap;min-width:130px;}
+#rasm360HostelRoot .h2sectionhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+#rasm360HostelRoot .h2subhead{margin:22px 0 10px;font-size:16px;font-weight:850;color:#0f172a;}
+#rasm360HostelRoot .h2card{min-width:0;}
+</style>
+
 </body>
 </html>
       `);
@@ -150398,22 +150797,10 @@ ${headerHtml}
   const originalBorrow=window.borrowBook;
   if(typeof originalBorrow === "function" && !originalBorrow.__rasmCopySourceWrapped){
     const wrappedBorrow=async function(bookId){
-      try{
-        const prepared=await prepareBookCopies(bookId);
-        if(!prepared.stats.available){
-          const s=prepared.stats;
-          return Swal.fire({
-            icon:"warning",
-            title:"No Available Copies",
-            html:`This book has <b>${s.total}</b> registered physical copy/copies.<br><br><b>Available:</b> ${s.available}<br><b>Borrowed:</b> ${s.borrowed}<br><b>Lost:</b> ${s.lost}<br><b>Damaged:</b> ${s.damaged}<br><b>Under Repair:</b> ${s.repair}<br><b>Withdrawn:</b> ${s.withdrawn}<br><br>Only copies marked <b>Available</b> can be borrowed.`,
-            confirmButtonText:"Close"
-          });
-        }
-        return originalBorrow.call(this,bookId);
-      }catch(error){
-        console.error("RASM360 borrow copy-source preparation failed:",error);
-        return Swal.fire("Borrow Book Error",error?.message || "Unable to read the actual Book Copies.","error");
-      }
+      // Avoid a slow, redundant full-book read before the borrow form opens.
+      // The core borrowBook workflow re-reads current copies and validates availability
+      // and duplicate borrowers immediately before committing the Firebase update.
+      return originalBorrow.call(this,bookId);
     };
     wrappedBorrow.__rasmCopySourceWrapped=true;
     window.borrowBook=wrappedBorrow;
@@ -150937,17 +151324,9 @@ ${headerHtml}
     const original=window.borrowBook;
     if(typeof original!=="function" || original.__rasmInventoryAuthority) return;
     const wrapped=async function(bookId){
-      try{
-        const prepared=await reconcileBook(bookId);
-        const s=prepared.stats;
-        if(s.available<1){
-          return Swal.fire({icon:"warning",title:"No Available Copies",html:`<b>${esc(prepared.book.title||"This book")}</b><br><br>Registered physical copies: <b>${s.total}</b><br>Available: <b>${s.available}</b><br>Borrowed: <b>${s.borrowed}</b><br>Lost: <b>${s.lost}</b><br>Damaged: <b>${s.damaged}</b><br>Under Repair: <b>${s.repair}</b><br>Withdrawn: <b>${s.withdrawn}</b>`});
-        }
-        return original.call(this,bookId);
-      }catch(error){
-        console.error("LIBRARY_BORROW_AUTHORITY_ERROR",error);
-        return Swal.fire("Borrow Book Error",error?.message||"Unable to read the exact Book Copies.","error");
-      }
+      // Do not reconcile/read the entire book before showing the borrow form.
+      // The core workflow performs a fresh authoritative check before saving.
+      return original.call(this,bookId);
     };
     wrapped.__rasmInventoryAuthority=true;
     window.borrowBook=wrapped;
@@ -154924,8 +155303,36 @@ document.addEventListener("DOMContentLoaded", function(){
   if (window.__RASM_SLOW_NETWORK_LAYER_V1) return;
   window.__RASM_SLOW_NETWORK_LAYER_V1 = true;
 
-  const state = { pendingWrites: 0, activeForms: new Map(), hideTimer: 0, saveStartedAt: 0 };
-  let indicator, bar, label, sublabel;
+  const state = { pendingWrites: 0, activeForms: new Map(), hideTimer: 0, saveStartedAt: 0, successfulWrites: 0, queuedWrites: 0, successTimer: 0, toastTimer: 0 };
+  let indicator, bar, label, sublabel, toastHost;
+  function notifyResult(kind, title, detail){
+    if (!document.body) return;
+    if (!toastHost) {
+      toastHost = document.createElement('div');
+      toastHost.id = 'rasm360OperationNotifications';
+      toastHost.setAttribute('aria-live','polite');
+      toastHost.setAttribute('aria-atomic','false');
+      toastHost.style.cssText = 'position:fixed;z-index:2147483647;top:16px;right:16px;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));pointer-events:none;font:14px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;';
+      document.body.appendChild(toastHost);
+    }
+    const card=document.createElement('div');
+    const bg=kind==='success'?'#ecfdf5':kind==='error'?'#fef2f2':kind==='queued'?'#fffbeb':'#eff6ff';
+    const fg=kind==='success'?'#065f46':kind==='error'?'#991b1b':kind==='queued'?'#92400e':'#1e40af';
+    const icon=kind==='success'?'✓':kind==='error'?'✕':kind==='queued'?'⌛':'ℹ';
+    card.style.cssText=`pointer-events:auto;background:${bg};color:${fg};border:1px solid ${fg}33;border-left:5px solid ${fg};border-radius:10px;padding:12px 14px;box-shadow:0 8px 24px #0002;display:flex;gap:10px;align-items:flex-start;`;
+    const symbol=document.createElement('div');symbol.textContent=icon;symbol.style.cssText='font-size:18px;font-weight:900;line-height:1.2;';
+    const content=document.createElement('div');content.style.flex='1';
+    const heading=document.createElement('div');heading.textContent=title;heading.style.fontWeight='800';
+    const body=document.createElement('div');body.textContent=detail||'';body.style.cssText='margin-top:2px;font-size:12px;overflow-wrap:anywhere;';
+    const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Dismiss notification');close.style.cssText='border:0;background:transparent;color:inherit;font-size:20px;cursor:pointer;padding:0 0 0 6px;line-height:1;';close.onclick=()=>card.remove();
+    content.append(heading,body);card.append(symbol,content,close);toastHost.appendChild(card);
+    setTimeout(()=>{if(card.isConnected){card.style.transition='opacity .25s ease,transform .25s ease';card.style.opacity='0';card.style.transform='translateX(12px)';setTimeout(()=>card.remove(),300);}},kind==='error'?9000:kind==='queued'?8000:5500);
+  }
+  function flushWriteSummary(){
+    clearTimeout(state.successTimer);
+    if(state.queuedWrites){notifyResult('queued','Operation queued for sync',`${state.queuedWrites} change(s) could not be confirmed by the server yet. They are stored locally and will retry when the connection returns.`);state.queuedWrites=0;}
+    if(state.successfulWrites){const n=state.successfulWrites;notifyResult('success','Changes saved successfully',n===1?'The server confirmed your change.':`The server confirmed ${n} database updates.`);state.successfulWrites=0;}
+  }
   const now = () => Date.now();
   const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   const slowConnection = () => !!(connection && (connection.saveData || /(^|-)2g$/.test(String(connection.effectiveType || ''))));
@@ -154946,6 +155353,7 @@ document.addEventListener("DOMContentLoaded", function(){
       @media(max-width:520px){#rasm360NetworkSaveIndicator{right:8px;bottom:8px;width:calc(100vw - 16px)}}
       @media(prefers-reduced-motion:reduce){#rasm360NetworkSaveIndicator .r360-bar{animation:none;width:100%}}
     `;
+    style.textContent += `\n      #rasm360OperationNotifications button:focus-visible{outline:2px solid currentColor;outline-offset:2px}\n      @media(max-width:520px){#rasm360OperationNotifications{top:8px!important;right:8px!important;width:calc(100vw - 16px)!important}}\n    `;
     document.head.appendChild(style);
     indicator = document.createElement('div');
     indicator.id = 'rasm360NetworkSaveIndicator';
@@ -155002,16 +155410,28 @@ document.addEventListener("DOMContentLoaded", function(){
 
   window.__RASM_WRITE_TRACKER = {
     begin(operation){
+      clearTimeout(state.successTimer);
       state.pendingWrites++;
       if (state.pendingWrites === 1) state.saveStartedAt = now();
       show(state.pendingWrites > 1 ? `Saving changes (${state.pendingWrites} operations)…` : 'Saving changes…');
       if (indicator) indicator.dataset.operation = String(operation || 'write');
     },
-    end(){
+    end(operation, outcome){
       state.pendingWrites = Math.max(0,state.pendingWrites - 1);
+      if (outcome === 'error') {
+        notifyResult('error','Operation failed','The server did not confirm this change. Please try again.');
+      } else if (outcome === 'queued') {
+        state.queuedWrites++;
+      } else {
+        state.successfulWrites++;
+      }
       if (state.pendingWrites > 0) show(`Saving changes (${state.pendingWrites} operations)…`);
-      else finishWhenQuiet();
+      else {
+        finishWhenQuiet();
+        state.successTimer=setTimeout(flushWriteSummary,900);
+      }
     },
+    synced(){ notifyResult('success','Offline change synchronized','The server has now confirmed a previously queued change.'); },
     pending(){ return state.pendingWrites; }
   };
 
@@ -155314,6 +155734,65 @@ document.addEventListener("DOMContentLoaded", function(){
   });
 })();
 </script>
+
+
+<script id="rasm360-simple-management-menu-ux">
+(function(){
+  const style=document.createElement('style');
+  style.textContent=`
+    .swal2-popup .swal2-html-container button.swal2-styled{min-height:44px;border-radius:9px;font-size:14px;line-height:1.25;padding:10px 12px;}
+    .swal2-popup .swal2-html-container button.swal2-styled:focus-visible{outline:3px solid #93c5fd;outline-offset:2px;}
+    @media(max-width:520px){.swal2-popup{width:calc(100% - 20px)!important;padding:16px!important}.swal2-popup .swal2-html-container{margin:8px 0!important}.swal2-popup .swal2-html-container div[style*="grid-template-columns"]{grid-template-columns:1fr!important}}
+  `;
+  document.head.appendChild(style);
+})();
+</script>
+<!-- RASM 360 SIMPLE MODE: keeps the most-used tasks visible; advanced tools remain available on demand. -->
+<style id="rasm360-simple-modules-style">
+#ict .ict360-nav:not(.rasm360-show-advanced) .rasm360-advanced-hidden,#inventory .inv360-nav:not(.rasm360-show-advanced) .rasm360-advanced-hidden,#rasm360HostelRoot .h2nav:not(.rasm360-show-advanced) .rasm360-advanced-hidden{display:none!important}
+.rasm360-more-tools{border:1px solid #cbd5e1!important;background:#fff!important;color:#0f172a!important;border-radius:9px!important;padding:9px 12px!important;font-weight:800!important;cursor:pointer!important;box-shadow:0 1px 3px #00000012!important}
+.rasm360-more-tools[aria-expanded="true"]{background:#e0f2fe!important;border-color:#0284c7!important}
+#ict .ict360-nav,#inventory .inv360-nav,#rasm360HostelRoot .h2nav{gap:8px;align-items:center}
+#ict .ict360-nav .ict360-tab,#inventory .inv360-nav .inv360-tab,#rasm360HostelRoot .h2nav button{font-size:13px;line-height:1.25;min-height:38px}
+#ict .ict360-note{font-size:12px;line-height:1.5}
+</style>
+<script id="rasm360-simple-modules-script">
+(function(){
+ 'use strict';
+ const configs=[
+  {selector:'#ict .ict360-nav',buttonClass:'ict360-tab',attr:'data-ict360-tab',simple:['dashboard','assets','devices','assignments','tickets','maintenance','reports'],label:'More ICT tools'},
+  {selector:'#inventory .inv360-nav',buttonClass:'inv360-tab',attr:'data-inv360-tab',simple:['dashboard','items','receipts','issues','reports'],label:'More inventory tools'},
+  {selector:'#rasm360HostelRoot .h2nav',buttonClass:null,attr:'data-h2-tab',simple:['dashboard','hostels','rooms','allocations','attendance','fees','reports'],label:'More hostel tools'}
+ ];
+ function enhance(nav,cfg){
+  if(!nav||nav.dataset.rasmSimpleReady==='1')return;
+  const buttons=Array.from(nav.querySelectorAll(cfg.buttonClass?'.'+cfg.buttonClass:'button[data-h2-tab]'));
+  if(!buttons.length)return;
+  nav.dataset.rasmSimpleReady='1';
+  buttons.forEach(b=>{const key=b.getAttribute(cfg.attr);if(!cfg.simple.includes(key))b.classList.add('rasm360-advanced-hidden');});
+  const more=document.createElement('button');more.type='button';more.className='rasm360-more-tools';more.textContent='＋ '+cfg.label;more.setAttribute('aria-expanded','false');more.setAttribute('aria-label',cfg.label);
+  more.addEventListener('click',()=>{const expanded=more.getAttribute('aria-expanded')==='true';more.setAttribute('aria-expanded',String(!expanded));nav.classList.toggle('rasm360-show-advanced',!expanded);more.textContent=(expanded?'＋ ':'− ')+(expanded?cfg.label:'Hide extra tools');});
+  nav.appendChild(more);
+ }
+ function apply(){configs.forEach(cfg=>enhance(document.querySelector(cfg.selector),cfg));}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply);else apply();
+ const observer=new MutationObserver(apply);observer.observe(document.documentElement,{childList:true,subtree:true});
+ setTimeout(()=>observer.disconnect(),30000);
+})();
+</script>
+
+<style id="rasm360-hostel-table-readability-fix">
+#rasm360HostelRoot .h2tablewrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;border:1px solid #dbe3ee;border-radius:10px;background:#fff;}
+#rasm360HostelRoot .h2table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;table-layout:auto;}
+#rasm360HostelRoot .h2table th{padding:12px 14px!important;text-align:left;white-space:nowrap;background:#f1f5f9;color:#0f172a;border-bottom:2px solid #cbd5e1;font-weight:800;}
+#rasm360HostelRoot .h2table td{padding:12px 14px!important;vertical-align:middle;border-bottom:1px solid #e2e8f0;line-height:1.45;white-space:normal;overflow-wrap:anywhere;}
+#rasm360HostelRoot .h2table tbody tr:nth-child(even){background:#f8fafc;}
+#rasm360HostelRoot .h2table tbody tr:hover{background:#eff6ff;}
+#rasm360HostelRoot .h2actions{display:flex;gap:7px;flex-wrap:wrap;min-width:130px;}
+#rasm360HostelRoot .h2sectionhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+#rasm360HostelRoot .h2subhead{margin:22px 0 10px;font-size:16px;font-weight:850;color:#0f172a;}
+#rasm360HostelRoot .h2card{min-width:0;}
+</style>
 
 </body>
 </html>
