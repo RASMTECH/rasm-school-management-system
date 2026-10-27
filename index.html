@@ -10968,6 +10968,13 @@ font-weight:bold;
 ">
 ⚙️ Set School Fee Amount
 </button>
+<button
+ type="button"
+ onclick="addCustomFeeCategory()"
+ style="background:#059669;color:white;border:none;padding:10px 15px;border-radius:6px;cursor:pointer;font-weight:bold;margin-left:6px;"
+>
+➕ Add Fee Category
+</button>
   </div>
 
   <hr>
@@ -33807,48 +33814,19 @@ window.loadTeachers = async function () {
            This prevents a permanent Firebase listener.
         ==================================================== */
 
-        const teacherSnap =
-            await fastGet(
-                schoolRef("teachers")
-            );
-
-
-
-        /* ====================================================
-           GET TODAY'S ATTENDANCE SEPARATELY
-        ==================================================== */
-
-        const today =
-            new Date()
-                .toISOString()
-                .split("T")[0];
-
-
-        let attendance =
-            {};
-
-
-        try {
-
-            const attendanceSnap =
-                await fastGet(
-                    schoolRef(
-                        `teacherAttendance/${today}`
-                    )
-                );
-
-
-            attendance =
-                attendanceSnap.val() || {};
-
-        } catch (attendanceError) {
-
-            console.warn(
-                "Teacher attendance could not be loaded:",
-                attendanceError
-            );
-
-        }
+        /* Read independent teacher and attendance data in parallel so
+           network latency is paid once rather than sequentially. */
+        const today = new Date().toISOString().split("T")[0];
+        let teacherSnap;
+        let attendance = {};
+        const teacherRead = fastGet(schoolRef("teachers"));
+        const attendanceRead = fastGet(schoolRef(`teacherAttendance/${today}`))
+            .then(snapshot => snapshot.val() || {})
+            .catch(attendanceError => {
+                console.warn("Teacher attendance could not be loaded:", attendanceError);
+                return {};
+            });
+        [teacherSnap, attendance] = await Promise.all([teacherRead, attendanceRead]);
 
 
 
@@ -41061,12 +41039,17 @@ window.sendFeeWhatsAppReminder = async function (year, studentId) {
             return Swal.fire("School ID Missing", "Please log in again and retry.", "warning");
         }
 
-        const snap = await fastGet(schoolRef(`fees/${year}/${studentId}`));
-        if (!snap || !snap.exists()) {
-            return Swal.fire("Fee Record Not Found", "The learner's fee record could not be found.", "warning");
+        // Reuse the loaded fee row first; this avoids an unnecessary network
+        // round-trip before preparing the WhatsApp reminder.
+        const cachedFee = window.feeActionData?.[String(studentId)];
+        let fee = cachedFee && typeof cachedFee === "object" ? cachedFee : null;
+        if (!fee) {
+            const snap = await fastGet(schoolRef(`fees/${year}/${studentId}`));
+            if (!snap || !snap.exists()) {
+                return Swal.fire("Fee Record Not Found", "The learner's fee record could not be found.", "warning");
+            }
+            fee = snap.val() || {};
         }
-
-        const fee = snap.val() || {};
         const { learner, phone: rawPhone } = await window.rasmResolveFeeLearnerAndPhone(fee, studentId);
         const studentName = String(
             learner?.name || learner?.studentName || learner?.fullName ||
@@ -41167,40 +41150,23 @@ window.sendSingleSMS = async function (
            📥 READ ONLY THIS LEARNER
            ==================================================== */
 
-        const feeRef =
-            schoolRef(
-                `fees/${year}/${studentId}`
-            );
+        // The fee table already has this learner's row in memory.
+        // Use it immediately and only read Firebase when the row is not cached.
+        const feeRef = schoolRef(`fees/${year}/${studentId}`);
+        const cachedFee = window.feeActionData?.[String(studentId)];
+        let fee = cachedFee && typeof cachedFee === "object" ? cachedFee : null;
 
-
-        const snap =
-            await fastGet(
-                feeRef
-            );
-
-
-        if (
-            !snap.exists()
-        ) {
-
-            return Swal.fire({
-
-                icon:
-                    "warning",
-
-                title:
-                    "Fee Record Not Found",
-
-                text:
-                    "The learner's fee record could not be found."
-
-            });
-
+        if (!fee) {
+            const snap = await fastGet(feeRef);
+            if (!snap || !snap.exists()) {
+                return Swal.fire({
+                    icon: "warning",
+                    title: "Fee Record Not Found",
+                    text: "The learner's fee record could not be found."
+                });
+            }
+            fee = snap.val() || {};
         }
-
-
-        const fee =
-            snap.val() || {};
 
 
 
@@ -46058,19 +46024,23 @@ window.openEditFeeModal = async (year, feeId) => {
             `fees/${year}/${feeId}`
         );
 
-        const snap = await fastGet(feeRef);
+        // OPEN FROM THE FEE TABLE CACHE FIRST: the selected row already
+        // contains the fee record, so do not wait for another Firebase read.
+        const cachedFee = window.feeActionData?.[String(feeId)];
+        let fee = cachedFee && typeof cachedFee === "object" ? cachedFee : null;
 
-        if (!snap.exists()) {
-
-            return Swal.fire({
-                icon: "error",
-                title: "Fee Record Not Found",
-                text: "The learner fee record could not be found."
-            });
-
+        // Keep the original Firebase fallback for records not present in the current view.
+        if (!fee) {
+            const snap = await fastGet(feeRef);
+            if (!snap || !snap.exists()) {
+                return Swal.fire({
+                    icon: "error",
+                    title: "Fee Record Not Found",
+                    text: "The learner fee record could not be found."
+                });
+            }
+            fee = snap.val() || {};
         }
-
-        const fee = snap.val() || {};
 
         /*
          * Make a completely independent copy.
@@ -46832,21 +46802,21 @@ window.openRefundModal = async (year, feeId) => {
 
   try {
 
-    // ================= FETCH RECORD =================
-    const snap = await fastGet(
-      schoolRef(`fees/${year}/${feeId}`)
-    );
+    // USE THE CURRENT FEE TABLE ROW FIRST so the refund form opens
+    // without waiting for a second Firebase read.
+    const cachedFee = window.feeActionData?.[String(feeId)];
+    let fee = cachedFee && typeof cachedFee === "object" ? cachedFee : null;
 
-    if (!snap.exists()) {
-
-      return Swal.fire(
-        "Error",
-        "Fee record not found",
-        "error"
+    // Preserve a Firebase fallback when this fee is not in the current table cache.
+    if (!fee) {
+      const snap = await fastGet(
+        schoolRef(`fees/${year}/${feeId}`)
       );
+      if (!snap || !snap.exists()) {
+        return Swal.fire("Error", "Fee record not found", "error");
+      }
+      fee = snap.val() || {};
     }
-
-    const fee = snap.val();
 
     const feesObj = fee.fees || {};
 
@@ -48023,6 +47993,9 @@ Printed on ${generated}
      RASM 360 — FINAL FEE TABLE ALIGNMENT + COLUMN STRUCTURE FIX
      Keeps every header directly above its matching data column.
 ========================================================= -->
+
+
+
 
 
 
@@ -143676,7 +143649,46 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
           // The final recycle implementation verifies the backup AND verifies
           // the original record is gone before reporting success.
           if(typeof window.rasmBackgroundRemove!=="function") throw new Error("Recycle Bin service is unavailable.");
-          await window.rasmBackgroundRemove(ref(db,path));
+
+          // Some legacy wrappers wait for secondary table/Recycle Bin refreshes even
+          // after Firebase has removed the active record. Observe the actual record
+          // path in parallel so the dialog can advance as soon as removal is visible.
+          const activeRef = ref(db,path);
+          const removeTask = Promise.resolve().then(() => window.rasmBackgroundRemove(activeRef));
+          // Prevent an unhandled rejection if the active-path check wins the race.
+          removeTask.catch(err => console.warn("Recycle operation finishing in background:",err));
+
+          const removalObserved = new Promise((resolve,reject) => {
+            const startedAt = Date.now();
+            const maxWaitMs = 20000;
+            const poll = async () => {
+              try {
+                const check = await (typeof window.rasmFreshGet === "function"
+                  ? window.rasmFreshGet(activeRef)
+                  : fastGet(activeRef));
+                if(check && !check.exists()){
+                  resolve({observedRemoved:true});
+                  return;
+                }
+              } catch (_) {
+                // A transient read error is not proof of deletion; keep waiting.
+              }
+              if(Date.now()-startedAt >= maxWaitMs){
+                reject(new Error("The record removal is taking too long. Check the connection and verify the Recycle Bin before retrying."));
+                return;
+              }
+              setTimeout(poll,350);
+            };
+            setTimeout(poll,350);
+          });
+
+          const result = await Promise.race([
+            removeTask.then(value => ({operationResult:value})),
+            removalObserved
+          ]);
+          if(result && Object.prototype.hasOwnProperty.call(result,"operationResult") && result.operationResult === false){
+            throw new Error("The Recycle Bin operation did not confirm the record was moved.");
+          }
           moved++;
           Swal.update({html:`Moved <b>${moved}</b> of <b>${selected.length}</b> ${esc(cfg.label.toLowerCase())} record(s)…`});
         }catch(err){
@@ -144561,10 +144573,8 @@ if (!window.__rasmRecycleCheckboxEventsBound) {
 
   window.loadLibrary=async function(){
     ensureLibraryProfessionalUI();
-    // Attach live listeners, then perform one complete read so all registered
-    // titles appear together instead of waiting for a partial/late render.
-    startLibraryBookListener();
-    startBorrowingListener();
+    // refreshLibraryManagement owns listener setup; do not attach the same
+    // listeners twice when the Library section opens.
     try { await window.refreshLibraryManagement(false); }
     catch(error) { console.error("Library initial load failed:", error); renderCatalogue(); }
   };
@@ -153449,10 +153459,18 @@ ${headerHtml}
     running[sectionId] = true;
     lastStarted[sectionId] = now;
     try {
-      // These functions establish Firebase live listeners; don't await their return value.
-      const result = loader();
-      if (result && typeof result.catch === "function") {
-        result.catch(error => console.error("[RASM 360] " + loaderName + " failed:", error));
+      // Route visible-section loads through the shared on-demand loader when available.
+      // This deduplicates navigation-triggered loads instead of starting a second listener.
+      if (typeof window.RASM360_LOAD_SECTION_DATA === "function") {
+        window.RASM360_LOAD_SECTION_DATA(sectionId).catch(error =>
+          console.error("[RASM 360] " + loaderName + " failed:", error)
+        );
+      } else {
+        // Compatibility fallback for the brief period before the demand loader is installed.
+        const result = loader();
+        if (result && typeof result.catch === "function") {
+          result.catch(error => console.error("[RASM 360] " + loaderName + " failed:", error));
+        }
       }
     } catch (error) {
       console.error("[RASM 360] " + loaderName + " failed:", error);
@@ -154059,7 +154077,7 @@ const term=()=>{const m=new Date().getMonth()+1;return m<=4?'Term 1':m<=8?'Term 
 const money=v=>'KES '+num(v).toLocaleString('en-KE',{maximumFractionDigits:2});
 function dbRef(path){if(!school())throw new Error('School session is not ready. Sign in again.');return ref(db,path);}
 function path(c,id){const base=c==='legacy'?`hostel/${school()}`:`schools/${school()}/${c}`;return id==null||id===''?base:`${base}/${id}`;}
-function entries(c){return Object.entries(S.cache[c]?.data||{}).map(([id,r])=>({id,...(r||{})}));}
+function entries(c){return Object.entries(S.cache[c]?.data||{}).map(([id,r])=>({...((r&&typeof r==='object')?r:{}),id:String(id)}));}
 function hActive(r){return !r.archived&&!r.deleted&&!['cleared','withdrawn','archived','cancelled','rejected'].includes(String(r.status||'active').toLowerCase());}
 function invalidate(...cs){cs.forEach(c=>delete S.cache[c]);}
 async function read(c,force=false){if(!school())throw new Error('School session is not ready. Sign in again.');const cached=S.cache[c];if(!force&&cached&&Date.now()-cached.at<12000)return cached.data;const r=dbRef(path(c));let snap;if(force&&typeof window.rasmFreshGet==='function')snap=await window.rasmFreshGet(r);else if(typeof window.fastGet==='function')snap=await window.fastGet(r);else snap=await firebaseGet(r);const v=snap&&snap.val?snap.val():{};S.cache[c]={at:Date.now(),data:v&&typeof v==='object'?v:{}};return S.cache[c].data;}
@@ -155759,6 +155777,309 @@ document.addEventListener("DOMContentLoaded", function(){
 #rasm360HostelRoot .h2subhead{margin:22px 0 10px;font-size:16px;font-weight:850;color:#0f172a;}
 #rasm360HostelRoot .h2card{min-width:0;}
 </style>
+
+<script id="rasm360-school-management-loading-feedback">
+(function () {
+  "use strict";
+  if (window.__RASM360_SCHOOL_LOADING_FEEDBACK__) return;
+  window.__RASM360_SCHOOL_LOADING_FEEDBACK__ = true;
+
+  const modules = {
+    teachers:      { label: "Teachers",      target: "#teacherList" },
+    supportStaff:  { label: "Support Staff", target: "#supportStaffList" },
+    ict:           { label: "ICT",           target: "#ictList" },
+    attendanceSection: { label: "Attendance", target: "#attendanceTableBody" },
+    library:       { label: "Library",       target: "#libraryList" },
+    fees:          { label: "Fees",          target: "#feesTable" },
+    transport:     { label: "Transport",     target: "#transportList" },
+    hostel:        { label: "Hostel",        target: "#h2hostelTable" },
+    inventory:     { label: "Inventory",     target: "#inventoryList" }
+  };
+
+  const active = new Map();
+  const observerBySection = new Map();
+  const timers = new Map();
+
+  const css = document.createElement("style");
+  css.id = "rasm360-school-loading-feedback-css";
+  css.textContent = `
+    .r360-section-loading {
+      display:flex; align-items:center; gap:11px; box-sizing:border-box;
+      margin:10px 0 14px; padding:12px 15px; width:100%;
+      border:1px solid #bfdbfe; border-radius:12px;
+      background:linear-gradient(110deg,#eff6ff,#f8fbff);
+      color:#1e40af; font:600 13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;
+      box-shadow:0 2px 8px rgba(37,99,235,.06);
+    }
+    .r360-section-loading[hidden] { display:none!important; }
+    .r360-section-loading .r360-load-spin {
+      width:19px;height:19px;flex:0 0 19px;box-sizing:border-box;
+      border:2.5px solid #bfdbfe;border-top-color:#2563eb;border-radius:50%;
+      animation:r360SectionSpin .72s linear infinite;
+    }
+    .r360-section-loading .r360-load-copy { min-width:0; }
+    .r360-section-loading .r360-load-title { font-weight:750; }
+    .r360-section-loading .r360-load-sub { color:#64748b;font-size:12px;font-weight:450; }
+    .r360-section-loading .r360-load-retry {
+      margin-left:auto; border:0;border-radius:8px;padding:7px 10px;
+      background:#2563eb;color:white;font-weight:700;cursor:pointer;white-space:nowrap;
+    }
+    @keyframes r360SectionSpin { to { transform:rotate(360deg); } }
+    @media(prefers-reduced-motion:reduce){.r360-section-loading .r360-load-spin{animation:none}}
+  `;
+  (document.head || document.documentElement).appendChild(css);
+
+  function isVisible(el) {
+    if (!el) return false;
+    const st = window.getComputedStyle ? getComputedStyle(el) : null;
+    return !!st && st.display !== "none" && st.visibility !== "hidden" && el.getClientRects().length > 0;
+  }
+
+  function isStillLoading(el) {
+    if (!el) return true;
+    const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
+    return /\b(loading|fetching|retrieving|preparing)\b/i.test(text);
+  }
+
+  function hasResolvedData(el) {
+    if (!el || isStillLoading(el)) return false;
+    if (el.tagName === "TBODY") return el.querySelectorAll("tr").length > 0;
+    if (el.tagName === "TABLE") {
+      const body = el.tBodies && el.tBodies[0];
+      return !!body && body.rows.length > 0;
+    }
+    if (el.querySelector && el.querySelector("tbody tr")) return true;
+    const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
+    const html = String(el.innerHTML || "").trim();
+    // Empty-state messages count as a completed load; a genuinely empty container does not.
+    if (/\b(no records|no data|no books|no teachers|no staff|no learners|nothing to display|not found)\b/i.test(text)) return true;
+    return !!text || (!!html && !/^<!--.*-->$/.test(html));
+  }
+
+  function clearTimer(id) {
+    const timer = timers.get(id);
+    if (timer) clearTimeout(timer);
+    timers.delete(id);
+  }
+
+  function hide(id) {
+    const item = active.get(id);
+    if (item) {
+      item.banner.hidden = true;
+      item.banner.remove();
+      active.delete(id);
+    }
+    const obs = observerBySection.get(id);
+    if (obs) obs.disconnect();
+    observerBySection.delete(id);
+    clearTimer(id);
+  }
+
+  function start(id) {
+    const cfg = modules[id];
+    const section = document.getElementById(id);
+    const target = cfg && document.querySelector(cfg.target);
+    if (!cfg || !section || !isVisible(section) || !target) return;
+
+    // Keep a completed table visible with no unnecessary flash of a spinner.
+    if (hasResolvedData(target)) {
+      hide(id);
+      return;
+    }
+
+    let item = active.get(id);
+    if (!item) {
+      const banner = document.createElement("div");
+      banner.className = "r360-section-loading";
+      banner.setAttribute("role", "status");
+      banner.setAttribute("aria-live", "polite");
+      banner.innerHTML = '<span class="r360-load-spin" aria-hidden="true"></span>' +
+        '<span class="r360-load-copy"><span class="r360-load-title"></span>' +
+        '<br><span class="r360-load-sub">Please wait while the table is being updated.</span></span>';
+      banner.querySelector(".r360-load-title").textContent = "Loading " + cfg.label + " data…";
+      const first = section.firstElementChild;
+      if (first) section.insertBefore(banner, first);
+      else section.appendChild(banner);
+      item = { banner, target };
+      active.set(id, item);
+
+      const observer = new MutationObserver(() => {
+        const currentTarget = document.querySelector(cfg.target);
+        if (currentTarget && hasResolvedData(currentTarget)) hide(id);
+      });
+      observer.observe(target, { childList:true, subtree:true, characterData:true, attributes:true });
+      observerBySection.set(id, observer);
+
+      // If the server has not answered, stop spinning and offer a retry instead of
+      // leaving an endless spinner on screen.
+      timers.set(id, setTimeout(() => {
+        const current = active.get(id);
+        if (!current) return;
+        const spin = current.banner.querySelector(".r360-load-spin");
+        if (spin) spin.style.display = "none";
+        const copy = current.banner.querySelector(".r360-load-copy");
+        if (copy) {
+          copy.innerHTML = "";
+          const title = document.createElement("span");
+          title.className = "r360-load-title";
+          title.textContent = cfg.label + " data is taking longer than expected.";
+          const sub = document.createElement("br");
+          const note = document.createElement("span");
+          note.className = "r360-load-sub";
+          note.textContent = "Check your connection or retry loading this section.";
+          copy.append(title, sub, note);
+        }
+        const retry = document.createElement("button");
+        retry.className = "r360-load-retry";
+        retry.type = "button";
+        retry.textContent = "Retry";
+        retry.addEventListener("click", function () {
+          hide(id);
+          const loaderMap = {
+            teachers:"loadTeachers", supportStaff:"loadSupportStaff", ict:"loadICT",
+            attendanceSection:"loadAttendanceDashboard", library:"loadLibrary",
+            fees:"loadFees", transport:"loadTransport", hostel:"loadHostel", inventory:"loadInventory"
+          };
+          const loader = window[loaderMap[id]];
+          if (typeof loader === "function") {
+            try { loader(); } catch (e) { console.error("RASM 360 section retry failed:", e); }
+          }
+          start(id);
+        });
+        current.banner.appendChild(retry);
+      }, 30000));
+    }
+  }
+
+  function visibleManagedSection() {
+    const id = window.__activeSection || window.currentSection;
+    if (id && modules[id]) return id;
+    return Object.keys(modules).find(key => isVisible(document.getElementById(key)));
+  }
+
+  function scheduleActive() {
+    const id = visibleManagedSection();
+    if (id) start(id);
+  }
+
+  // Integrate with the final navigation function so feedback appears in the first
+  // rendered frame, while the existing section loaders continue to fetch data.
+  function wrapShow() {
+    const original = window.show;
+    if (typeof original !== "function" || original.__r360LoadingFeedbackWrapped) return;
+    const wrapped = function (id) {
+      const result = original.apply(this, arguments);
+      const schedule = window.requestAnimationFrame || (fn => setTimeout(fn, 0));
+      schedule(() => {
+        if (modules[id]) start(id);
+      });
+      return result;
+    };
+    wrapped.__r360LoadingFeedbackWrapped = true;
+    wrapped.__r360Original = original;
+    window.show = wrapped;
+  }
+
+  wrapShow();
+  document.addEventListener("DOMContentLoaded", wrapShow, { once:true });
+  window.addEventListener("load", wrapShow, { once:true });
+  document.addEventListener("rasm360:login-complete", () => setTimeout(scheduleActive, 0));
+
+  // Support menu/navigation paths that reveal a section without calling window.show.
+  const sectionObserver = new MutationObserver(records => {
+    records.forEach(record => {
+      const el = record.target;
+      if (el && modules[el.id] && isVisible(el)) start(el.id);
+    });
+  });
+  function observeSectionVisibility() {
+    Object.keys(modules).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) sectionObserver.observe(el, { attributes:true, attributeFilter:["style","class","hidden"] });
+    });
+    scheduleActive();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", observeSectionVisibility, { once:true });
+  } else {
+    observeSectionVisibility();
+  }
+})();
+</script>
+
+
+<script>
+/* Custom fee categories: persist per school and populate the existing fee-type dropdown. */
+(function(){
+  const categorySelectId = "feeType";
+  const categoryPath = "settings/feeCategories";
+
+  function addOption(name) {
+    const select = document.getElementById(categorySelectId);
+    if (!select || !name) return;
+    const clean = String(name).trim();
+    if (!clean) return;
+    const existing = Array.from(select.options).find(o => o.value.trim().toLowerCase() === clean.toLowerCase());
+    if (existing) return;
+    const option = document.createElement("option");
+    option.value = clean;
+    option.textContent = clean;
+    select.appendChild(option);
+  }
+
+  window.loadCustomFeeCategories = async function(){
+    try {
+      if (typeof window.schoolRef !== "function" || typeof window.fastGet !== "function") return;
+      const snap = await window.fastGet(window.schoolRef(categoryPath));
+      if (!snap || !snap.exists()) return;
+      const saved = snap.val() || {};
+      Object.values(saved).forEach(item => {
+        const name = typeof item === "string" ? item : item && item.name;
+        if (name) addOption(name);
+      });
+    } catch (error) {
+      console.warn("Custom fee categories could not be loaded:", error);
+    }
+  };
+
+  window.addCustomFeeCategory = async function(){
+    if (typeof Swal === "undefined") return;
+    const result = await Swal.fire({
+      title: "Add Fee Category",
+      input: "text",
+      inputLabel: "Enter the new fee category name",
+      inputPlaceholder: "e.g. School Trip Fees",
+      showCancelButton: true,
+      confirmButtonText: "Save Category",
+      inputAttributes: { maxlength: 80, autocapitalize: "words" },
+      inputValidator: value => {
+        const name = String(value || "").trim();
+        if (!name) return "Please enter a fee category name.";
+        if (Array.from(document.getElementById(categorySelectId)?.options || []).some(o => o.value.trim().toLowerCase() === name.toLowerCase())) return "That fee category already exists.";
+        return undefined;
+      }
+    });
+    if (!result.isConfirmed) return;
+    const name = String(result.value || "").trim();
+    if (!name) return;
+    try {
+      if (typeof window.schoolRef !== "function" || typeof window.set !== "function") throw new Error("School database is not ready. Please log in again and retry.");
+      const key = "cat_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+      await window.set(window.schoolRef(categoryPath + "/" + key), { name, createdAt: Date.now() });
+      addOption(name);
+      const select = document.getElementById(categorySelectId);
+      if (select) select.value = name;
+      await Swal.fire({ icon: "success", title: "Category Added", text: `“${name}” is now available in the fee category dropdown.`, timer: 1800, showConfirmButton: false });
+    } catch (error) {
+      console.error("Unable to save custom fee category:", error);
+      await Swal.fire({ icon: "error", title: "Could Not Add Category", text: error?.message || "Please check your connection and try again." });
+    }
+  };
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", window.loadCustomFeeCategories, { once: true });
+  else window.loadCustomFeeCategories();
+})();
+</script>
 
 </body>
 </html>
