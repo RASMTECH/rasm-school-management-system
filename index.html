@@ -37555,6 +37555,25 @@ window.addFee = async function () {
 
 
         /* ====================================================
+           ⚡ START FEE-SETTING READ IN PARALLEL
+
+           This small school-scoped read does not depend on the
+           learner record, so start it now instead of waiting for
+           learner resolution to finish first.
+           ==================================================== */
+
+        const gradeRange = getGradeRange(grade);
+
+        if (!gradeRange) {
+            throw new Error(`Unable to determine fee structure for "${grade}".`);
+        }
+
+        const feeSettingPromise = fastGet(
+            schoolRef(`settings/schoolFee/${year}/${gradeRange}`)
+        );
+
+
+        /* ====================================================
            👨‍🎓 RESOLVE SELECTED LEARNER
 
            The fee form may already contain a valid learner ID
@@ -37675,37 +37694,11 @@ window.addFee = async function () {
 
 
         /* ====================================================
-           🎓 DETERMINE GRADE RANGE
+           💰 FINISH THE FEE-SETTING READ
+           It has been running in parallel with learner resolution.
            ==================================================== */
 
-        const gradeRange =
-            getGradeRange(
-                grade
-            );
-
-
-        if (!gradeRange) {
-
-            throw new Error(
-                `Unable to determine fee structure for "${grade}".`
-            );
-
-        }
-
-
-
-        /* ====================================================
-           💰 GET EXPECTED FEE
-           
-           ONLY ONE SMALL READ.
-           ==================================================== */
-
-        const feeSettingSnap =
-            await fastGet(
-                schoolRef(
-                    `settings/schoolFee/${year}/${gradeRange}`
-                )
-            );
+        const feeSettingSnap = await feeSettingPromise;
 
 
         const expectedTotal =
